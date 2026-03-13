@@ -1,0 +1,412 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #f97316;
+  --primary-dark: #ea580c;
+  --accent: #ef4444;
+  --success: #22c55e;
+
+  /* PREMIUM SHADOWS */
+  --shadow-premium-sm: 0 4px 20px -4px rgba(0, 0, 0, 0.05);
+  --shadow-premium-md: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+  --shadow-premium-lg: 0 20px 40px -12px rgba(0, 0, 0, 0.12);
+  --shadow-premium-xl: 0 30px 60px -15px rgba(0, 0, 0, 0.15);
+
+  /* ACCENT SHADOWS */
+  --shadow-orange-glow: 0 10px 30px -5px rgba(249, 115, 22, 0.2);
+  --shadow-orange-intense: 0 20px 40px -10px rgba(249, 115, 22, 0.3);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply text-slate-800 font-['Inter'] antialiased;
+    background-color: #f8fafc;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  @media (max-width: 768px) {
+    body {
+      padding-bottom: 7rem;
+    }
+  }
+
+  /* ──────── PREMIUM SCROLLBAR ──────── */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-200 rounded-full transition-colors;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-orange-400;
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #e2e8f0 transparent;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-['Outfit'] tracking-tight;
+  }
+
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Global keyboard focus override strictly for accessibility */
+  *:focus-visible {
+    outline: 3px solid #f97316 !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.2) !important;
+  }
+}
+
+@layer components {
+
+  /* ──────── BUTTONS ──────── */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl shadow-md shadow-orange-500/25 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 font-bold px-6 py-3 rounded-xl transition-all duration-200 border border-slate-200 text-sm;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 border-2 border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white font-bold px-6 py-3 rounded-xl transition-all duration-200 text-sm;
+  }
+
+  .btn-deal {
+    @apply inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-black px-5 py-2.5 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 text-sm uppercase tracking-wide shadow-md shadow-orange-500/30;
+  }
+
+  .btn-deal-outline {
+    @apply inline-flex items-center justify-center gap-2 border-2 border-orange-500 text-orange-600 hover:bg-orange-50 font-bold px-5 py-2.5 rounded-xl transition-all duration-200 text-sm;
+  }
+
+  /* ──────── CARDS ──────── */
+  .card {
+    @apply bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-lg transition-all duration-300;
+  }
+
+  .deal-card {
+    @apply bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-orange-100 transition-all duration-300 overflow-hidden;
+  }
+
+  /* ──────── BADGES ──────── */
+  .badge-discount {
+    @apply absolute top-3 left-3 z-20 bg-red-500 text-white text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide shadow;
+  }
+
+  .badge-hot {
+    @apply inline-flex items-center gap-1 bg-orange-100 text-orange-600 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide;
+  }
+
+  .badge-store {
+    @apply inline-flex items-center gap-1.5 bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide;
+  }
+
+  /* ──────── NAVBAR ──────── */
+  .navbar-link {
+    @apply text-slate-600 hover:text-orange-500 font-semibold text-sm transition-colors duration-200 relative;
+  }
+
+  .navbar-link-active {
+    @apply text-orange-500 font-bold;
+  }
+
+  /* ──────── INPUTS ──────── */
+  .input-light {
+    @apply w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 transition-all text-sm font-medium;
+  }
+
+  .search-bar {
+    @apply w-full bg-slate-100 border border-transparent rounded-xl py-3 px-4 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 transition-all text-sm font-medium;
+  }
+
+  /* ──────── SECTIONS ──────── */
+  .section-header {
+    @apply flex items-center justify-between mb-6;
+  }
+
+  .section-title {
+    @apply text-xl sm:text-2xl font-black text-slate-900 tracking-tight;
+  }
+
+  /* ──────── CATEGORY CHIP ──────── */
+  .category-chip {
+    @apply flex flex-col items-center gap-1.5 px-4 py-3 rounded-2xl bg-white border border-slate-100 shadow-sm hover:border-orange-200 hover:shadow-md transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 snap-start;
+  }
+
+  .category-chip-active {
+    @apply border-orange-400 bg-orange-50 shadow-md shadow-orange-100;
+  }
+
+  /* ──────── ADMIN SIDEBAR ──────── */
+  .admin-nav-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-orange-50 hover:text-orange-600 font-semibold text-sm transition-all duration-200 cursor-pointer;
+  }
+
+  .admin-nav-active {
+    @apply bg-orange-500 text-white shadow-md shadow-orange-500/25;
+  }
+
+  .admin-stat-card {
+    @apply bg-white rounded-2xl border border-slate-100 shadow-sm p-6;
+  }
+
+  /* ──────── PRICE DISPLAY ──────── */
+  .price-deal {
+    @apply text-2xl font-black text-slate-900;
+  }
+
+  .price-mrp {
+    @apply text-sm text-slate-400 line-through font-medium;
+  }
+
+  .price-off {
+    @apply text-sm font-bold text-green-600;
+  }
+
+  /* ──────── STORES HEADER ──────── */
+  .stores-header {
+    @apply bg-white border-b border-slate-100;
+  }
+
+  .stores-header-content {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16;
+  }
+
+  .stores-header-layout {
+    @apply flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 md:gap-10;
+  }
+
+  .stores-header-text-section {
+    @apply space-y-3 md:space-y-4;
+  }
+
+  .stores-header-category-tag {
+    @apply text-orange-500 text-[10px] md:text-xs font-black uppercase tracking-widest;
+  }
+
+  .stores-header-title {
+    @apply text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-slate-900 leading-tight;
+  }
+
+  .stores-header-title-accent {
+    @apply text-orange-500;
+  }
+
+  .stores-header-description {
+    @apply text-sm md:text-lg text-slate-500 font-medium max-w-xl;
+  }
+
+  .stores-header-stats-grid {
+    @apply grid grid-cols-3 gap-4 md:gap-8 w-full lg:w-auto;
+  }
+
+  .stores-header-stat-item {
+    @apply text-center space-y-1;
+  }
+
+  .stores-header-stat-value {
+    @apply text-2xl md:text-4xl font-black text-slate-900;
+  }
+
+  .stores-header-stat-label {
+    @apply text-[8px] md:text-xs font-bold text-slate-400 uppercase tracking-widest;
+  }
+}
+
+@layer utilities {
+
+  .container-responsive {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* ──────── PREMIUM UTILITIES ──────── */
+  .aspect-square-product {
+    aspect-ratio: 1 / 1;
+    @apply w-full h-full object-contain;
+  }
+
+  .glass-premium {
+    @apply bg-white/70 backdrop-blur-xl border border-white/50;
+  }
+
+  .glass-dark {
+    @apply bg-slate-900/80 backdrop-blur-xl border border-white/10;
+  }
+
+  .premium-gradient-orange {
+    @apply bg-gradient-to-br from-orange-400 to-red-600;
+  }
+
+  .hover-lift {
+    @apply transition-all duration-300 hover:-translate-y-2 hover:shadow-premium-lg;
+  }
+
+  .transition-premium {
+    @apply transition-all duration-500 ease-in-out;
+  }
+}
+
+.gradient-text-orange {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-red-500;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ──────── ANIMATIONS ──────── */
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes blob {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+@keyframes ticker {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker {
+  animation: ticker 30s linear infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+/* ──────── SKELETON ──────── */
+.skeleton {
+  @apply rounded-lg;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ──────── DEAL BADGE ──────── */
+.deal-badge {
+  @apply absolute top-2 left-2 z-20 text-[9px] font-black px-2 py-1 rounded-lg uppercase tracking-wide shadow-lg;
+}
+
+/* ──────── ORANGE TOP BAR ──────── */
+.orange-top-bar {
+  @apply h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-red-500;
+}
+
+/* ──────── COUPON CODE ──────── */
+.coupon-code {
+  @apply font-mono font-black text-orange-600 bg-orange-50 border-2 border-dashed border-orange-300 px-3 py-1.5 rounded-lg text-xs tracking-widest uppercase;
+}
+
+/* ──────── RESPONSIVE UTILS ──────── */
+@media (max-width: 640px) {
+
+  button,
+  a,
+  [role="button"] {
+    min-height: 40px;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
