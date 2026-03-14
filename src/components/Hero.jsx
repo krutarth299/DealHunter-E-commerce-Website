@@ -121,15 +121,15 @@ const Hero = ({ deals = [] }) => {
     return (
         <section className="w-full bg-white overflow-hidden pt-0">
             {/* ── Main Slide Banner ── */}
-            <div className="relative overflow-hidden">
-                <AnimatePresence mode="wait">
+            <div className="relative overflow-hidden h-[420px] md:h-[480px]">
+                <AnimatePresence>
                     <motion.div
                         key={current}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.8 }}
-                        className={`relative bg-gradient-to-br ${slide.bg} min-h-[420px] md:min-h-[480px] flex items-center overflow-hidden`}
+                        className={`absolute inset-0 bg-gradient-to-br ${slide.bg} flex items-center overflow-hidden`}
                     >
                         {/* Mesh Gradients */}
                         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 animate-pulse" />

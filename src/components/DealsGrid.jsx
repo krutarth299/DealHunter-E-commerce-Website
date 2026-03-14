@@ -88,7 +88,7 @@ const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0, onQuickView 
             className={`group relative bg-white rounded-[2.2rem] border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.08)] transition-all duration-500 flex flex-col overflow-hidden h-full ${deal.isExpired ? 'opacity-60 grayscale cursor-not-allowed' : 'cursor-pointer hover:border-transparent'}`}
         >
             {/* ── Image Section ── */}
-            <div className="relative w-full aspect-[4/3] bg-white p-6 flex items-center justify-center overflow-hidden border-b border-slate-50 relative">
+            <div className="relative w-full h-[220px] bg-white p-6 flex items-center justify-center overflow-hidden border-b border-slate-50">
                 {deal.isExpired && (
                     <div className="absolute inset-0 bg-slate-50/70 backdrop-blur-sm z-40 flex items-center justify-center">
                         <span className="bg-slate-800 text-white font-black text-[10px] px-4 py-1.5 rounded-xl tracking-widest shadow-lg uppercase">
