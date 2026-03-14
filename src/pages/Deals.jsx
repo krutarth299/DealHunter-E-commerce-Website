@@ -131,41 +131,52 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
     const filteredDeals = getFilteredDeals();
 
     const FilterContent = () => (
-        <div className="space-y-10">
+        <div className="space-y-12">
             {/* Categories */}
-            <div className="space-y-4">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <Layers size={14} /> Category
-                </h3>
-                <div className="flex flex-col gap-2">
+            <div className="space-y-8">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-[11px] font-[1000] text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                        <div className="w-1.5 h-4 bg-orange-500 rounded-full" /> Categories
+                    </h3>
+                    <span className="text-[10px] font-black text-slate-300 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-lg">
+                        {categories.length + 1}
+                    </span>
+                </div>
+                <div className="flex flex-col gap-2.5">
                     <button
                         onClick={() => { setSelectedCategory('All'); setIsMobileFilterOpen(false); }}
-                        className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl text-sm font-bold transition-all text-left border
-                ${selectedCategory === 'All'
-                                ? 'bg-orange-500 text-white border-orange-500 shadow-lg shadow-orange-500/20'
-                                : 'bg-slate-50 text-slate-600 border-transparent hover:bg-orange-50 hover:text-orange-600'
+                        className={`group flex items-center gap-4 px-5 py-4 rounded-2xl text-[13px] font-black transition-all text-left border relative overflow-hidden
+                            ${selectedCategory === 'All'
+                                ? 'bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-900/20'
+                                : 'bg-white text-slate-500 border-slate-100 hover:border-orange-200 hover:text-orange-600 hover:shadow-lg hover:shadow-orange-500/5'
                             }`}
                     >
-                        <Layers size={16} strokeWidth={2} />
-                        All
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${selectedCategory === 'All' ? 'bg-white/10' : 'bg-slate-50 group-hover:bg-orange-50 group-hover:text-orange-600'}`}>
+                            <ShoppingBag size={18} strokeWidth={2.5} />
+                        </div>
+                        <span className="flex-1 uppercase tracking-wider">Infinity Feed</span>
+                        {selectedCategory === 'All' && <motion.div layoutId="filter-active" className="absolute right-4 w-1.5 h-4 bg-orange-500 rounded-full" />}
                     </button>
+
                     {categories.map(catName => {
                         const style = getCategoryStyle(catName);
                         const Icon = style.icon;
+                        const isActive = selectedCategory === catName;
                         return (
                             <button
                                 key={catName}
                                 onClick={() => { setSelectedCategory(catName); setIsMobileFilterOpen(false); }}
-                                className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl text-sm font-bold transition-all text-left border group
-                ${selectedCategory === catName
-                                        ? 'bg-orange-500 text-white border-orange-500 shadow-lg shadow-orange-500/20'
-                                        : 'bg-slate-50 text-slate-600 border-transparent hover:bg-orange-50 hover:text-orange-600'
+                                className={`group flex items-center gap-4 px-5 py-4 rounded-2xl text-[13px] font-black transition-all text-left border relative overflow-hidden
+                                    ${isActive
+                                        ? 'bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-900/20'
+                                        : 'bg-white text-slate-500 border-slate-100 hover:border-orange-200 hover:text-orange-600 hover:shadow-lg hover:shadow-orange-500/5'
                                     }`}
                             >
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${selectedCategory === catName ? 'bg-white/20' : `${style.bg} ${style.icon_color} group-hover:bg-orange-100`}`}>
-                                    <Icon size={14} strokeWidth={2.5} />
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${isActive ? 'bg-white/10' : `${style.bg} ${style.icon_color} group-hover:scale-110 shadow-sm`}`}>
+                                    <Icon size={18} strokeWidth={2.5} />
                                 </div>
-                                <span className="flex-1 truncate">{catName}</span>
+                                <span className="flex-1 uppercase tracking-wider truncate">{catName}</span>
+                                {isActive && <motion.div layoutId="filter-active" className="absolute right-4 w-1.5 h-4 bg-orange-500 rounded-full" />}
                             </button>
                         );
                     })}
@@ -173,22 +184,23 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
             </div>
 
             {/* Price */}
-            <div className="space-y-4">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <Tag size={14} /> Price Range
+            <div className="space-y-8">
+                <h3 className="text-[11px] font-[1000] text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <div className="w-1.5 h-4 bg-blue-500 rounded-full" /> Smart Pricing
                 </h3>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2.5">
                     {PRICE_RANGES.map(range => (
                         <button
                             key={range.label}
                             onClick={() => { setPriceRange(range); setIsMobileFilterOpen(false); }}
-                            className={`px-5 py-3.5 rounded-2xl text-sm font-bold transition-all text-left border
-                ${priceRange.label === range.label
-                                    ? 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20'
-                                    : 'bg-slate-50 text-slate-600 border-transparent hover:bg-blue-50 hover:text-blue-600'
+                            className={`group px-6 py-4 rounded-2xl text-[11px] font-black transition-all text-left border uppercase tracking-widest relative overflow-hidden
+                                ${priceRange.label === range.label
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-xl shadow-blue-600/20'
+                                    : 'bg-white text-slate-500 border-slate-100 hover:border-blue-200 hover:text-blue-600 hover:shadow-lg'
                                 }`}
                         >
                             {range.label}
+                            {priceRange.label === range.label && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
                         </button>
                     ))}
                 </div>
@@ -203,66 +215,101 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
             <Modal isOpen={isAddDealOpen} onClose={() => setIsAddDealOpen(false)} title="Add a Deal" onSubmit={handleAddDeal} dealForm={dealForm} setDealForm={setDealForm} />
 
             {/* ─── Page Header ─── */}
-            <div className="bg-white border-b border-slate-100 pt-24 pb-0">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="py-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                        <div className="space-y-1">
-                            <p className="text-orange-500 text-xs font-black uppercase tracking-widest">Live Database</p>
-                            <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-4 flex-wrap">
-                                {selectedStore !== 'All' ? `${selectedStore} Deals` : 'All Deals'}
-                                <span className="text-2xl font-bold text-slate-300">({filteredDeals.length})</span>
-                                {selectedStore !== 'All' && (
-                                    <button
-                                        onClick={() => setSelectedStore('All')}
-                                        className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-500 px-3 py-1 rounded-full uppercase tracking-widest flex items-center gap-1.5 transition-colors"
-                                    >
-                                        <X size={12} /> Clear Store
-                                    </button>
+            <div className="bg-white border-b border-slate-100 relative overflow-hidden py-10 md:py-14">
+                {/* Mesh Gradients */}
+                <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-orange-50/60 blur-[150px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-blue-50/60 blur-[120px] rounded-full translate-y-1/2 -translate-x-1/3 pointer-events-none" />
+                
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                    <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-10">
+                        <div className="space-y-6 max-w-2xl">
+                            <motion.div 
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                className="inline-flex items-center gap-2.5 bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-xl border border-emerald-100"
+                            >
+                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500 mr-1"></span>
+                                Live Pulse Intelligence
+                            </motion.div>
+                            <h1 className="text-5xl md:text-7xl font-[1000] text-slate-900 tracking-tight leading-[0.9]">
+                                {selectedStore !== 'All' ? (
+                                    <>
+                                        Curated <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-600">{selectedStore}</span> 
+                                        <span className="block text-slate-400 mt-2">Intelligence</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        Elite <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-600">Deals</span>
+                                        <span className="block text-slate-400 mt-2">Command Center</span>
+                                    </>
                                 )}
                             </h1>
+                            <p className="text-slate-500 text-lg md:text-xl font-medium tracking-tight">
+                                Analyzing {filteredDeals.length} premium offers across India's top retailers.
+                            </p>
                         </div>
+                        
                         {/* Search bar */}
-                        <div className="relative w-full md:w-96">
-                            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-                            <input
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                placeholder="Search deals..."
-                                className="w-full h-14 pl-12 pr-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-semibold text-slate-900 outline-none focus:border-orange-400 focus:bg-white transition-all"
-                            />
+                        <div className="relative w-full md:w-[480px] group">
+                            <div className="absolute inset-0 bg-orange-500/5 blur-3xl rounded-[2.5rem] opacity-0 group-focus-within:opacity-100 transition-opacity" />
+                            <div className="relative flex items-center h-20 bg-white border-2 border-slate-100 rounded-3xl group-focus-within:border-orange-400/50 group-focus-within:shadow-[0_20px_50px_-10px_rgba(249,115,22,0.1)] transition-all overflow-hidden p-2">
+                                <div className="w-16 h-full flex items-center justify-center text-slate-400 group-focus-within:text-orange-500">
+                                    <Search size={24} strokeWidth={2.5} />
+                                </div>
+                                <input
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    placeholder="Search global intelligence..."
+                                    className="flex-1 bg-transparent border-none text-base font-bold text-slate-900 outline-none placeholder:text-slate-300"
+                                />
+                                {searchQuery && (
+                                    <button onClick={() => setSearchQuery('')} className="w-12 h-12 rounded-2xl bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-colors mr-1">
+                                        <X size={18} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
 
-                    {/* Category Pill Strip */}
-                    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-0 -mb-px">
+                    {/* Store Pill Strip */}
+                    <div className="flex items-center gap-4 overflow-x-auto no-scrollbar pt-12 pb-2 mt-4 scroll-smooth">
+                        <div className="flex items-center gap-3 mr-6 py-2 px-4 bg-slate-50 rounded-2xl border border-slate-100 shrink-0">
+                            <Zap size={18} className="text-orange-500" fill="currentColor" />
+                            <span className="text-[11px] font-[1000] text-slate-400 uppercase tracking-[0.1em]">Certified Merchants</span>
+                        </div>
+                        
                         <button
-                            onClick={() => setSelectedCategory('All')}
-                            className={`flex items-center gap-2 px-6 py-4 text-sm font-bold whitespace-nowrap transition-all border-b-2 flex-shrink-0
-                  ${selectedCategory === 'All'
-                                    ? 'border-orange-500 text-orange-600'
-                                    : 'border-transparent text-slate-500 hover:text-slate-900'
+                            onClick={() => setSelectedStore('All')}
+                            className={`h-12 px-8 rounded-2xl text-[11px] font-[1000] whitespace-nowrap transition-all border uppercase tracking-widest
+                                ${selectedStore === 'All'
+                                    ? 'bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-900/30'
+                                    : 'bg-white text-slate-500 border-slate-100 hover:border-orange-300 hover:text-orange-600 hover:shadow-lg'
                                 }`}
                         >
-                            <Layers size={16} strokeWidth={2} />
-                            All
+                            Global Source
                         </button>
-                        {categories.map(catName => {
-                            const style = getCategoryStyle(catName);
-                            const Icon = style.icon;
+                        {[...new Set(deals.map(d => d.store).filter(Boolean))].map(store => {
+                            const isActive = selectedStore === store;
                             return (
                                 <button
-                                    key={catName}
-                                    onClick={() => setSelectedCategory(catName)}
-                                    className={`flex items-center gap-2 px-6 py-4 text-sm font-black whitespace-nowrap transition-all border-b-2 flex-shrink-0 group
-                  ${selectedCategory === catName
-                                            ? 'border-orange-500 text-orange-600'
-                                            : 'border-transparent text-slate-400 hover:text-slate-900'
+                                    key={store}
+                                    onClick={() => setSelectedStore(store)}
+                                    className={`group h-12 px-6 rounded-2xl text-[11px] font-[1000] whitespace-nowrap transition-all border flex items-center gap-4 uppercase tracking-[0.05em]
+                                        ${isActive
+                                            ? 'bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-900/30'
+                                            : 'bg-white text-slate-500 border-slate-100 hover:border-orange-300 hover:text-orange-600 hover:shadow-lg'
                                         }`}
                                 >
-                                    <div className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors ${selectedCategory === catName ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'}`}>
-                                        <Icon size={12} strokeWidth={2.5} />
+                                    <div className={`w-8 h-8 rounded-xl bg-white flex items-center justify-center p-1.5 shadow-sm border border-slate-50 transition-all ${isActive ? 'scale-110' : 'grayscale group-hover:grayscale-0 group-hover:scale-110'}`}>
+                                        <img 
+                                            src={`https://www.google.com/s2/favicons?domain=${store.toLowerCase().replace(/\s/g, '')}.com&sz=48`} 
+                                            className="w-full h-full object-contain"
+                                            alt=""
+                                            onError={e => e.target.style.display = 'none'}
+                                        />
                                     </div>
-                                    {catName}
+                                    {store}
                                 </button>
                             );
                         })}
@@ -286,40 +333,64 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                     {/* Feed */}
                     <div className="flex-1 min-w-0">
                         {/* Toolbar */}
-                        <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
-                            <div className="flex items-center gap-3 text-sm font-bold text-slate-500">
-                                <Clock size={16} className="text-orange-500" />
-                                Updated 2 mins ago
+                        <div className="flex items-center justify-between mb-10 gap-6 flex-wrap">
+                            <div className="flex items-center gap-4 text-sm font-bold text-slate-400 bg-white px-5 py-3 rounded-2xl border border-slate-100 shadow-sm">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+                                    <span className="text-slate-900">Live Updates</span>
+                                </div>
+                                <div className="w-1 h-4 bg-slate-100 rounded-full mx-1" />
+                                <div className="flex items-center gap-2">
+                                    <Clock size={16} className="text-slate-300" />
+                                    <span>Just updated</span>
+                                </div>
                             </div>
                             <div className="flex items-center gap-4 flex-wrap">
                                 <button
                                     onClick={() => setIsMobileFilterOpen(true)}
-                                    className="lg:hidden flex items-center gap-2 h-12 px-6 rounded-2xl bg-white border border-slate-200 text-slate-700 text-sm font-bold shadow-sm"
+                                    className="lg:hidden flex items-center gap-3 h-14 px-8 rounded-2xl bg-white border border-slate-200 text-slate-800 text-sm font-black shadow-sm active:scale-95 transition-all"
                                 >
-                                    <Filter size={16} /> Filters
+                                    <SlidersHorizontal size={18} className="text-orange-500" /> Filters
                                 </button>
-                                <select
-                                    value={sortBy}
-                                    onChange={e => setSortBy(e.target.value)}
-                                    className="h-12 px-4 rounded-2xl bg-white border border-slate-200 text-sm font-bold text-slate-700 outline-none cursor-pointer shadow-sm"
-                                >
-                                    {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                </select>
+                                <div className="relative h-14 bg-white border border-slate-200 rounded-2xl shadow-sm px-4 flex items-center gap-2">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Sort By</span>
+                                    <select
+                                        value={sortBy}
+                                        onChange={e => setSortBy(e.target.value)}
+                                        className="bg-transparent border-none text-sm font-black text-slate-900 outline-none cursor-pointer pr-2"
+                                    >
+                                        {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
                         <DealsGrid deals={filteredDeals} wishlist={wishlist} toggleWishlist={toggleWishlist} />
 
                         {filteredDeals.length === 0 && (
-                            <div className="py-40 text-center space-y-6">
-                                <div className="text-6xl">🔍</div>
-                                <h3 className="text-2xl font-black text-slate-900">No deals found</h3>
-                                <p className="text-slate-500 font-medium">Try adjusting your filters or search query.</p>
-                                <button onClick={() => { setSelectedCategory('All'); setSelectedStore('All'); setSearchQuery(''); setPriceRange(PRICE_RANGES[0]); }}
-                                    className="h-12 px-8 rounded-2xl bg-orange-500 text-white font-black text-sm hover:bg-orange-600 transition-colors">
-                                    Clear All Filters
+                            <motion.div 
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="py-32 flex flex-col items-center text-center px-6"
+                            >
+                                <div className="w-32 h-32 rounded-[3.5rem] bg-slate-50 flex items-center justify-center mb-10 relative">
+                                    <div className="absolute inset-0 bg-orange-500/5 blur-3xl rounded-full" />
+                                    <Search size={56} className="text-slate-200" />
+                                    <div className="absolute -bottom-2 -right-2 w-12 h-12 rounded-2xl bg-white border border-slate-100 shadow-xl flex items-center justify-center text-2xl">
+                                        🤔
+                                    </div>
+                                </div>
+                                <h3 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">No deals found matching your criteria</h3>
+                                <p className="text-slate-500 font-medium max-w-sm leading-relaxed mb-12">
+                                    Try adjusting your filters or search keywords. You can also reset everything to see all live deals.
+                                </p>
+                                <button 
+                                    onClick={() => { setSelectedCategory('All'); setSelectedStore('All'); setSearchQuery(''); setPriceRange(PRICE_RANGES[0]); }}
+                                    className="h-16 px-12 rounded-[2rem] bg-slate-900 text-white font-black text-sm uppercase tracking-widest hover:bg-orange-500 transition-all shadow-2xl active:scale-95"
+                                >
+                                    Reset All Search Filters
                                 </button>
-                            </div>
+                            </motion.div>
                         )}
                     </div>
                 </div>

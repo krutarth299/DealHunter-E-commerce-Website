@@ -39,51 +39,66 @@ const Stores = ({ onSearch, user, wishlist, setIsAddDealOpen }) => {
             <SEO title="Partner Stores | DealHunter" description="Explore our network of verified partner stores for the best deals." />
             <Navbar user={user} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />
 
-            <main className="flex-grow pt-20">
-                {/* ─── Header Banner ─── */}
-                <div className="bg-white border-b border-slate-100">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
-                        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 md:gap-10">
-                            <div className="space-y-4 text-center lg:text-left w-full lg:w-auto">
-                                <p className="text-orange-500 text-[10px] md:text-xs font-black uppercase tracking-widest">Verified Partners</p>
-                                <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-slate-900 leading-tight">
-                                    Partner <span className="text-orange-500">Stores</span>
+            <main className="flex-grow">
+                {/* ─── Premium Header ─── */}
+                <div className="bg-white border-b border-slate-100 relative overflow-hidden">
+                    {/* Background decorations */}
+                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-orange-500/5 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
+                    <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/5 blur-[80px] rounded-full translate-y-1/2 -translate-x-1/3" />
+                    
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14 relative z-10">
+                        <div className="flex flex-col lg:flex-row items-center lg:items-end justify-between gap-12 text-center lg:text-left">
+                            <div className="space-y-6">
+                                <div className="inline-flex items-center gap-2 bg-orange-50 px-4 py-2 rounded-2xl border border-orange-100">
+                                    <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                                    <span className="text-[10px] md:text-xs font-black text-orange-600 uppercase tracking-widest">Global Merchant Network</span>
+                                </div>
+                                <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-slate-900 leading-[0.9]">
+                                    Our Partner <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-600">Stores.</span>
                                 </h1>
-                                <p className="text-sm md:text-lg text-slate-500 font-medium max-w-xl mx-auto lg:mx-0">
-                                    Exclusive tie-ups with India's most trusted marketplaces. Verified deals, real cashback.
+                                <p className="text-lg md:text-xl text-slate-500 font-medium max-w-xl mx-auto lg:mx-0 leading-relaxed">
+                                    We partner with India's most trusted marketplaces to bring you <span className="text-slate-900 font-bold">10,000+ verified deals</span> daily.
                                 </p>
                             </div>
-                            {/* Stats */}
-                            <div className="grid grid-cols-3 gap-4 md:gap-8 w-full lg:w-auto">
+
+                            {/* Stats Cards */}
+                            <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-[2.5rem] border border-slate-100 shadow-inner">
                                 {[
-                                    { value: '12+', label: 'Partners' },
-                                    { value: '5K+', label: 'Active Deals' },
-                                    { value: '24/7', label: 'Price Watch' },
-                                ].map(({ value, label }) => (
-                                    <div key={label} className="text-center space-y-1">
-                                        <p className="text-2xl md:text-4xl font-black text-slate-900">{value}</p>
-                                        <p className="text-[8px] md:text-xs font-bold text-slate-400 uppercase tracking-widest">{label}</p>
+                                    { value: '12+', label: 'PARTNERS' },
+                                    { value: '5K+', label: 'DEALS' },
+                                    { value: '24/7', label: 'MONITOR' },
+                                ].map((stat, i) => (
+                                    <div key={i} className="bg-white px-6 py-5 rounded-[2rem] shadow-sm border border-slate-100/50 flex flex-col items-center min-w-[100px] md:min-w-[120px]">
+                                        <p className="text-2xl md:text-3xl font-black text-slate-900">{stat.value}</p>
+                                        <p className="text-[8px] md:text-[9px] font-black text-slate-400 tracking-widest mt-1 uppercase">{stat.label}</p>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        {/* Search + Filters */}
-                        <div className="mt-12 flex flex-col md:flex-row gap-6">
-                            <div className="relative flex-1 max-w-2xl">
-                                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                        {/* Search & Filter Bar */}
+                        <div className="mt-12 flex flex-col md:flex-row gap-4 p-2 bg-white rounded-[2rem] border border-slate-200/60 shadow-xl shadow-slate-200/20 max-w-5xl mx-auto">
+                            <div className="relative flex-1 group">
+                                <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" />
                                 <input
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
-                                    placeholder="Search stores..."
-                                    className="w-full h-14 pl-12 pr-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:border-orange-400 focus:bg-white transition-all"
+                                    placeholder="Search for stores like Amazon, Myntra..."
+                                    className="w-full h-16 pl-16 pr-6 bg-transparent border-none text-base font-bold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-medium"
                                 />
                             </div>
-                            <div className="flex items-center gap-3 overflow-x-auto no-scrollbar">
+                            <div className="w-px h-10 bg-slate-100 self-center hidden md:block" />
+                            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2 px-2">
                                 {CATEGORIES.map(cat => (
-                                    <button key={cat} onClick={() => setActiveCategory(cat)}
-                                        className={`h-14 px-6 rounded-2xl text-sm font-bold whitespace-nowrap transition-all border
-                      ${activeCategory === cat ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-900'}`}>
+                                    <button 
+                                        key={cat} 
+                                        onClick={() => setActiveCategory(cat)}
+                                        className={`h-12 px-6 rounded-xl text-xs font-black whitespace-nowrap transition-all uppercase tracking-widest
+                                            ${activeCategory === cat 
+                                                ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/10' 
+                                                : 'text-slate-500 hover:text-orange-600 hover:bg-orange-50'
+                                            }`}
+                                    >
                                         {cat}
                                     </button>
                                 ))}
@@ -93,62 +108,69 @@ const Stores = ({ onSearch, user, wishlist, setIsAddDealOpen }) => {
                 </div>
 
                 {/* ─── Store Grid ─── */}
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
                         <AnimatePresence mode="popLayout">
                             {filtered.map((store, i) => (
                                 <motion.div
                                     layout
                                     key={store.name}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
-                                    transition={{ duration: 0.3, delay: i * 0.04 }}
-                                    tabIndex={0}
-                                    role="link"
-                                    aria-label={`View deals for ${store.name}`}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                            e.preventDefault();
-                                            navigate('/deals?store=' + store.name);
-                                        }
-                                    }}
-                                    className={`bg-white border-2 ${store.color} rounded-3xl p-8 flex flex-col gap-6 group cursor-pointer transition-all duration-300 hover:shadow-xl shadow-sm focus:outline-none focus-visible:ring-4 focus-visible:ring-orange-500`}
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.9 }}
+                                    transition={{ duration: 0.5, delay: i * 0.05, ease: [0.23, 1, 0.32, 1] }}
+                                    className="relative bg-white rounded-[3rem] border-2 border-transparent hover:border-orange-500/20 p-8 group cursor-pointer transition-all duration-500 shadow-premium hover:shadow-premium-lg flex flex-col gap-8 overflow-hidden"
                                     onClick={() => navigate('/deals?store=' + store.name)}
                                 >
-                                    {/* Top Row */}
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex items-center gap-5">
-                                            <div className="w-20 h-20 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                                                <img src={store.logo} alt={store.name} className="w-12 h-12 object-contain" />
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/40 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none" />
+                                    
+                                    <div className="flex items-start justify-between relative z-10">
+                                        <div className="flex items-center gap-6">
+                                            <div className="relative">
+                                                <div className="absolute inset-0 bg-orange-500/10 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
+                                                <div className="relative w-20 h-20 bg-white shadow-2xl shadow-slate-200/50 rounded-3xl flex items-center justify-center p-4 border border-slate-50 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
+                                                    <img src={store.logo} alt={store.name} className="w-full h-full object-contain" />
+                                                </div>
                                             </div>
                                             <div>
-                                                <h3 className="text-xl font-black text-slate-900 tracking-tight">{store.name}</h3>
-                                                <p className="text-sm text-slate-400 font-medium mt-0.5">{store.tagline}</p>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">{store.name}</h3>
+                                                    <CheckCircle2 size={16} className="text-blue-500" fill="currentColor" />
+                                                </div>
+                                                <p className="text-sm text-slate-400 font-bold leading-tight group-hover:text-slate-600 transition-colors uppercase tracking-wider">{store.tagline}</p>
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Badge + Stats */}
-                                    <div className="flex items-center gap-3 flex-wrap">
-                                        <span className={`text-xs font-black px-3 py-1.5 rounded-full ${store.badgeBg}`}>{store.badge}</span>
-                                        <span className="text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full">{store.category}</span>
+                                    <div className="flex flex-wrap gap-2 relative z-10">
+                                        <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl ${store.badgeBg} text-[10px] font-black uppercase tracking-widest shadow-sm`}>
+                                            {store.badge}
+                                        </div>
+                                        <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-slate-50 border border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                            {store.category}
+                                        </div>
                                     </div>
 
-                                    {/* Bottom Row */}
-                                    <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                                        <div className="space-y-0.5">
-                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Active Deals</p>
-                                            <p className="text-2xl font-black text-slate-900">{store.dealsCount.toLocaleString()}</p>
+                                    <div className="grid grid-cols-2 gap-4 pt-8 border-t border-slate-50 relative z-10">
+                                        <div className="bg-slate-50/50 p-4 rounded-2xl group-hover:bg-white group-hover:shadow-sm transition-all border border-transparent group-hover:border-slate-100">
+                                            <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">Active Deals</p>
+                                            <div className="flex items-baseline gap-1">
+                                                <span className="text-2xl font-black text-slate-900">{store.dealsCount.toLocaleString()}</span>
+                                                <span className="text-[10px] font-bold text-emerald-500">+12%</span>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-4">
-                                            <div className="text-right space-y-0.5">
-                                                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Rewards</p>
-                                                <p className={`text-sm font-black ${store.accent}`}>{store.cashback}</p>
+                                        <div className={`p-4 rounded-2xl border transition-all ${store.color} bg-white group-hover:shadow-md`}>
+                                            <p className="text-[9px] font-black opacity-40 uppercase tracking-[0.2em] mb-1">Max Benefit</p>
+                                            <div className="flex items-center gap-2">
+                                                <BadgePercent size={18} className={store.accent} />
+                                                <span className={`text-lg font-black ${store.accent}`}>{store.cashback}</span>
                                             </div>
-                                            <div className={`w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all -translate-x-4 group-hover:translate-x-0`}>
-                                                <ArrowRight size={20} />
-                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2 relative z-10">
+                                        <div className="w-full h-14 rounded-2xl bg-slate-900 group-hover:bg-orange-500 text-white font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-slate-900/10 group-hover:shadow-orange-500/20 active:scale-95 flex items-center justify-center gap-3">
+                                            Browse All Offers <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform duration-500" />
                                         </div>
                                     </div>
                                 </motion.div>
@@ -157,11 +179,28 @@ const Stores = ({ onSearch, user, wishlist, setIsAddDealOpen }) => {
                     </div>
 
                     {filtered.length === 0 && (
-                        <div className="py-40 text-center space-y-6">
-                            <div className="text-6xl">🏪</div>
-                            <h3 className="text-2xl font-black text-slate-900">No stores match</h3>
-                            <p className="text-slate-500">Try a different search or category filter.</p>
-                        </div>
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="py-40 flex flex-col items-center text-center px-6"
+                        >
+                            <div className="w-32 h-32 rounded-[3.5rem] bg-slate-50 flex items-center justify-center mb-10 relative">
+                                <Search size={56} className="text-slate-200" />
+                                <div className="absolute -bottom-2 -right-2 w-12 h-12 rounded-2xl bg-white border border-slate-100 shadow-xl flex items-center justify-center text-2xl font-bold">
+                                    🏪
+                                </div>
+                            </div>
+                            <h3 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">No Stores Found</h3>
+                            <p className="text-slate-500 font-medium max-w-sm leading-relaxed mb-12">
+                                We couldn't find any stores matching your search. Try a broader category or check your spelling.
+                            </p>
+                            <button 
+                                onClick={() => { setSearchTerm(''); setActiveCategory('All'); }}
+                                className="h-16 px-12 rounded-[2rem] bg-slate-900 text-white font-black text-sm uppercase tracking-widest hover:bg-orange-500 transition-all shadow-2xl active:scale-95"
+                            >
+                                Show All Stores
+                            </button>
+                        </motion.div>
                     )}
                 </div>
             </main>

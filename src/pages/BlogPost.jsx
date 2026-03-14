@@ -15,7 +15,7 @@ const renderBlock = (block, index) => {
                     {block.text}
                 </p>
             );
-        case 'heading':
+        case 'heading': {
             const id = block.text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
             return (
                 <h2 key={index} id={id} className="text-2xl md:text-3xl font-black text-slate-900 mt-14 mb-6 tracking-tight flex items-center gap-3 group">
@@ -23,6 +23,7 @@ const renderBlock = (block, index) => {
                     {block.text}
                 </h2>
             );
+        }
         case 'text':
             return (
                 <p key={index} id={`block-${index}`} className="text-slate-600 leading-relaxed text-lg md:text-xl font-medium mb-8">

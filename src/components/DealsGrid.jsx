@@ -1,7 +1,8 @@
-import React from 'react';
-import { Heart, ExternalLink, ShoppingBag, Star, Zap, TrendingDown, Flame, Search } from 'lucide-react';
+import React, { useState } from 'react';
+import { Heart, ExternalLink, ShoppingBag, Star, Zap, TrendingDown, Flame, Search, X, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useWishlistAnimation } from '../context/wishlistAnimationContextDefinition';
 
 const storeColors = {
     'Amazon': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-400' },
@@ -38,8 +39,9 @@ const getDiscountColor = (pct) => {
 /* ─── HOT threshold ─── */
 const isHotDeal = (discountNum) => discountNum && discountNum >= 40;
 
-const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0 }) => {
+const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0, onQuickView }) => {
     const navigate = useNavigate();
+    const { flyToWishlist } = useWishlistAnimation();
     const [activeImageIndex, setActiveImageIndex] = React.useState(0);
     const isSaved = wishlist.some(w => {
         const wId = w.id || w._id;
@@ -69,10 +71,10 @@ const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0 }) => {
 
     return (
         <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4, delay: index * 0.05, ease: 'easeOut' }}
-            whileHover={{ y: -4 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: index * 0.05, ease: 'easeOut' }}
+            whileHover={{ y: -8, scale: 1.01 }}
             onClick={() => !deal.isExpired && navigate(`/product/${deal.id || deal._id}`)}
             onKeyDown={(e) => {
                 if ((e.key === 'Enter' || e.key === ' ') && !deal.isExpired) {
@@ -83,14 +85,14 @@ const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0 }) => {
             tabIndex={0}
             role="button"
             aria-label={`View deal: ${deal.title}`}
-            className={`group relative bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(0,0,0,0.04)] hover:shadow-[0_10px_20px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col overflow-hidden h-full ${deal.isExpired ? 'opacity-60 grayscale cursor-not-allowed' : 'cursor-pointer hover:border-slate-300'}`}
+            className={`group relative bg-white rounded-[2.2rem] border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.08)] transition-all duration-500 flex flex-col overflow-hidden h-full ${deal.isExpired ? 'opacity-60 grayscale cursor-not-allowed' : 'cursor-pointer hover:border-transparent'}`}
         >
             {/* ── Image Section ── */}
-            <div className="relative w-full aspect-[4/3] bg-white p-4 flex items-center justify-center overflow-hidden border-b border-slate-100">
+            <div className="relative w-full aspect-[4/3] bg-white p-6 flex items-center justify-center overflow-hidden border-b border-slate-50 relative">
                 {deal.isExpired && (
                     <div className="absolute inset-0 bg-slate-50/70 backdrop-blur-sm z-40 flex items-center justify-center">
-                        <span className="bg-slate-800 text-white font-bold text-xs px-3 py-1 rounded-md tracking-wider shadow-sm uppercase">
-                            Expired
+                        <span className="bg-slate-800 text-white font-black text-[10px] px-4 py-1.5 rounded-xl tracking-widest shadow-lg uppercase">
+                            Offer Expired
                         </span>
                     </div>
                 )}
@@ -100,137 +102,297 @@ const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0 }) => {
                     <img 
                         src={(deal.images && deal.images.length > 0) ? deal.images[0] : (deal.image || '')} 
                         alt={deal.title}
-                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 mix-blend-multiply"
+                        className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-md"
                         onError={e => { e.target.style.display = 'none'; }}
                     />
-                    {!deal.image && (!deal.images || deal.images.length === 0) && (
-                        <div className="w-full h-full flex items-center justify-center">
-                            <ShoppingBag size={40} className="text-slate-200" />
+                </div>
+
+                {/* Top Left Badges */}
+                <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
+                    {discountNum && discountNum > 0 && (
+                        <div className="bg-emerald-600 text-white text-[10px] font-black px-3 py-1.5 rounded-xl shadow-lg shadow-emerald-600/20 uppercase tracking-widest flex items-center gap-1.5">
+                            <Zap size={12} fill="currentColor" /> {discountNum}% OFF
+                        </div>
+                    )}
+                    {hot && (
+                        <div className="bg-orange-500 text-white text-[9px] font-black px-2.5 py-1 rounded-lg shadow-lg shadow-orange-500/20 flex items-center gap-1 w-fit uppercase tracking-tighter">
+                            <Flame size={12} fill="currentColor" /> HOT
                         </div>
                     )}
                 </div>
 
-                {/* Top Badges */}
-                <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10">
-                    {discountNum && discountNum > 0 && (
-                        <span className="bg-[#E5F6EE] text-[#008A3D] text-[11px] font-extrabold px-2.5 py-1 rounded-md shadow-sm border border-[#008A3D]/20 leading-none flex items-center">
-                            {discountNum}% OFF
-                        </span>
-                    )}
-                    {hot && (
-                        <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm border border-orange-200 flex items-center gap-0.5 w-fit leading-none">
-                            <Flame size={10} className="text-orange-600" /> HOT
-                        </span>
-                    )}
+                {/* Quick View Button (Slide Up) */}
+                <div className="absolute inset-x-0 bottom-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out z-20">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onQuickView?.(deal); }}
+                        className="w-full bg-slate-900/90 backdrop-blur-md text-white font-black text-[10px] uppercase tracking-widest py-3 rounded-2xl shadow-xl hover:bg-orange-600 transition-colors"
+                    >
+                        Quick View
+                    </button>
                 </div>
 
-                {/* Wishlist */}
+                {/* Wishlist Button */}
                 <button
-                    onClick={e => { e.preventDefault(); e.stopPropagation(); toggleWishlist?.(deal); }}
-                    className={`absolute top-2.5 right-2.5 w-8 h-8 bg-white/90 backdrop-blur shadow-sm rounded-full flex items-center justify-center transition-all duration-300 z-30 border border-slate-100 ${isSaved ? 'text-red-500' : 'text-slate-400 hover:text-red-500'}`}
+                    onClick={e => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        toggleWishlist?.(deal); 
+                    }}
+                    className={`absolute top-4 right-4 w-10 h-10 bg-white/90 backdrop-blur-lg shadow-sm rounded-2xl flex items-center justify-center transition-all duration-300 z-30 border border-slate-100 ${isSaved ? 'text-red-500' : 'text-slate-400 hover:text-red-500 active:scale-90 hover:shadow-lg'}`}
                 >
-                    <Heart size={16} fill={isSaved ? 'currentColor' : 'none'} strokeWidth={isSaved ? 0 : 2} className={isSaved ? "scale-110" : "scale-100"} />
+                    <Heart size={18} fill={isSaved ? 'currentColor' : 'none'} strokeWidth={isSaved ? 0 : 2} className={isSaved ? "scale-110" : "scale-100"} />
                 </button>
             </div>
 
             {/* ── Content Section ── */}
-            <div className="flex flex-col flex-1 p-4 bg-white relative z-20">
-                {/* Store Name & Rating */}
-                <div className="flex items-center justify-between mb-2">
+            <div className="flex flex-col flex-1 p-5 bg-white relative z-20">
+                {/* Store Branding */}
+                <div className="flex items-center justify-between mb-3">
                     {deal.store ? (
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                            <span className={`w-[3px] h-[3px] rounded-full ${storeStyle.dot}`}></span>
-                            {deal.store}
+                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-xl">
+                            <div className="w-4 h-4 rounded-full bg-white flex items-center justify-center p-0.5 shadow-sm">
+                                <img 
+                                    src={`https://www.google.com/s2/favicons?domain=${deal.store.toLowerCase().replace(/\s/g, '')}.com&sz=64`} 
+                                    alt={deal.store}
+                                    className="w-full h-full object-contain"
+                                    onError={e => { e.target.parentElement.innerHTML = `<span class="w-full h-full flex items-center justify-center text-[8px] font-black">${deal.store[0]}</span>`; }}
+                                />
+                            </div>
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{deal.store}</span>
                         </div>
                     ) : <div />}
                     
                     {deal.rating && (
-                        <div className="flex items-center gap-1 bg-yellow-50 border border-yellow-200/50 text-yellow-700 px-1.5 py-0.5 rounded-md text-[11px] font-extrabold shadow-sm">
-                            <Star size={10} fill="currentColor" className="text-yellow-500" />
+                        <div className="flex items-center gap-1 text-orange-500 text-xs font-black">
+                            <Star size={12} fill="currentColor" />
                             {deal.rating}
                         </div>
                     )}
                 </div>
 
                 {/* Title */}
-                <h3 className="text-[14px] font-semibold text-slate-800 line-clamp-2 leading-snug mb-3 group-hover:text-blue-600 transition-colors">
+                <h3 className="text-sm font-extrabold text-slate-800 line-clamp-2 leading-tight mb-4 group-hover:text-blue-600 transition-colors min-h-[2.5rem]">
                     {deal.title}
                 </h3>
 
-                {/* Price, MRP and Button Container */}
-                <div className="mt-auto flex flex-col gap-3">
-                    {/* Prices */}
-                    <div className="flex flex-col">
-                        <div className="flex items-end gap-2">
-                            {price ? (
-                                <span className="text-[20px] font-black text-slate-900 tracking-tight leading-none">{price}</span>
-                            ) : (
-                                <span className="text-sm font-semibold text-blue-600">Check Price</span>
-                            )}
-                            {mrp && price && mrp !== price && (
-                                <span className="text-[12px] font-semibold text-slate-400 line-through leading-relaxed mb-0.5">{mrp}</span>
+                {/* Price & Action Row */}
+                <div className="mt-auto flex flex-col gap-4">
+                    <div className="flex items-end justify-between">
+                        <div className="flex flex-col">
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-xl font-black text-slate-900 tracking-tighter">{price || 'Check Price'}</span>
+                                {mrp && price && mrp !== price && (
+                                    <span className="text-xs font-bold text-slate-400 line-through opacity-60 tracking-tighter">{mrp}</span>
+                                )}
+                            </div>
+                            {savings && (
+                                <div className="text-[10px] font-black text-emerald-600 mt-0.5 flex items-center gap-1 uppercase tracking-tighter">
+                                    <Zap size={10} fill="currentColor" /> Save {savings}
+                                </div>
                             )}
                         </div>
-                        {savings && (
-                            <div className="text-[11px] font-bold text-emerald-600 mt-1 flex items-center gap-1">
-                                <Zap size={10} fill="currentColor" /> Save {savings}
+                        
+                        {(index % 3 === 0) && (
+                            <div className="bg-blue-50 text-blue-600 text-[8px] font-black px-2 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1 border border-blue-100">
+                                <TrendingDown size={10} /> Best Trend
                             </div>
                         )}
                     </div>
 
-                    {/* Button */}
+                    {/* Main CTA */}
                     <button
                         onClick={deal.isExpired ? (e) => { e.preventDefault(); e.stopPropagation(); } : handleGetDeal}
-                        className={`w-full flex items-center justify-center gap-1.5 font-bold py-2.5 rounded-xl text-sm transition-all duration-300 ${deal.isExpired ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white shadow-[0_4px_12px_rgba(37,99,235,0.2)] hover:shadow-[0_6px_16px_rgba(37,99,235,0.3)]'}`}
+                        className={`w-full flex items-center justify-center gap-2 font-black py-3.5 rounded-2xl text-[11px] uppercase tracking-widest transition-all duration-500 ${deal.isExpired ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white shadow-[0_10px_20px_-5px_rgba(37,99,235,0.3)] hover:shadow-[0_15px_30px_-5px_rgba(37,99,235,0.4)] hover:bg-blue-700 active:scale-[0.97]'}`}
                     >
-                        {deal.isExpired ? 'Offer Ended' : 'Get Deal'}
-                        {!deal.isExpired && <ExternalLink size={14} strokeWidth={2.5} />}
+                        {deal.isExpired ? 'Sold Out' : 'Grab Deal'}
+                        {!deal.isExpired && <ExternalLink size={14} strokeWidth={3} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />}
                     </button>
                 </div>
             </div>
+
+            {/* Interactive Shine */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none" />
         </motion.div>
     );
 };
 
 const DealsGrid = ({ deals = [], wishlist = [], toggleWishlist }) => {
+    const [quickViewProduct, setQuickViewProduct] = useState(null);
     const validDeals = (Array.isArray(deals) ? deals : []).filter(d => d && (d.title || d.store));
 
     if (validDeals.length === 0) {
         return (
             <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="col-span-full flex flex-col items-center justify-center py-20 px-4 text-center glass-panel rounded-3xl border border-slate-100 min-h-[400px]"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="col-span-full flex flex-col items-center justify-center py-24 px-6 text-center bg-white rounded-[3.5rem] border border-dashed border-slate-200 min-h-[500px] relative overflow-hidden"
             >
-                <div className="w-24 h-24 bg-gradient-to-br from-slate-100 to-slate-50 rounded-[2rem] flex items-center justify-center mb-6 shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)] border border-white">
-                    <Search size={40} className="text-slate-300" strokeWidth={1.5} />
-                </div>
-                <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2">No Deals Found</h3>
-                <p className="text-slate-500 font-medium max-w-sm mb-8">
-                    We couldn't find any deals matching your current filters or search terms.
+                <div className="absolute top-0 left-0 w-32 h-32 bg-slate-50/50 blur-3xl rounded-full" />
+                <div className="absolute bottom-0 right-0 w-48 h-48 bg-slate-50/50 blur-3xl rounded-full" />
+                
+                <motion.div 
+                    animate={{ y: [0, -15, 0] }}
+                    transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+                    className="w-28 h-28 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-10 shadow-[inset_0_4px_12px_rgba(0,0,0,0.03)] border border-white relative z-10"
+                >
+                    <Search size={44} className="text-slate-200" strokeWidth={1} />
+                </motion.div>
+                <h3 className="text-3xl font-black text-slate-900 tracking-tight mb-4">No Intel Matches</h3>
+                <p className="text-slate-500 font-medium max-w-sm mb-12 text-lg leading-relaxed">
+                    Our sensors couldn't find any deals matching your current search parameters. 
                 </p>
                 <a
                     href="/deals"
-                    className="bg-slate-900 hover:bg-orange-500 text-white px-8 py-3.5 rounded-xl font-bold transition-colors shadow-lg shadow-orange-500/0 hover:shadow-orange-500/20 flex items-center gap-2"
+                    className="bg-slate-900 hover:bg-orange-500 text-white px-10 py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-2xl shadow-slate-900/10 hover:shadow-orange-500/30 hover:translate-y-[-4px] active:scale-95"
                 >
-                    Clear All Filters
+                    Clear Search Grid
                 </a>
             </motion.div>
         );
     }
 
     return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-            {validDeals.map((deal, i) => (
-                <DealCard
-                    key={deal.id || deal._id || i}
-                    deal={deal}
-                    wishlist={wishlist}
-                    toggleWishlist={toggleWishlist}
-                    index={i}
-                />
-            ))}
-        </div>
+        <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
+                {validDeals.map((deal, i) => (
+                    <DealCard
+                        key={deal.id || deal._id || i}
+                        deal={deal}
+                        wishlist={wishlist}
+                        toggleWishlist={toggleWishlist}
+                        index={i}
+                        onQuickView={setQuickViewProduct}
+                    />
+                ))}
+            </div>
+
+            {/* Quick View Modal */}
+            <AnimatePresence>
+                {quickViewProduct && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <motion.div 
+                            initial={{ opacity: 0 }} 
+                            animate={{ opacity: 1 }} 
+                            exit={{ opacity: 0 }}
+                            onClick={() => setQuickViewProduct(null)}
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                        />
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.9, y: 30 }} 
+                            animate={{ opacity: 1, scale: 1, y: 0 }} 
+                            exit={{ opacity: 0, scale: 0.9, y: 30 }}
+                            className="relative bg-white border border-slate-100 rounded-[3rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.4)] w-full max-w-5xl overflow-hidden flex flex-col md:flex-row max-h-[85vh] z-10"
+                        >
+                            {/* Left: Enhanced Image Container */}
+                            <div className="w-full md:w-[45%] p-10 bg-slate-50/50 flex items-center justify-center relative group">
+                                <div className="absolute inset-0 bg-gradient-to-br from-white via-transparent to-slate-100/30 opacity-50" />
+                                <img 
+                                    src={(quickViewProduct.images && quickViewProduct.images.length > 0) ? quickViewProduct.images[0] : (quickViewProduct.image || '')} 
+                                    alt="" 
+                                    className="max-h-[400px] w-full object-contain mix-blend-multiply drop-shadow-2xl group-hover:scale-105 transition-transform duration-700" 
+                                />
+                                <button 
+                                    onClick={() => setQuickViewProduct(null)} 
+                                    className="absolute top-6 left-6 w-12 h-12 rounded-2xl bg-white/80 backdrop-blur-md border border-white flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all hover:rotate-90 md:hidden shadow-lg"
+                                >
+                                    <X size={20} />
+                                </button>
+                                
+                                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-200" />
+                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-200" />
+                                </div>
+                            </div>
+
+                            {/* Right: Premium Info Panel */}
+                            <div className="w-full md:w-[55%] p-10 md:p-14 lg:p-16 flex flex-col relative overflow-y-auto">
+                                <div className="absolute top-0 right-0 p-8 hidden md:block">
+                                    <button 
+                                        onClick={() => setQuickViewProduct(null)} 
+                                        className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all hover:bg-slate-100 group"
+                                    >
+                                        <X size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+                                    </button>
+                                </div>
+
+                                <div className="flex flex-col h-full">
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <span className="bg-orange-50 border border-orange-100 text-orange-600 text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest leading-none">
+                                            {quickViewProduct.category}
+                                        </span>
+                                        <div className="h-1 w-1 rounded-full bg-slate-200" />
+                                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                            <ShieldCheck size={14} className="text-emerald-500" /> Verified Deal
+                                        </div>
+                                    </div>
+
+                                    <h3 className="text-3xl md:text-4xl font-[1000] text-slate-900 leading-[1.1] mb-6 tracking-tight">
+                                        {quickViewProduct.title}
+                                    </h3>
+                                    
+                                    <div className="flex items-end gap-5 mb-10">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Price</span>
+                                            <span className="text-5xl font-black text-slate-900 tracking-tighter">{formatPrice(quickViewProduct.price)}</span>
+                                        </div>
+                                        {quickViewProduct.originalPrice && (
+                                            <div className="flex flex-col mb-1.5">
+                                                <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Was</span>
+                                                <span className="text-xl font-bold text-slate-300 line-through tracking-tight decoration-slate-300/50">{formatPrice(quickViewProduct.originalPrice)}</span>
+                                            </div>
+                                        )}
+                                        {quickViewProduct.discount && (
+                                            <div className="mb-1.5 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-[11px] font-[1000] uppercase tracking-widest shadow-sm border border-emerald-100">
+                                                {quickViewProduct.discount} OFF
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4 mb-12">
+                                        <div className="p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex flex-col gap-1 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 cursor-default">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                <ShoppingBag size={12} className="text-blue-500" /> Source
+                                            </span>
+                                            <span className="text-base font-black text-slate-900">{quickViewProduct.store}</span>
+                                        </div>
+                                        <div className="p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex flex-col gap-1 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 cursor-default">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                <Flame size={12} className="text-orange-500" /> Intelligence
+                                            </span>
+                                            <span className="text-base font-black text-slate-900">Highly Rated</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Footer Actions */}
+                                    <div className="mt-auto pt-10 border-t border-slate-50 flex flex-col sm:flex-row gap-4">
+                                        <button 
+                                            onClick={() => {
+                                                if (quickViewProduct.link) window.open(quickViewProduct.link, '_blank');
+                                                setQuickViewProduct(null);
+                                            }}
+                                            className="flex-1 bg-slate-900 hover:bg-orange-500 text-white font-[1000] py-5 px-8 rounded-2xl shadow-2xl shadow-slate-900/10 hover:shadow-orange-500/30 transition-all active:scale-95 flex items-center justify-center gap-3 uppercase text-xs tracking-[0.1em]"
+                                        >
+                                            Secure This Deal <ExternalLink size={18} strokeWidth={2.5} />
+                                        </button>
+                                        <button 
+                                            onClick={() => toggleWishlist?.(quickViewProduct)}
+                                            className={`h-16 w-full sm:w-20 rounded-2xl border transition-all flex items-center justify-center group ${wishlist.some(w => (w.id || w._id) === (quickViewProduct.id || quickViewProduct._id)) ? 'bg-pink-50 text-pink-500 border-pink-100 shadow-xl shadow-pink-500/10' : 'bg-slate-50 text-slate-400 border-slate-100 hover:bg-white hover:border-pink-200 hover:text-pink-400'}`}
+                                        >
+                                            <Heart 
+                                                size={24} 
+                                                className="group-hover:scale-110 transition-transform" 
+                                                fill={wishlist.some(w => (w.id || w._id) === (quickViewProduct.id || quickViewProduct._id)) ? 'currentColor' : 'none'} 
+                                            />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+        </>
     );
 };
 

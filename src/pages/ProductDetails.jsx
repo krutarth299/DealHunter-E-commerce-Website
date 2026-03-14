@@ -3,9 +3,10 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
-import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Star, Heart, ShoppingBag, Truck, ShieldCheck, Clock, User, ThumbsUp, Info, Tag, MapPin, ExternalLink, TrendingDown, CheckCircle2, X, Share2, PlayCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Star, Heart, ShoppingBag, Truck, ShieldCheck, Clock, User, ThumbsUp, Info, Tag, MapPin, ExternalLink, TrendingDown, CheckCircle2, X, Share2, PlayCircle, Zap } from 'lucide-react';
 import DealsGrid from '../components/DealsGrid';
 import { useWishlistAnimation } from '../context/wishlistAnimationContextDefinition';
+import { useRecentlyViewed } from '../context/RecentlyViewedContext';
 import SEO from '../components/SEO';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -200,8 +201,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
     // ... params & hooks
     const { id } = useParams();
     const navigate = useNavigate();
-    const { flyToWishlist } = useWishlistAnimation();
-    const imageRef = useRef(null);
+    const { recentlyViewed, addRecentlyViewed } = useRecentlyViewed();
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
     const [timeLeft, setTimeLeft] = useState({ hours: 9, minutes: 14, seconds: 30 });
@@ -244,17 +244,17 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
 
     const activeIndex = media.indexOf(activeImage);
 
-    const handleNextImage = () => {
+    const handleNextImage = React.useCallback(() => {
         if (media.length <= 1) return;
         const nextIdx = (activeIndex + 1) % media.length;
         setActiveImage(media[nextIdx]);
-    };
+    }, [activeIndex, media]);
 
-    const handlePrevImage = () => {
+    const handlePrevImage = React.useCallback(() => {
         if (media.length <= 1) return;
         const prevIdx = (activeIndex - 1 + media.length) % media.length;
         setActiveImage(media[prevIdx]);
-    };
+    }, [activeIndex, media]);
 
     // Keyboard navigation
     useEffect(() => {
@@ -264,7 +264,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [activeIndex, media]);
+    }, [handlePrevImage, handleNextImage]);
 
     useEffect(() => {
         const timer = setInterval(() => {
@@ -293,6 +293,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
             if (foundProduct) {
                 const timer = setTimeout(() => {
                     setProduct(foundProduct);
+                    addRecentlyViewed(foundProduct);
                     setActiveImage(foundProduct.image || (foundProduct.images && foundProduct.images[0]) || '');
                     setViewCount(foundProduct.views || Math.floor(Math.random() * 500) + 100);
                     setLoading(false);
@@ -307,7 +308,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                 return () => clearTimeout(timer);
             }
         }
-    }, [id, deals]);
+    }, [id, deals, addRecentlyViewed]);
 
     if (loading) {
         return (
@@ -349,293 +350,218 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                 image={activeImage}
             />
             <Navbar user={null} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />
-            <main id="product-details-loaded" className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 md:pt-44 pb-16">
+            <main id="product-details-loaded" className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 {/* Breadcrumb / Back */}
                 <button
                     onClick={() => navigate(-1)}
-                    className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors mb-4 md:mb-6 font-bold uppercase tracking-widest text-[10px] md:text-sm"
+                    className="group flex items-center gap-3 text-slate-400 hover:text-slate-900 transition-all mb-8 font-black uppercase tracking-[0.2em] text-[10px] md:text-xs"
                 >
-                    <ArrowLeft size={16} /> Back
+                    <div className="w-8 h-8 rounded-full bg-white border border-slate-100 flex items-center justify-center group-hover:bg-slate-900 group-hover:text-white transition-all shadow-sm">
+                        <ArrowLeft size={14} />
+                    </div>
+                    Back to Deals
                 </button>
 
-                <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-sm overflow-hidden border border-slate-100">
+                <div className="bg-white rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.08)] overflow-hidden border border-slate-100/50">
                     <div className="grid grid-cols-1 lg:grid-cols-2">
 
                         {/* Image Section */}
-                        <div className="relative p-6 py-8 md:p-10 lg:p-12 flex flex-col items-center justify-center min-h-[280px] sm:min-h-[350px] md:min-h-[400px] lg:min-h-[450px] group overflow-hidden gap-4 md:gap-6 border-b border-slate-100 lg:border-b-0 lg:border-r">
+                        <div className="relative p-8 md:p-12 lg:p-20 flex flex-col items-center justify-center min-h-[400px] lg:min-h-[700px] bg-slate-50/50 border-b border-slate-100 lg:border-b-0 lg:border-r border-slate-100/50 gap-10">
+                            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-orange-500/5 opacity-50" />
+                            
                             <motion.div
                                 key={activeImage || 'fallback'}
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ duration: 0.4 }}
-                                className="relative w-full max-w-2xl aspect-video group-hover:scale-[1.02] transition-transform duration-500 z-10 mx-auto rounded-2xl overflow-hidden bg-slate-50 flex items-center justify-center group/main"
+                                initial={{ opacity: 0, scale: 0.9, rotate: -2 }}
+                                animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                                transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+                                className="relative w-full max-w-lg aspect-square z-10 mx-auto group/main p-8 md:p-12"
                             >
-                                {/* Navigation Arrows */}
-                                {media.length > 1 && (
-                                    <>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); handlePrevImage(); }}
-                                            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg border border-slate-100 text-slate-800 opacity-0 group-hover/main:opacity-100 transition-all hover:bg-slate-900 hover:text-white"
-                                        >
-                                            <ChevronLeft size={20} />
-                                        </button>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); handleNextImage(); }}
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg border border-slate-100 text-slate-800 opacity-0 group-hover/main:opacity-100 transition-all hover:bg-slate-900 hover:text-white"
-                                        >
-                                            <ChevronRight size={20} />
-                                        </button>
-                                    </>
-                                )}
+                                <div className="absolute inset-0 bg-white/40 blur-3xl rounded-full opacity-0 group-hover/main:opacity-100 transition-opacity duration-700" />
+                                
                                 {activeImage && (activeImage.includes('.mp4') || activeImage.includes('youtube.com') || activeImage.includes('vimeo.com')) ? (
-                                    activeImage.includes('youtube.com') || activeImage.includes('vimeo.com') ? (
-                                        <iframe
-                                            src={activeImage.replace('watch?v=', 'embed/')}
-                                            className="w-full h-full"
-                                            allowFullScreen
-                                            title="Product Video"
-                                        />
-                                    ) : (
-                                        <video
-                                            src={activeImage}
-                                            controls
-                                            className="w-full h-full object-contain"
-                                            autoPlay
-                                            muted
-                                        />
-                                    )
-                                ) : (
-                                    <div className="relative w-full h-full group/main">
-                                        <img
-                                            ref={imageRef}
-                                            src={activeImage || 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=2070&auto=format&fit=crop'}
-                                            alt={product.title}
-                                            className="w-full h-full object-contain filter drop-shadow-2xl p-4"
-                                            onError={(e) => {
-                                                e.target.onerror = null;
-                                                e.target.src = 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=2070&auto=format&fit=crop';
-                                            }}
-                                        />
-                                        
-                                        {/* Navigation Arrows */}
-                                        {((product.images && product.images.length > 1) || (product.videos && product.videos.length > 0)) && (
-                                            <>
-                                                <button 
-                                                    onClick={() => {
-                                                        const items = [...(product.videos || []), ...(product.images || [])];
-                                                        const idx = items.indexOf(activeImage);
-                                                        setActiveImage(items[idx > 0 ? idx - 1 : items.length - 1]);
-                                                    }}
-                                                    className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow-lg flex items-center justify-center text-slate-700 opacity-0 group-hover/main:opacity-100 transition-opacity hover:bg-white hover:text-indigo-600 z-10"
-                                                >
-                                                    <ChevronLeft size={24} />
-                                                </button>
-                                                <button 
-                                                    onClick={() => {
-                                                        const items = [...(product.videos || []), ...(product.images || [])];
-                                                        const idx = items.indexOf(activeImage);
-                                                        setActiveImage(items[idx < items.length - 1 ? idx + 1 : 0]);
-                                                    }}
-                                                    className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow-lg flex items-center justify-center text-slate-700 opacity-0 group-hover/main:opacity-100 transition-opacity hover:bg-white hover:text-indigo-600 z-10"
-                                                >
-                                                    <ChevronRight size={24} />
-                                                </button>
-                                            </>
+                                    <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl">
+                                        {activeImage.includes('youtube.com') || activeImage.includes('vimeo.com') ? (
+                                            <iframe
+                                                src={activeImage.replace('watch?v=', 'embed/')}
+                                                className="w-full h-full"
+                                                allowFullScreen
+                                                title="Product Video"
+                                            />
+                                        ) : (
+                                            <video
+                                                src={activeImage}
+                                                controls
+                                                className="w-full h-full object-contain"
+                                                autoPlay
+                                                muted
+                                            />
                                         )}
                                     </div>
+                                ) : (
+                                    <img
+                                        src={activeImage || 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=2070&auto=format&fit=crop'}
+                                        alt={product.title}
+                                        className="w-full h-full object-contain drop-shadow-[0_40px_60px_rgba(0,0,0,0.15)] group-hover/main:scale-110 transition-transform duration-700"
+                                        onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=2070&auto=format&fit=crop'; }}
+                                    />
                                 )}
                             </motion.div>
 
                             {/* Thumbnail Gallery */}
-                            {((product.images && product.images.length > 0) || (product.videos && product.videos.length > 0)) && (
-                                <div className="flex gap-4 overflow-x-auto max-w-full pb-4 px-2 snap-x no-scrollbar">
-                                    {/* Video Thumbnails First */}
-                                    {product.videos && product.videos.map((vid, idx) => (
-                                        <button
-                                            key={`vid-${idx}`}
-                                            onClick={() => setActiveImage(vid)}
-                                            className={`relative flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-[1.2rem] overflow-hidden snap-center bg-slate-900 border-2 transition-all duration-300 flex items-center justify-center ${activeImage === vid ? 'border-[#4f46e5]' : 'border-slate-100 opacity-70 hover:opacity-100'}`}
-                                        >
-                                            <PlayCircle className="text-white" size={32} />
-                                            <div className="absolute inset-0 bg-black/20" />
-                                        </button>
-                                    ))}
-                                    {/* Image Thumbnails */}
-                                    {product.images && product.images.map((img, idx) => (
-                                        <button
-                                            key={`img-${idx}`}
-                                            onClick={() => setActiveImage(img)}
-                                            className={`relative flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-[1.2rem] overflow-hidden snap-center bg-white border-2 transition-all duration-300 ${activeImage === img ? 'border-[#4f46e5]' : 'border-slate-100 hover:border-slate-300 opacity-70 hover:opacity-100'}`}
-                                        >
-                                            <img
-                                                src={img}
-                                                alt={`Thumbnail ${idx}`}
-                                                className="w-full h-full object-contain mix-blend-multiply p-2"
-                                                loading="lazy"
-                                                onError={(e) => { e.target.style.display = 'none'; }}
-                                            />
-                                        </button>
-                                    ))}
+                            {media.length > 1 && (
+                                <div className="flex gap-4 overflow-x-auto max-w-full pb-2 px-4 snap-x no-scrollbar z-10">
+                                    {media.map((item, idx) => {
+                                        const isVideo = item.includes('.mp4') || item.includes('youtube') || item.includes('vimeo');
+                                        return (
+                                            <button
+                                                key={idx}
+                                                onClick={() => setActiveImage(item)}
+                                                className={`relative flex-shrink-0 w-20 h-20 rounded-2xl overflow-hidden snap-center border-2 transition-all duration-300 ${activeImage === item ? 'border-orange-500 scale-110 shadow-lg' : 'border-white bg-white opacity-60 hover:opacity-100 shadow-sm'}`}
+                                            >
+                                                {isVideo ? (
+                                                    <div className="w-full h-full bg-slate-900 flex items-center justify-center">
+                                                        <PlayCircle size={24} className="text-white" />
+                                                    </div>
+                                                ) : (
+                                                    <img src={item} alt="" className="w-full h-full object-contain p-2" />
+                                                )}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
 
                         {/* Details Section */}
-                        <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full bg-white relative">
-                            <div className="flex items-start justify-between mb-4">
+                        <div className="p-8 md:p-12 lg:p-16 flex flex-col h-full bg-white relative">
+                            {/* Tags Row */}
+                            <div className="flex items-center justify-between mb-8">
                                 <div className="flex flex-wrap gap-2">
-                                    <span className="text-[10px] font-black bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-full flex items-center gap-1 border border-emerald-100">
-                                        <CheckCircle2 size={12} /> VERIFIED DEAL
-                                    </span>
-                                    {parseInt(product.discount) > 40 && (
-                                        <span className="text-[10px] font-black bg-indigo-50 text-[#4f46e5] px-2.5 py-1 rounded-full flex items-center gap-1 animate-pulse border border-indigo-100">
-                                            🔥 BEST PRICE
-                                        </span>
-                                    )}
+                                    <div className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-emerald-100 shadow-sm">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        Verified Deal
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-orange-50 text-orange-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-orange-100 shadow-sm">
+                                        <Zap size={14} className="fill-orange-500" />
+                                        Limited Time
+                                    </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <motion.button
-                                        whileTap={{ scale: 0.8 }}
-                                        animate={isWishlisted ? { scale: [1, 1.2, 1] } : { scale: 1 }}
-                                        transition={{ duration: 0.3 }}
-                                        onClick={() => {
-                                            if (!isWishlisted && imageRef.current) {
-                                                const rect = imageRef.current.getBoundingClientRect();
-                                                flyToWishlist(product.image, rect);
-                                            }
-                                            toggleWishlist(product);
-                                        }}
-                                        className={`p-2.5 rounded-full border transition-all ${isWishlisted ? 'bg-indigo-50 text-[#4f46e5] border-indigo-200' : 'bg-slate-50 text-slate-400 border-slate-100 hover:text-[#4f46e5] hover:border-indigo-200 hover:bg-indigo-50'} `}
-                                    >
-                                        <Heart size={20} fill={isWishlisted ? "currentColor" : "none"} />
-                                    </motion.button>
-                                </div>
+                                <motion.button
+                                    whileTap={{ scale: 0.8 }}
+                                    onClick={() => toggleWishlist(product)}
+                                    className={`w-12 h-12 rounded-2xl border flex items-center justify-center transition-all ${isWishlisted ? 'bg-orange-50 text-orange-500 border-orange-200 shadow-lg shadow-orange-500/10' : 'bg-white text-slate-300 border-slate-100 hover:text-orange-500 hover:border-orange-100'}`}
+                                >
+                                    <Heart size={24} fill={isWishlisted ? "currentColor" : "none"} />
+                                </motion.button>
                             </div>
 
                             <motion.h1
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="text-xl md:text-3xl font-extrabold text-slate-900 mb-3 leading-snug tracking-tight"
+                                className="text-3xl md:text-4xl lg:text-5xl font-black text-slate-900 mb-6 leading-[1.1] tracking-tighter"
                             >
                                 {product.title}
                             </motion.h1>
 
-                            <div className="flex items-center gap-3 text-slate-500 mb-6 flex-wrap">
-                                <div className="flex items-center gap-2">
-                                    <span className="font-bold text-xs uppercase tracking-widest text-slate-500">Sold by:</span>
-                                    <span className="text-blue-600 font-bold bg-blue-50 border border-blue-100 px-2 py-0.5 rounded flex items-center gap-1">
-                                        <ShoppingBag size={14} /> {product.store}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-[#4f46e5] border border-indigo-100 rounded-full text-xs font-black shadow-sm">
-                                    <TrendingDown size={12} className="rotate-180" />
-                                    {viewCount.toLocaleString()} views
-                                </div>
-                            </div>
-
-                            {/* Timer Badge */}
-                            <div className="bg-orange-50 border border-orange-100 text-orange-600 px-4 py-1.5 rounded-lg text-sm font-bold w-fit mb-6 flex items-center gap-2">
-                                <Clock size={16} className="animate-pulse" />
-                                <span>Offer ends in: <span className="tabular-nums">{timeLeft.hours}h : {timeLeft.minutes}m : {timeLeft.seconds}s</span></span>
-                            </div>
-
-                            <div className="flex items-center gap-2.5 mb-5">
-                                <span className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">{formatProductPrice(product.price, product.store, product.link)}</span>
+                            <div className="flex items-center gap-6 text-slate-500 mb-10 pb-10 border-b border-slate-50">
                                 <div className="flex flex-col">
-                                    {product.originalPrice && (
-                                        <span className="text-sm text-slate-400 line-through font-bold">{formatProductPrice(product.originalPrice, product.store, product.link)}</span>
-                                    )}
-                                    <span className="text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 flex items-center py-0.5 rounded-md w-fit uppercase tracking-wider">
-                                        {product.discount || '40%'}
-                                    </span>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Marketplace</span>
+                                    <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 px-4 py-2 rounded-xl">
+                                        <div className="w-6 h-6 rounded-md bg-white flex items-center justify-center p-1 shadow-sm">
+                                            <img 
+                                                src={`https://www.google.com/s2/favicons?domain=${product.store?.toLowerCase() || 'amazon'}.com&sz=48`} 
+                                                alt="" 
+                                                className="w-full h-full object-contain"
+                                            />
+                                        </div>
+                                        <span className="text-sm font-black text-slate-900">{product.store}</span>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Customer Rating</span>
+                                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 px-4 py-2 rounded-xl">
+                                        <div className="flex items-center text-amber-500">
+                                            <Star size={14} fill="currentColor" />
+                                        </div>
+                                        <span className="text-sm font-black text-amber-700">{product.rating || '4.5'}</span>
+                                        <span className="text-[10px] font-bold text-amber-600/60 font-mono">/ 5.0</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Bank Offers - Minimal Style */}
-                            <div className="mb-6 bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                                <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2 mb-3 uppercase tracking-widest">
-                                    <Tag size={14} className="text-indigo-600" /> Available Offers
+                            <div className="flex flex-col gap-6 mb-10">
+                                <div className="flex items-baseline gap-4">
+                                    <span className="text-5xl md:text-6xl font-black text-slate-900 tracking-tighter drop-shadow-sm">{formatProductPrice(product.price, product.store, product.link)}</span>
+                                    {product.originalPrice && (
+                                        <div className="flex flex-col">
+                                            <span className="text-lg md:text-xl text-slate-300 line-through font-bold decoration-slate-300/50 decoration-2">{formatProductPrice(product.originalPrice, product.store, product.link)}</span>
+                                            <span className="text-xs font-black text-emerald-600 uppercase tracking-widest">Saved {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Bank Offers */}
+                            <div className="bg-slate-50 rounded-[2rem] p-8 mb-10 relative overflow-hidden group border border-slate-100">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-3xl rounded-full" />
+                                <h4 className="font-black text-slate-900 text-xs flex items-center gap-3 mb-6 uppercase tracking-[0.2em]">
+                                    <div className="w-8 h-8 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-sm">
+                                        <Tag size={16} className="text-indigo-600" />
+                                    </div>
+                                    Exclusive Unlockable Offers
                                 </h4>
-                                <div className="space-y-3">
+                                <div className="space-y-4">
                                     {[
-                                        { type: 'Bank Offer', text: 'Flat ₹200 off on Alpha Bank Credit Cards.', link: 'T&C' },
-                                        { type: 'Partner Offer', text: 'GST invoice save up to 28% on business purchases.', link: 'Know More' }
+                                        { icon: '💳', title: 'SBI Card Special', text: 'Extra 10% instant discount on orders above ₹5,000' },
+                                        { icon: '💎', title: 'Hunt Member Price', text: 'Flat ₹500 off for registered hunters today' }
                                     ].map((offer, o) => (
-                                        <div key={o} className="flex gap-2">
-                                            <span className="text-[10px] font-black bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded h-fit shrink-0 tracking-wider whitespace-nowrap">{offer.type}</span>
-                                            <p className="text-[11px] text-slate-700 font-medium leading-tight pt-0.5">
-                                                {offer.text} <span className="text-indigo-600 cursor-pointer font-bold hover:underline ml-1">{offer.link}</span>
-                                            </p>
+                                        <div key={o} className="flex gap-4 p-4 rounded-2xl bg-white border border-slate-100 group-hover:bg-slate-50/50 transition-colors">
+                                            <span className="text-2xl h-fit">{offer.icon}</span>
+                                            <div>
+                                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">{offer.title}</p>
+                                                <p className="text-xs text-slate-600 font-bold leading-relaxed">{offer.text}</p>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
-                            {/* Indigo Bullet */}
-                            {[
-                                'Premium build quality with aerospace-grade materials',
-                                'Optimized for long-term durability and heavy use',
-                                'Sleek, ergonomic design for maximum comfort',
-                                'Verified by thousands of global customers'
-                            ].map((highlight, h) => (
-                                <div key={h} className="flex items-start gap-3 group">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-[#4f46e5] mt-1.5 shrink-0 opacity-80" />
-                                    <p className="text-xs text-slate-700 font-medium leading-relaxed group-hover:text-slate-900 transition-colors">{highlight}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                        <PriceHistoryChart price={product.price} />
-                        <PriceComparisonTable currentStore={product.store} currentPrice={product.price} />
-
-                        {/* Action Buttons Integrated */}
-                        <div className="bg-white rounded-3xl border border-slate-100 p-4 shadow-sm flex flex-col justify-center gap-3">
-                            <div className="flex gap-3">
+                            {/* Action Row */}
+                            <div className="flex flex-col sm:flex-row gap-4 mt-auto">
+                                <motion.a
+                                    href={product.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    className={`flex-[3] h-20 rounded-[1.5rem] ${brand.bg} text-white font-black text-base shadow-2xl ${brand.shadow} transition-all flex items-center justify-center gap-4 group relative overflow-hidden`}
+                                >
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+                                    <ShoppingBag size={24} className="group-hover:rotate-12 transition-transform" />
+                                    <span className="uppercase tracking-widest">Get Best Deal at {product.store}</span>
+                                    <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" />
+                                </motion.a>
+                                
                                 <motion.button
-                                    whileHover={{ scale: 1.05, backgroundColor: '#f8fafc' }}
+                                    whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                     onClick={() => {
                                         navigator.clipboard.writeText(window.location.href);
-                                        const toastEvent = new CustomEvent('showToast', { detail: { message: 'Link copied to clipboard!', type: 'success' } });
-                                        window.dispatchEvent(toastEvent);
+                                        showToast('Deal link copied!', 'success');
                                     }}
-                                    className="bg-white border border-slate-200 text-slate-600 font-bold p-3 rounded-2xl transition-all shrink-0 flex items-center justify-center hover:text-slate-900 shadow-sm"
-                                    title="Share Deal"
+                                    className="flex-1 h-20 rounded-[1.5rem] bg-white border-2 border-slate-100 flex flex-col items-center justify-center gap-1 hover:border-slate-300 hover:bg-slate-50 transition-all group"
                                 >
-                                    <Share2 size={20} />
+                                    <Share2 size={24} className="text-slate-400 group-hover:text-slate-900 transition-colors" />
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Share Deal</span>
                                 </motion.button>
-                                {product.isExpired ? (
-                                    <div className="flex-1 bg-slate-100 text-slate-400 font-black text-xs py-4 rounded-[1.25rem] flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200 uppercase tracking-[0.1em]">
-                                        DEAL ENDED <X size={16} />
-                                    </div>
-                                ) : (
-                                    <motion.a
-                                        href={product.link || `https://www.google.com/search?q=${encodeURIComponent(product.title + ' ' + (product.store || ''))}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        whileHover={{ scale: 1.02, translateY: -2 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        className={`flex-1 ${brand.bg} text-white font-black text-xs py-4 rounded-[1.25rem] shadow-xl ${brand.shadow} transition-all flex items-center justify-center gap-2.5 no-underline uppercase tracking-[0.15em] relative overflow-hidden group`}
-                                    >
-                                        {/* Glare effect */}
-                                        <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-all duration-700 ease-in-out" />
-                                        
-                                        <ShoppingBag size={18} className="group-hover:rotate-12 transition-transform" />
-                                        <span>Buy on {brand.text}</span>
-                                        <ExternalLink size={14} className="opacity-50" />
-                                    </motion.a>
-                                )}
-                            </div>
-                            <div className="flex items-center justify-center gap-3 px-4">
-                                <div className="h-[1px] flex-1 bg-slate-100" />
-                                <p className="text-[10px] text-slate-400 font-black flex items-center gap-1.5 uppercase tracking-widest whitespace-nowrap opacity-80">
-                                    <Clock size={12} className="text-orange-500" /> Limited time offer
-                                </p>
-                                <div className="h-[1px] flex-1 bg-slate-100" />
                             </div>
                         </div>
+                    </div>
+
+                    {/* Analytics Section */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 bg-slate-50/30 p-8 md:p-12 lg:p-16 gap-8 border-t border-slate-100">
+                        <PriceHistoryChart price={product.price} />
+                        <PriceComparisonTable currentStore={product.store} currentPrice={product.price} />
                     </div>
                 </div>
 
@@ -863,6 +789,26 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                         )
                     }
                 </div>
+
+                {/* Recently Viewed - Light Mode */}
+                {recentlyViewed && recentlyViewed.filter(p => (p.id || p._id) !== (product?.id || product?._id)).length > 0 && (
+                    <div className="mt-20 pt-16 border-t border-slate-100 px-4 md:px-0">
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400">
+                                <Clock size={24} />
+                            </div>
+                            <div>
+                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-1">History</p>
+                                <h3 className="text-2xl font-black text-slate-900 tracking-tight leading-none">Your Browsing History</h3>
+                            </div>
+                        </div>
+                        <DealsGrid 
+                            deals={recentlyViewed.filter(p => (p.id || p._id) !== (product?.id || product?._id)).slice(0, 5)} 
+                            wishlist={wishlist} 
+                            toggleWishlist={toggleWishlist} 
+                        />
+                    </div>
+                )}
             </main >
 
             <MobileFloatingBar product={product} brand={brand} />

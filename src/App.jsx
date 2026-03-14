@@ -18,6 +18,7 @@ import ScrollToTop from './components/ScrollToTop';
 import { motion } from 'framer-motion';
 import { Flame, CheckCircle2, Info, AlertCircle, X, Loader2 } from 'lucide-react';
 import { WishlistAnimationProvider } from './context/WishlistAnimationContext';
+import { RecentlyViewedProvider } from './context/RecentlyViewedContext';
 import Modal from './components/Modal';
 
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -367,9 +368,11 @@ function App() {
   return (
     <AuthProvider>
       <WishlistAnimationProvider>
-        <Router>
-          <AppContent />
-        </Router>
+        <RecentlyViewedProvider>
+          <Router>
+            <AppContent />
+          </Router>
+        </RecentlyViewedProvider>
       </WishlistAnimationProvider>
     </AuthProvider>
   );

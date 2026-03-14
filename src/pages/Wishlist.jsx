@@ -33,35 +33,48 @@ const Wishlist = ({ user, wishlist, wishlistCount, toggleWishlist, clearWishlist
                 wishlist={wishlist}
             />
 
-            <main className="flex-grow container mx-auto px-4 md:px-8 pt-32 md:pt-40 pb-16">
+            <main className="flex-grow container mx-auto px-4 md:px-8 pt-32 md:pt-44 pb-24 relative">
+                {/* Decorative Background Elements */}
+                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-pink-50/50 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-indigo-50/50 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/2 pointer-events-none" />
 
                 {/* Header Section */}
                 <motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10"
+                    className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16 relative z-10"
                 >
-                    <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-pink-500/30 transform rotate-3">
-                            <Heart size={32} fill="currentColor" />
-                        </div>
+                    <div className="flex items-center gap-6">
+                        <motion.div 
+                            whileHover={{ rotate: 15, scale: 1.1 }}
+                            className="w-20 h-20 bg-gradient-to-br from-pink-500 to-rose-600 rounded-[2rem] flex items-center justify-center text-white shadow-2xl shadow-pink-500/30 transform -rotate-3 border-4 border-white/50 backdrop-blur-sm"
+                        >
+                            <Heart size={40} fill="currentColor" />
+                        </motion.div>
                         <div>
-                            <h1 className="text-4xl font-black text-slate-900 tracking-tight">My Wishlist</h1>
-                            <p className="text-slate-500 font-medium">
-                                {wishlistCount} {wishlistCount === 1 ? 'item' : 'items'} saved for later
-                            </p>
+                            <h1 className="text-5xl md:text-6xl font-[1000] text-slate-900 tracking-tight leading-none mb-2">My Wishlist</h1>
+                            <div className="flex items-center gap-3">
+                                <span className="bg-pink-100 text-pink-600 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-pink-200">
+                                    {wishlistCount} {wishlistCount === 1 ? 'Treasure' : 'Treasures'}
+                                </span>
+                                <span className="text-slate-400 text-sm font-medium">Saved for your next move</span>
+                            </div>
                         </div>
                     </div>
 
                     {wishlistCount > 0 && (
-                        <div className="bg-white px-6 py-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
+                        <div className="bg-white/70 backdrop-blur-xl px-8 py-5 rounded-[2rem] border border-slate-100 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] flex items-center gap-8 group">
                             <div className="text-right">
-                                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Value</p>
-                                <p className="text-xl font-black text-slate-900">{formattedTotal}</p>
+                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mb-1">Portfolio Value</p>
+                                <p className="text-3xl font-black text-slate-900 tracking-tighter">{formattedTotal}</p>
                             </div>
-                            <div className="h-8 w-[1px] bg-slate-100"></div>
-                            <button onClick={clearWishlist} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Clear Wishlist">
-                                <Trash2 size={20} />
+                            <div className="h-10 w-[1px] bg-slate-100"></div>
+                            <button 
+                                onClick={clearWishlist} 
+                                className="group/btn w-12 h-12 flex items-center justify-center bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all duration-300" 
+                                title="Clear Wishlist"
+                            >
+                                <Trash2 size={24} className="group-hover/btn:rotate-12 transition-transform" />
                             </button>
                         </div>
                     )}
@@ -73,37 +86,47 @@ const Wishlist = ({ user, wishlist, wishlistCount, toggleWishlist, clearWishlist
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.2 }}
+                        className="relative z-10"
                     >
-                        <div className="bg-white/50 backdrop-blur-sm p-1 rounded-[2rem] border border-slate-200/60">
-                            {/* We Pass toggleWishlist to DealsGrid so hearts work as toggle buttons */}
+                        <div className="bg-white/40 backdrop-blur-md p-2 rounded-[3.5rem] border border-white/60 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.05)]">
                             <DealsGrid deals={wishlist} wishlist={wishlist} toggleWishlist={toggleWishlist} />
+                        </div>
+                        
+                        <div className="mt-12 text-center h-20 flex items-center justify-center">
+                            <Link to="/deals" className="text-slate-400 font-black text-xs uppercase tracking-[0.2em] hover:text-orange-500 transition-colors flex items-center gap-2">
+                                <ShoppingBag size={14} /> Continue Hunting for More Deals
+                            </Link>
                         </div>
                     </motion.div>
                 ) : (
                     <motion.div
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="flex flex-col items-center justify-center py-24 px-4 text-center"
+                        className="flex flex-col items-center justify-center py-32 px-4 text-center relative z-10"
                     >
-                        <div className="relative mb-8 group cursor-pointer">
-                            <div className="absolute inset-0 bg-pink-200 rounded-full blur-3xl opacity-20 group-hover:opacity-40 transition-opacity duration-500"></div>
-                            <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-2xl shadow-pink-100 relative z-10 custom-animate-float border border-slate-50">
-                                <Heart size={48} className="text-pink-300 fill-pink-50" />
-                                <div className="absolute top-0 right-0 bg-pink-500 w-8 h-8 rounded-full flex items-center justify-center text-white shadow-lg animate-bounce">
-                                    <span className="text-xl font-bold">0</span>
+                        <div className="relative mb-12 group">
+                            <div className="absolute inset-0 bg-pink-400/20 rounded-full blur-[80px] group-hover:bg-pink-400/30 transition-all duration-1000 scale-150" />
+                            <motion.div 
+                                animate={{ y: [0, -20, 0], rotate: [0, -10, 10, 0] }}
+                                transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+                                className="w-48 h-48 bg-white rounded-[3rem] flex items-center justify-center shadow-[0_50px_100px_-20px_rgba(244,114,182,0.2)] relative z-10 border border-slate-50"
+                            >
+                                <Heart size={80} className="text-pink-100 fill-pink-50" strokeWidth={1} />
+                                <div className="absolute -top-4 -right-4 bg-gradient-to-br from-pink-500 to-rose-600 w-14 h-14 rounded-3xl flex items-center justify-center text-white shadow-2xl border-4 border-white">
+                                    <span className="text-2xl font-black">0</span>
                                 </div>
-                            </div>
+                            </motion.div>
                         </div>
 
-                        <h2 className="text-3xl font-black text-slate-900 mb-3 tracking-tight">Your wishlist is empty</h2>
-                        <p className="text-slate-500 max-w-md mb-8 text-lg leading-relaxed">
-                            Looks like you haven't found anything yet.
-                            Browse our categories and find your next favorite thing!
+                        <h2 className="text-4xl md:text-5xl font-[1000] text-slate-900 mb-4 tracking-tight leading-none">Your Sanctuary is Empty</h2>
+                        <p className="text-slate-500 max-w-lg mb-12 text-lg md:text-xl font-medium leading-relaxed opacity-80">
+                            The wishlist is where great deals wait for the perfect moment. 
+                            Start hunting and fill this space with your future treasures.
                         </p>
 
-                        <div className="flex gap-4">
-                            <Link to="/deals" className="bg-slate-900 hover:bg-black text-white px-8 py-4 rounded-xl font-bold flex items-center gap-2 shadow-xl shadow-slate-900/20 hover:translate-y-[-2px] transition-all">
-                                <ShoppingBag size={20} /> Browse Deals
+                        <div className="flex gap-6">
+                            <Link to="/deals" className="bg-slate-900 hover:bg-orange-500 text-white px-10 py-5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.2)] hover:shadow-orange-500/30 hover:translate-y-[-4px] transition-all active:scale-95 group">
+                                <ShoppingBag size={20} className="group-hover:rotate-12 transition-transform" /> Explore Live Deals
                             </Link>
                         </div>
                     </motion.div>

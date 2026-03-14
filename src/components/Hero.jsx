@@ -119,7 +119,7 @@ const Hero = ({ deals = [] }) => {
     const slide = slides[current] || slides[0];
 
     return (
-        <section className="w-full bg-white overflow-hidden pt-[80px] md:pt-[120px]">
+        <section className="w-full bg-white overflow-hidden pt-0">
             {/* ── Main Slide Banner ── */}
             <div className="relative overflow-hidden">
                 <AnimatePresence mode="wait">
@@ -128,38 +128,51 @@ const Hero = ({ deals = [] }) => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.5 }}
-                        className={`relative bg-gradient-to-br ${slide.bg} min-h-[520px] sm:min-h-[480px] md:min-h-[540px] flex items-center`}
+                        transition={{ duration: 0.8 }}
+                        className={`relative bg-gradient-to-br ${slide.bg} min-h-[420px] md:min-h-[480px] flex items-center overflow-hidden`}
                     >
-                        {/* Dot pattern */}
-                        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, white 0.5px, transparent 0.5px)', backgroundSize: '32px 32px' }} />
+                        {/* Mesh Gradients */}
+                        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 animate-pulse" />
+                        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-black/10 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/3" />
+                        
+                        {/* Grid noise fallback */}
+                        <div className="absolute inset-0 opacity-[0.1] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] mix-blend-overlay" />
 
-                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-20 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12 relative z-10 w-full">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12 relative z-10 w-full">
                             {/* ── Text side ── */}
-                            <div className="flex-1 text-white space-y-5 md:space-y-7 text-center md:text-left">
-                                <motion.span
-                                    initial={{ y: -10, opacity: 0 }}
-                                    animate={{ y: 0, opacity: 1 }}
-                                    transition={{ delay: 0.1 }}
-                                    className="inline-block bg-white/20 backdrop-blur-sm text-white text-[10px] md:text-xs font-bold px-3 py-1.5 md:px-4 md:py-2 rounded-full uppercase tracking-widest border border-white/30"
+                            <div className="flex-[1.2] text-white space-y-4 md:space-y-6 text-center md:text-left">
+                                <motion.div
+                                    initial={{ x: -20, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    className="flex items-center gap-3 justify-center md:justify-start"
                                 >
-                                    {slide.badge}
-                                </motion.span>
+                                    <span className="bg-white/20 backdrop-blur-md text-white text-[9px] md:text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-[0.2em] border border-white/30 shadow-xl">
+                                        {slide.badge}
+                                    </span>
+                                    <div className="flex items-center gap-2 bg-emerald-500/20 px-2.5 py-1 rounded-md border border-emerald-500/30">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                                        <span className="text-[9px] font-black uppercase tracking-widest">Live Now</span>
+                                    </div>
+                                </motion.div>
 
                                 <motion.h1
-                                    initial={{ y: 20, opacity: 0 }}
+                                    initial={{ y: 30, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
-                                    transition={{ delay: 0.15 }}
-                                    className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black leading-tight tracking-tight line-clamp-2 md:line-clamp-3"
+                                    transition={{ delay: 0.1 }}
+                                    className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black leading-[1.1] tracking-tighter"
                                 >
-                                    {slide.title}
+                                    {slide.title.split(' ').map((word, i) => (
+                                        <span key={i} className={i % 2 === 0 ? 'text-white' : 'text-white/70 block md:inline'}>
+                                            {word}{' '}
+                                        </span>
+                                    ))}
                                 </motion.h1>
 
                                 <motion.p
                                     initial={{ y: 20, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
                                     transition={{ delay: 0.2 }}
-                                    className="text-white/80 text-sm md:text-lg max-w-lg mx-auto md:mx-0 font-medium leading-relaxed line-clamp-2 md:line-clamp-none"
+                                    className="text-white/70 text-sm md:text-lg max-w-xl mx-auto md:mx-0 font-medium leading-relaxed"
                                 >
                                     {slide.sub}
                                 </motion.p>
@@ -169,102 +182,115 @@ const Hero = ({ deals = [] }) => {
                                     <motion.div
                                         initial={{ y: 20, opacity: 0 }}
                                         animate={{ y: 0, opacity: 1 }}
-                                        transition={{ delay: 0.25 }}
+                                        transition={{ delay: 0.3 }}
                                         className="flex flex-wrap items-center gap-4 justify-center md:justify-start"
                                     >
-                                        {slide.price && (
-                                            <span className="text-4xl font-black text-white tracking-tighter">{slide.price}</span>
-                                        )}
-                                        {slide.mrp && (
-                                            <span className="text-xl font-bold text-white/40 line-through">{slide.mrp}</span>
-                                        )}
+                                        <div className="flex flex-col">
+                                            <span className="text-white/50 text-[9px] font-black uppercase tracking-widest mb-1">Price Drop</span>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-4xl md:text-5xl font-black text-white tracking-tighter drop-shadow-2xl">{slide.price}</span>
+                                                {slide.mrp && (
+                                                    <span className="text-lg md:text-xl font-bold text-white/30 line-through decoration-white/50">{slide.mrp}</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        
                                         {slide.discountNum && (
-                                            <span className="bg-yellow-400 text-yellow-900 font-black text-sm px-3 py-1.5 rounded-full shadow-lg">
-                                                {slide.discountNum}% OFF
-                                            </span>
+                                            <div className="bg-yellow-400 rotate-6 px-3 py-2 rounded-2xl shadow-2xl shadow-yellow-500/20 transform hover:rotate-0 transition-transform">
+                                                <span className="text-yellow-900 font-black text-xl md:text-2xl tracking-tighter">
+                                                    -{slide.discountNum}%
+                                                </span>
+                                            </div>
                                         )}
                                     </motion.div>
                                 )}
 
                                 <motion.div
-                                    initial={{ y: 20, opacity: 0 }}
+                                    initial={{ y: 30, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
-                                    transition={{ delay: 0.3 }}
-                                    className="flex flex-wrap gap-3 md:gap-4 items-center justify-center md:justify-start"
+                                    transition={{ delay: 0.4 }}
+                                    className="flex flex-wrap gap-3 items-center justify-center md:justify-start pt-2"
                                 >
-                                    {slide.isExternal ? (
-                                        <a
-                                            href={slide.href}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="h-12 px-6 md:h-16 md:px-10 bg-white rounded-2xl text-slate-900 font-black text-xs md:text-sm uppercase tracking-widest flex items-center gap-2 md:gap-3 hover:scale-105 active:scale-95 transition-transform shadow-xl group"
-                                        >
-                                            {slide.cta}
-                                            <ExternalLink size={16} className="group-hover:rotate-12 transition-transform" />
-                                        </a>
-                                    ) : (
-                                        <Link
-                                            to={slide.href}
-                                            className="h-12 px-6 md:h-16 md:px-10 bg-white rounded-2xl text-slate-900 font-black text-xs md:text-sm uppercase tracking-widest flex items-center gap-2 md:gap-3 hover:scale-105 active:scale-95 transition-transform shadow-xl group"
-                                        >
-                                            {slide.cta}
-                                            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                                        </Link>
-                                    )}
-                                    <div className="flex items-center gap-2 bg-white/10 border border-white/20 rounded-2xl px-4 py-2.5 md:px-5 md:py-3">
-                                        <ShieldCheck size={14} className="text-white/60" />
-                                        <span className="text-white text-[11px] md:text-sm font-bold">{slide.stat}</span>
+                                    <Link
+                                        to={slide.href}
+                                        className="h-14 px-8 md:h-16 md:px-10 bg-white rounded-2xl text-slate-900 font-[1000] text-xs md:text-sm uppercase tracking-widest flex items-center gap-3 hover:scale-[1.03] active:scale-95 transition-all shadow-2xl shadow-black/20 group overflow-hidden relative"
+                                    >
+                                        <div className="absolute inset-0 bg-slate-900 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                                        <span className="relative z-10 group-hover:text-white transition-colors">Grab Deal</span>
+                                        <ArrowRight size={18} className="relative z-10 group-hover:text-white transition-colors group-hover:translate-x-1" />
+                                    </Link>
+                                    
+                                    <div className="h-14 md:h-16 px-6 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                                            <ShieldCheck size={16} className="text-white" />
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-white/60 text-[8px] font-black uppercase tracking-widest leading-none mb-1">Status</span>
+                                            <span className="text-white text-[11px] font-black">{slide.stat}</span>
+                                        </div>
                                     </div>
                                 </motion.div>
                             </div>
 
                             {/* ── Visual side ── */}
                             <motion.div
-                                initial={{ scale: 0.85, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                transition={{ delay: 0.2, type: 'spring', damping: 16 }}
-                                className="flex-shrink-0 w-full md:w-auto flex justify-center mt-6 md:mt-0"
+                                initial={{ x: 50, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: 0.3, duration: 0.8 }}
+                                className="flex-1 w-full md:w-auto flex justify-center mt-8 md:mt-0 relative"
                             >
+                                {/* Decorative elements */}
+                                <div className="absolute -inset-8 bg-white/20 blur-[80px] rounded-full opacity-30 animate-pulse" />
+                                
                                 {slide.image ? (
-                                    // Real product image
                                     <motion.div
-                                        animate={{ y: [0, -12, 0] }}
-                                        transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-                                        className="relative w-48 h-48 sm:w-64 sm:h-64 lg:w-80 lg:h-80"
+                                        animate={{ 
+                                            y: [0, -15, 0],
+                                            rotate: [-0.5, 0.5, -0.5]
+                                        }}
+                                        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+                                        className="relative group"
                                     >
-                                        <div className="w-full h-full rounded-[2rem] md:rounded-[3rem] bg-white/10 border border-white/20 backdrop-blur-xl flex items-center justify-center p-6 md:p-8 shadow-2xl">
+                                        <div className="relative w-52 h-52 sm:w-64 sm:h-64 lg:w-[340px] lg:h-[340px] rounded-[3rem] bg-gradient-to-br from-white/20 to-white/5 border border-white/30 backdrop-blur-2xl flex items-center justify-center p-10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4)]">
                                             <img
                                                 src={slide.image}
                                                 alt={slide.title}
-                                                className="w-full h-full object-contain drop-shadow-2xl"
+                                                className="w-full h-full object-contain drop-shadow-[0_15px_40px_rgba(0,0,0,0.4)] transform group-hover:scale-105 transition-transform duration-700"
                                                 onError={(e) => { e.target.style.display = 'none'; }}
                                             />
                                         </div>
-                                        {/* Store badge */}
+                                        
+                                        {/* Store Float Badge */}
                                         {slide.store && (
-                                            <div className="absolute -bottom-3 md:-bottom-4 left-1/2 -translate-x-1/2 bg-white text-slate-900 font-black text-[10px] md:text-xs px-4 py-1.5 md:px-5 md:py-2 rounded-full shadow-xl border border-slate-100 whitespace-nowrap">
-                                                📦 {slide.store}
-                                            </div>
-                                        )}
-                                        {/* Discount badge */}
-                                        {slide.discountNum && (
-                                            <div className="absolute -top-3 -right-3 md:-top-4 md:-right-4 w-14 h-14 md:w-20 md:h-20 bg-yellow-400 rounded-full flex flex-col items-center justify-center shadow-xl">
-                                                <span className="text-yellow-900 font-black text-sm md:text-lg leading-none">{slide.discountNum}%</span>
-                                                <span className="text-yellow-900 font-bold text-[8px] md:text-[10px] uppercase">OFF</span>
-                                            </div>
+                                            <motion.div 
+                                                animate={{ y: [0, 8, 0] }}
+                                                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
+                                                className="absolute -bottom-4 -right-4 lg:-bottom-6 lg:-right-6 bg-white p-4 rounded-[1.5rem] shadow-2xl border border-slate-100 flex items-center gap-2"
+                                            >
+                                                <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center p-1.5">
+                                                    <img 
+                                                        src={`https://www.google.com/s2/favicons?domain=${slide.store?.toLowerCase() || 'amazon'}.com&sz=64`} 
+                                                        alt="" 
+                                                        className="w-full h-full object-contain"
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Marketplace</span>
+                                                    <span className="text-xs font-[1000] text-slate-900">{slide.store}</span>
+                                                </div>
+                                            </motion.div>
                                         )}
                                     </motion.div>
                                 ) : (
-                                    // Emoji fallback
                                     <motion.div
-                                        animate={{ y: [0, -16, 0] }}
-                                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                                        className="w-64 h-64 rounded-[3rem] bg-white/10 border border-white/20 backdrop-blur-xl flex flex-col items-center justify-center gap-5 shadow-2xl"
+                                        animate={{ y: [0, -15, 0] }}
+                                        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                                        className="w-64 h-64 rounded-[3rem] bg-white/10 border border-white/20 backdrop-blur-2xl flex flex-col items-center justify-center gap-6 shadow-2xl"
                                     >
-                                        <span className="text-8xl">{slide.emoji || '🛍️'}</span>
-                                        <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full">
-                                            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                            <span className="text-white text-xs font-bold">Live Deals Active</span>
+                                        <span className="text-[90px] drop-shadow-2xl">{slide.emoji || '🛍️'}</span>
+                                        <div className="flex items-center gap-2 bg-white/20 px-5 py-2 rounded-xl">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
+                                            <span className="text-white text-[11px] font-black uppercase tracking-widest">Live Updates</span>
                                         </div>
                                     </motion.div>
                                 )}

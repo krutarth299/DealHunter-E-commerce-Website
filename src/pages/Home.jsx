@@ -3,11 +3,12 @@ import DealsGrid from '../components/DealsGrid';
 import Footer from '../components/Footer';
 import Navbar from '../components/Navbar';
 import {
-    Sparkles, TrendingDown, ArrowRight, Zap, ShieldCheck, Store, ChevronRight, Package
+    Sparkles, TrendingDown, ArrowRight, Zap, ShieldCheck, Store, ChevronRight, Package, Flame, Clock
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Hero from '../components/Hero';
 import { useNavigate } from 'react-router-dom';
+import { useRecentlyViewed } from '../context/RecentlyViewedContext';
 import SEO from '../components/SEO';
 import { CATEGORY_MAP, FEATURED_CATEGORIES, getCategoryStyle, normalizeCategory } from '../utils/categoryConstants';
 
@@ -28,6 +29,7 @@ const STORES = [
 
 const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlist, apiBase }) => {
     const navigate = useNavigate();
+    const { recentlyViewed } = useRecentlyViewed();
     const [categories, setCategories] = useState(FEATURED_CATEGORIES);
 
     useEffect(() => {
@@ -60,8 +62,8 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                 <Hero deals={deals} />
 
                 {/* ─── Shop by Category ─── */}
-                <section className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
+                <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
                         <div className="space-y-2">
                             <span className="text-orange-500 text-[10px] font-black uppercase tracking-[0.2em] bg-orange-50 px-3 py-1 rounded-full border border-orange-100 mb-2 inline-block">Curated Collections</span>
                             <h2 className="text-4xl font-black text-slate-900 tracking-tight leading-none">Shop by Category</h2>
@@ -77,36 +79,50 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                     </div>
 
                     {/* Desktop/Tablet Grid */}
-                    <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 gap-x-4 gap-y-10 sm:gap-x-6">
+                    <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 sm:gap-6">
                         {categories.map((catName, i) => {
                             const style = getCategoryStyle(catName);
                             const Icon = style.icon;
                             return (
                                 <motion.button
                                     key={catName}
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: i * 0.03, duration: 0.4, ease: "easeOut" }}
-                                    whileHover={{ y: -8 }}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: i * 0.05, duration: 0.5, ease: "easeOut" }}
+                                    whileHover={{ y: -12, scale: 1.02 }}
                                     whileTap={{ scale: 0.95 }}
                                     onClick={() => navigate('/deals?category=' + encodeURIComponent(catName))}
-                                    className="flex flex-col items-center group cursor-pointer"
+                                    className="relative flex flex-col items-center group cursor-pointer"
                                 >
-                                    <div className={`relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full ${style.bg} border-2 ${style.border} flex items-center justify-center mb-4 transition-all duration-300 group-hover:shadow-2xl ${style.shadow} group-hover:border-transparent overflow-hidden`}>
-                                        {/* Background Glass Shine */}
-                                        <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/40 to-white/0 opacity-0 group-hover:opacity-100 -translate-x-full group-hover:translate-x-full transition-all duration-1000 ease-in-out" />
+                                    {/* Card Container */}
+                                    <div className={`relative w-full aspect-square rounded-[2.5rem] ${style.bg} border border-slate-100 flex flex-col items-center justify-center transition-all duration-500 group-hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] group-hover:border-transparent overflow-hidden shadow-sm`}>
                                         
-                                        <div className={`transform group-hover:scale-110 group-hover:rotate-6 transition-transform duration-500 ease-out p-1`}>
-                                            <Icon size={32} className={`${style.icon_color} sm:w-10 sm:h-10`} strokeWidth={1.5} />
-                                        </div>
+                                        {/* Ambient Glow */}
+                                        <div className={`absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
                                         
-                                        {/* Hover Indicator */}
-                                        <div className="absolute bottom-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 p-1 rounded-full backdrop-blur-sm">
-                                            <ChevronRight size={12} className={style.icon_color} />
+                                        {/* Floating Icon Container */}
+                                        <div className={`relative z-10 w-12 h-12 sm:w-16 sm:h-16 rounded-[1.5rem] bg-white shadow-xl shadow-slate-200/50 flex items-center justify-center transform group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 ease-out`}>
+                                            <Icon size={28} className={style.icon_color} strokeWidth={2} />
                                         </div>
+
+                                        {/* Decorative Dots */}
+                                        <div className="absolute top-4 right-4 flex gap-1 group-hover:translate-x-1 transition-transform">
+                                            <div className={`w-1 h-1 rounded-full ${style.icon_color} opacity-20`} />
+                                            <div className={`w-1 h-1 rounded-full ${style.icon_color} opacity-10`} />
+                                        </div>
+
+                                        {/* Glass Shine Effect */}
+                                        <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/30 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
                                     </div>
-                                    <span className="text-[10px] sm:text-[11px] font-black text-slate-700 text-center uppercase tracking-wider group-hover:text-orange-500 transition-colors px-1 leading-tight min-h-[2.5rem] flex items-center justify-center">
-                                        {catName.replace(' & ', '\n& ')}
+                                    
+                                    {/* Category Label */}
+                                    <span className="mt-4 text-[10px] sm:text-[11px] font-black text-slate-900 border-b-2 border-transparent group-hover:border-orange-500 group-hover:text-orange-600 transition-all uppercase tracking-widest px-1 text-center leading-tight">
+                                        {catName.split(' & ').map((part, idx) => (
+                                            <React.Fragment key={idx}>
+                                                {part}
+                                                {idx === 0 && catName.includes(' & ') && <br />}
+                                            </React.Fragment>
+                                        ))}
                                     </span>
                                 </motion.button>
                             );
@@ -121,55 +137,182 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                     </div>
                 </section>
 
-                {/* ─── Today's Hot Picks ─── */}
-                <section className="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between mb-10">
-                        <div className="flex items-center gap-4">
-                            <div className="w-1.5 h-10 rounded-full bg-orange-500" />
-                            <div>
-                                <p className="text-orange-500 text-xs font-black uppercase tracking-widest mb-0.5">Live</p>
-                                <h2 className="text-3xl font-black text-slate-900 tracking-tight">Today's Hot Picks</h2>
+                {/* ─── Trending Now Carousel ─── */}
+                <section className="py-12 bg-slate-50 border-y border-slate-100 overflow-hidden">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex items-center justify-between mb-8">
+                            <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 rounded-2xl bg-orange-500 flex items-center justify-center text-white shadow-xl shadow-orange-500/20">
+                                    <Flame size={28} fill="currentColor" />
+                                </div>
+                                <div>
+                                    <p className="text-orange-600 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Top Picks</p>
+                                    <h2 className="text-3xl font-black text-slate-900 tracking-tight leading-none">Trending Now</h2>
+                                </div>
                             </div>
+                            <button onClick={() => navigate('/deals')} className="flex items-center gap-2 text-sm font-black text-slate-400 hover:text-orange-500 transition-colors group">
+                                EXPLORE ALL <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                            </button>
                         </div>
-                        <button onClick={() => navigate('/deals')} className="h-12 px-8 rounded-2xl bg-orange-500 text-white font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-colors flex items-center gap-2 shadow-lg shadow-orange-500/20">
-                            All Deals <ArrowRight size={16} />
-                        </button>
+
+                        <div className="flex gap-6 overflow-x-auto no-scrollbar pb-10 -mx-4 px-4 sm:mx-0 sm:px-0">
+                            {deals.filter(d => {
+                                const disc = d.discount || '';
+                                const match = disc.match(/(\d+)/);
+                                return match && parseInt(match[1]) >= 40;
+                            }).slice(0, 8).map((deal, i) => (
+                                <motion.div
+                                    key={deal.id || deal._id}
+                                    whileHover={{ y: -12, scale: 1.02 }}
+                                    onClick={() => navigate(`/product/${deal.id || deal._id}`)}
+                                    className="min-w-[300px] w-[300px] bg-white rounded-[2.5rem] border border-slate-100 p-6 shadow-sm cursor-pointer relative overflow-hidden group transition-all duration-500 hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] hover:border-transparent flex flex-col"
+                                >
+                                    {/* Badges Overlay */}
+                                    <div className="absolute top-5 left-5 z-10 flex flex-col gap-2">
+                                        <div className="bg-red-600 text-white text-[10px] font-black px-3 py-1.5 rounded-xl shadow-xl shadow-red-500/20 uppercase tracking-wider flex items-center gap-1.5">
+                                            <Zap size={12} fill="currentColor" /> {deal.discount} OFF
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Store Badge */}
+                                    <div className="absolute top-5 right-5 z-10">
+                                        <div className="bg-white/90 backdrop-blur-md border border-slate-100 px-3 py-1.5 rounded-xl shadow-sm flex items-center gap-2">
+                                            <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center p-0.5">
+                                                <img 
+                                                    src={`https://www.google.com/s2/favicons?domain=${deal.store?.toLowerCase() || 'amazon'}.com&sz=32`} 
+                                                    alt="" 
+                                                    className="w-full h-full object-contain"
+                                                />
+                                            </div>
+                                            <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{deal.store}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Image Section */}
+                                    <div className="aspect-[4/3] bg-white rounded-3xl mb-6 flex items-center justify-center p-6 relative group-hover:bg-slate-50 transition-colors duration-500">
+                                        <img src={deal.image || (deal.images && deal.images[0])} alt="" className="max-h-full object-contain filter drop-shadow-xl group-hover:scale-110 transition-transform duration-700 ease-out" />
+                                        
+                                        {/* Action Hint */}
+                                        <div className="absolute bottom-4 opacity-0 group-hover:opacity-100 transition-opacity bg-orange-500 text-white text-[9px] font-black px-4 py-2 rounded-full shadow-lg uppercase tracking-widest translate-y-2 group-hover:translate-y-0 transition-all duration-500">
+                                            View Details
+                                        </div>
+                                    </div>
+
+                                    {/* Text Info */}
+                                    <div className="flex-1">
+                                        <h4 className="font-extrabold text-slate-800 line-clamp-2 mb-4 text-base leading-tight group-hover:text-orange-600 transition-colors">{deal.title}</h4>
+                                        <div className="flex items-end justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-2xl font-black text-slate-900 tracking-tighter">{deal.price}</span>
+                                                    {deal.originalPrice && (
+                                                        <span className="text-xs font-bold text-slate-400 line-through opacity-60">{deal.originalPrice}</span>
+                                                    )}
+                                                </div>
+                                                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1">
+                                                    <TrendingDown size={12} /> VERIFIED BEST PRICE
+                                                </p>
+                                            </div>
+                                            <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-orange-600 group-hover:text-white transition-all duration-500 group-hover:rotate-12">
+                                                <ArrowRight size={20} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Glass Shine */}
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none" />
+                                </motion.div>
+                            ))}
+                        </div>
                     </div>
-                    <DealsGrid deals={deals.slice(0, 8)} wishlist={wishlist} toggleWishlist={toggleWishlist} />
                 </section>
 
-                {/* ─── Partner Stores Banner ─── */}
-                <section className="py-20 px-4 sm:px-6 lg:px-8">
-                    <div className="max-w-7xl mx-auto bg-gradient-to-r from-slate-900 to-slate-800 rounded-[3rem] overflow-hidden relative">
-                        <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-5" style={{ backgroundImage: 'radial-gradient(circle, white 0.4px, transparent 0.4px)', backgroundSize: '24px 24px' }} />
+                {/* ─── Featured Grid ─── */}
+                <section id="deals-grid" className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-4">
+                            <div className="w-1.5 h-10 rounded-full bg-blue-500" />
+                            <div>
+                                <p className="text-blue-500 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Explore</p>
+                                <h2 className="text-3xl font-black text-slate-900 tracking-tight leading-none">All Live Deals</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <DealsGrid deals={deals.slice(0, 12)} wishlist={wishlist} toggleWishlist={toggleWishlist} />
+                </section>
 
-                        <div className="relative z-10 flex flex-col lg:flex-row items-center gap-20 p-12 md:p-20">
-                            <div className="flex-1 text-white text-center lg:text-left space-y-8">
-                                <div className="inline-flex items-center gap-2 bg-white/10 border border-white/10 rounded-full px-4 py-2 text-xs font-bold text-white/60 uppercase tracking-widest">
-                                    <Store size={14} /> Partner Network
+                {/* ─── Recently Viewed ─── */}
+                {recentlyViewed && recentlyViewed.length > 0 && (
+                    <section className="py-12 bg-white border-y border-slate-100 overflow-hidden">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex items-center justify-between mb-8">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                                        <Clock size={24} />
+                                    </div>
+                                    <div>
+                                        <p className="text-indigo-600 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Your Activity</p>
+                                        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Recently Viewed</h2>
+                                    </div>
                                 </div>
-                                <h2 className="text-5xl md:text-7xl font-black tracking-tight leading-[0.85]">
-                                    Top Trusted <br />
-                                    <span className="text-orange-400">Stores.</span>
+                                <div className="h-px flex-1 bg-slate-100 mx-8 hidden md:block" />
+                            </div>
+                            <DealsGrid deals={recentlyViewed.slice(0, 5)} wishlist={wishlist} toggleWishlist={toggleWishlist} />
+                        </div>
+                    </section>
+                )}
+
+                {/* ─── Partner Stores Banner ─── */}
+                <section className="py-12 px-4 sm:px-6 lg:px-8">
+                    <div className="max-w-7xl mx-auto bg-slate-900 rounded-[4rem] overflow-hidden relative shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)]">
+                        {/* Background Effects */}
+                        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-orange-500/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
+                        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/10 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/3" />
+                        <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(circle, white 0.4px, transparent 0.4px)', backgroundSize: '32px 32px' }} />
+
+                        <div className="relative z-10 flex flex-col lg:flex-row items-center gap-16 p-12 md:p-24">
+                            <div className="flex-[1.2] text-white text-center lg:text-left space-y-10">
+                                <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl px-5 py-2.5 text-[10px] font-black text-white/60 uppercase tracking-[0.2em]">
+                                    <Store size={14} className="text-orange-400" /> Partner Ecosystem
+                                </div>
+                                <h2 className="text-5xl md:text-7xl font-black tracking-tighter leading-[0.95]">
+                                    Shop From The <br />
+                                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-200">World's Best.</span>
                                 </h2>
-                                <p className="text-white/50 text-lg font-medium max-w-md leading-relaxed">
-                                    We partner with India's best marketplaces to bring you exclusive, verified deals in one place.
+                                <p className="text-white/40 text-lg md:text-xl font-medium max-w-lg leading-relaxed">
+                                    We aggregate live prices and exclusive discount codes from India's most trusted marketplaces in real-time.
                                 </p>
-                                <button onClick={() => navigate('/stores')} className="h-16 px-12 rounded-2xl bg-orange-500 text-white font-black text-sm uppercase tracking-widest hover:bg-orange-400 transition-colors flex items-center gap-3 shadow-xl shadow-orange-500/30 mx-auto lg:mx-0 group">
-                                    Explore Partners <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-                                </button>
+                                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
+                                    <button onClick={() => navigate('/stores')} className="h-16 px-10 rounded-2xl bg-orange-500 text-white font-black text-sm uppercase tracking-widest hover:bg-orange-400 transition-all shadow-2xl shadow-orange-500/20 active:scale-95 group flex items-center gap-3">
+                                        View All Stores <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                                    </button>
+                                    <div className="flex -space-x-3">
+                                        {[1, 2, 3, 4].map(i => (
+                                            <div key={i} className="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center overflow-hidden">
+                                                <img src={`https://i.pravatar.cc/100?img=${i + 10}`} alt="" />
+                                            </div>
+                                        ))}
+                                        <div className="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center text-[10px] font-black text-white">
+                                            +2k
+                                        </div>
+                                    </div>
+                                    <span className="text-white/30 text-xs font-bold ml-2 italic underline underline-offset-4 decoration-white/10">Active shoppers today</span>
+                                </div>
                             </div>
 
-                            <div className="flex-1 grid grid-cols-3 gap-4">
+                            <div className="flex-1 grid grid-cols-3 gap-6 w-full">
                                 {STORES.map((s) => (
                                     <motion.div
                                         key={s.id}
-                                        whileHover={{ y: -8, scale: 1.05 }}
-                                        className="aspect-square bg-white/5 border border-white/10 rounded-3xl flex flex-col items-center justify-center gap-3 p-6 cursor-pointer hover:bg-white/10 transition-colors group"
+                                        whileHover={{ y: -10, scale: 1.05 }}
+                                        className="aspect-square bg-gradient-to-br from-white/10 to-transparent border border-white/10 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 p-6 cursor-pointer hover:bg-white/5 transition-all group relative overflow-hidden"
                                         onClick={() => navigate('/deals?category=' + s.id)}
                                     >
-                                        <img src={s.logo} alt={s.name} className="w-12 h-12 object-contain" />
-                                        <span className="text-white/40 text-xs font-bold group-hover:text-white/80 transition-colors">{s.name}</span>
+                                        <div className="absolute inset-0 bg-orange-500/0 group-hover:bg-orange-500/5 transition-colors" />
+                                        <div className="w-16 h-16 rounded-3xl bg-white flex items-center justify-center p-3 shadow-2xl group-hover:rotate-6 transition-transform">
+                                            <img src={s.logo} alt={s.name} className="w-full h-full object-contain" />
+                                        </div>
+                                        <span className="text-white/40 text-[10px] font-black uppercase tracking-widest group-hover:text-white transition-colors">{s.name}</span>
                                     </motion.div>
                                 ))}
                             </div>
@@ -178,21 +321,32 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                 </section>
 
                 {/* ─── Why DealHunter ─── */}
-                <section className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <h2 className="text-3xl font-black text-slate-900 text-center mb-16 tracking-tight">Why DealHunter?</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-100 mt-6 text-center">
+                    <div className="max-w-3xl mx-auto mb-20 text-center">
+                        <span className="text-orange-500 text-xs font-black uppercase tracking-[0.3em] mb-4 block">The DealHunter Edge</span>
+                        <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">Everything You Need to <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-orange-400">Save 10x Faster.</span></h2>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                         {[
-                            { icon: ShieldCheck, color: 'bg-emerald-500', title: 'Verified Deals Only', desc: 'Every deal is manually reviewed and verified before going live on our platform.' },
-                            { icon: Zap, color: 'bg-orange-500', title: 'Real-time Price Watch', desc: 'Our bots scan millions of product pages every 5 minutes to catch every price drop.' },
-                            { icon: TrendingDown, color: 'bg-blue-500', title: 'Best Price Guarantee', desc: 'We compare prices across 12+ Indian marketplaces so you never overpay.' },
-                        ].map(({ icon: Icon, color, title, desc }) => (
-                            <div key={title} className="bg-white rounded-3xl p-10 border border-slate-100 shadow-sm hover:shadow-lg transition-shadow space-y-6">
-                                <div className={`w-16 h-16 rounded-2xl ${color} flex items-center justify-center shadow-lg`}>
-                                    <Icon size={32} className="text-white" strokeWidth={2} />
+                            { icon: ShieldCheck, color: 'bg-emerald-500', title: 'Verified Deals Only', desc: 'Every deal is manually reviewed and verified by our expert team before going live on the platform.' },
+                            { icon: Zap, color: 'bg-orange-500', title: 'Real-time Price Watch', desc: 'Our advanced price trackers scan millions of pages every 5 minutes to catch every single price drop.' },
+                            { icon: TrendingDown, color: 'bg-blue-500', title: 'Best Price Log', desc: 'We show you the historical price charts so you know if you are truly getting the lowest price ever.' },
+                        ].map((feature, i) => (
+                            <motion.div
+                                key={i}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: i * 0.1 }}
+                                className="group p-10 rounded-[3rem] bg-white border border-slate-100 hover:border-transparent hover:shadow-[0_40px_80px_-15px_rgba(0,0,0,0.06)] transition-all duration-500 flex flex-col items-center text-center"
+                            >
+                                <div className={`w-20 h-20 rounded-[2rem] bg-slate-50 flex items-center justify-center mb-8 rotate-3 group-hover:rotate-12 transition-transform duration-500`}>
+                                    <feature.icon size={36} className={feature.color} />
                                 </div>
-                                <h3 className="text-xl font-black text-slate-900">{title}</h3>
-                                <p className="text-slate-500 font-medium leading-relaxed">{desc}</p>
-                            </div>
+                                <h3 className="text-xl font-black text-slate-900 mb-4">{feature.title}</h3>
+                                <p className="text-slate-500 font-medium leading-relaxed">{feature.desc}</p>
+                            </motion.div>
                         ))}
                     </div>
                 </section>
