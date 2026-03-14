@@ -349,11 +349,11 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                 image={activeImage}
             />
             <Navbar user={null} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />
-            <main id="product-details-loaded" className="container mx-auto px-4 sm:px-6 lg:px-8 pt-24 md:pt-44 pb-16">
+            <main id="product-details-loaded" className="container mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-24 pb-16">
                 {/* Breadcrumb / Back */}
                 <button
                     onClick={() => navigate(-1)}
-                    className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors mb-4 md:mb-6 font-bold uppercase tracking-widest text-[10px] md:text-sm"
+                    className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors mb-2 md:mb-4 font-bold uppercase tracking-widest text-[10px] md:text-sm"
                 >
                     <ArrowLeft size={16} /> Back
                 </button>
