@@ -144,14 +144,14 @@ const Hero = ({ deals = [] }) => {
                                 <motion.div
                                     initial={{ x: -20, opacity: 0 }}
                                     animate={{ x: 0, opacity: 1 }}
-                                    className="flex items-center gap-3 justify-center md:justify-start"
+                                    className="flex items-center gap-2 justify-center md:justify-start"
                                 >
-                                    <span className="bg-white/20 backdrop-blur-md text-white text-[9px] md:text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-[0.2em] border border-white/30 shadow-xl">
+                                    <span className="bg-white/10 backdrop-blur-lg text-white text-[8px] md:text-[9px] font-black px-2.5 py-1.5 rounded-lg uppercase tracking-[0.2em] border border-white/20 shadow-xl">
                                         {slide.badge}
                                     </span>
-                                    <div className="flex items-center gap-2 bg-emerald-500/20 px-2.5 py-1 rounded-md border border-emerald-500/30">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                                        <span className="text-[9px] font-black uppercase tracking-widest">Live Now</span>
+                                    <div className="flex items-center gap-1.5 bg-emerald-500/20 px-2 py-1 rounded-md border border-emerald-500/30">
+                                        <div className="w-1 h-1 rounded-full bg-emerald-400 animate-ping" />
+                                        <span className="text-[8px] font-black uppercase tracking-widest text-emerald-50">Pulse Live</span>
                                     </div>
                                 </motion.div>
 
@@ -159,10 +159,10 @@ const Hero = ({ deals = [] }) => {
                                     initial={{ y: 30, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
                                     transition={{ delay: 0.1 }}
-                                    className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black leading-[1.1] tracking-tighter"
+                                    className="text-xl sm:text-3xl md:text-4xl lg:text-5xl font-[1000] leading-tight tracking-tight"
                                 >
                                     {slide.title.split(' ').map((word, i) => (
-                                        <span key={i} className={i % 2 === 0 ? 'text-white' : 'text-white/70 block md:inline'}>
+                                        <span key={i} className={i % 2 === 0 ? 'text-white' : 'text-white/80 block md:inline'}>
                                             {word}{' '}
                                         </span>
                                     ))}
@@ -172,7 +172,7 @@ const Hero = ({ deals = [] }) => {
                                     initial={{ y: 20, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
                                     transition={{ delay: 0.2 }}
-                                    className="text-white/70 text-sm md:text-lg max-w-xl mx-auto md:mx-0 font-medium leading-relaxed"
+                                    className="text-white/60 text-xs md:text-base max-w-lg mx-auto md:mx-0 font-medium leading-relaxed"
                                 >
                                     {slide.sub}
                                 </motion.p>
@@ -186,18 +186,18 @@ const Hero = ({ deals = [] }) => {
                                         className="flex flex-wrap items-center gap-4 justify-center md:justify-start"
                                     >
                                         <div className="flex flex-col">
-                                            <span className="text-white/50 text-[9px] font-black uppercase tracking-widest mb-1">Price Drop</span>
+                                            <span className="text-white/40 text-[8px] font-black uppercase tracking-widest mb-1">Live Valuation</span>
                                             <div className="flex items-baseline gap-2">
-                                                <span className="text-4xl md:text-5xl font-black text-white tracking-tighter drop-shadow-2xl">{slide.price}</span>
+                                                <span className="text-3xl md:text-4xl font-black text-white tracking-tighter">{slide.price}</span>
                                                 {slide.mrp && (
-                                                    <span className="text-lg md:text-xl font-bold text-white/30 line-through decoration-white/50">{slide.mrp}</span>
+                                                    <span className="text-base md:text-lg font-bold text-white/30 line-through decoration-white/40">{slide.mrp}</span>
                                                 )}
                                             </div>
                                         </div>
                                         
                                         {slide.discountNum && (
-                                            <div className="bg-yellow-400 rotate-6 px-3 py-2 rounded-2xl shadow-2xl shadow-yellow-500/20 transform hover:rotate-0 transition-transform">
-                                                <span className="text-yellow-900 font-black text-xl md:text-2xl tracking-tighter">
+                                            <div className="bg-yellow-400 rotate-3 px-2 py-1 rounded-xl shadow-lg shadow-yellow-500/20">
+                                                <span className="text-yellow-900 font-black text-lg md:text-xl tracking-tighter">
                                                     -{slide.discountNum}%
                                                 </span>
                                             </div>
@@ -209,24 +209,24 @@ const Hero = ({ deals = [] }) => {
                                     initial={{ y: 30, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
                                     transition={{ delay: 0.4 }}
-                                    className="flex flex-wrap gap-3 items-center justify-center md:justify-start pt-2"
+                                    className="flex flex-wrap gap-2.5 items-center justify-center md:justify-start pt-1"
                                 >
                                     <Link
                                         to={slide.href}
-                                        className="h-14 px-8 md:h-16 md:px-10 bg-white rounded-2xl text-slate-900 font-[1000] text-xs md:text-sm uppercase tracking-widest flex items-center gap-3 hover:scale-[1.03] active:scale-95 transition-all shadow-2xl shadow-black/20 group overflow-hidden relative"
+                                        className="h-12 px-6 md:h-14 md:px-8 bg-white rounded-xl text-slate-900 font-black text-[10px] md:text-xs uppercase tracking-[0.15em] flex items-center gap-2 hover:translate-y-[-2px] active:translate-y-[0] transition-all shadow-xl shadow-black/10 group overflow-hidden relative"
                                     >
                                         <div className="absolute inset-0 bg-slate-900 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
-                                        <span className="relative z-10 group-hover:text-white transition-colors">Grab Deal</span>
-                                        <ArrowRight size={18} className="relative z-10 group-hover:text-white transition-colors group-hover:translate-x-1" />
+                                        <span className="relative z-10 group-hover:text-white transition-colors">Access Deal</span>
+                                        <ArrowRight size={14} className="relative z-10 group-hover:text-white transition-colors group-hover:translate-x-1" />
                                     </Link>
                                     
-                                    <div className="h-14 md:h-16 px-6 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                                            <ShieldCheck size={16} className="text-white" />
+                                    <div className="h-12 md:h-14 px-5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl flex items-center gap-2.5">
+                                        <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center">
+                                            <ShieldCheck size={14} className="text-white opacity-60" />
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="text-white/60 text-[8px] font-black uppercase tracking-widest leading-none mb-1">Status</span>
-                                            <span className="text-white text-[11px] font-black">{slide.stat}</span>
+                                            <span className="text-white/40 text-[7px] font-black uppercase tracking-widest leading-none mb-1">Authenticity</span>
+                                            <span className="text-white text-[10px] font-black tracking-tight">{slide.stat}</span>
                                         </div>
                                     </div>
                                 </motion.div>
