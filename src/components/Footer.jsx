@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Facebook, Twitter, Instagram, Youtube, Mail, Phone, MapPin, ArrowRight, Heart, Flame } from 'lucide-react';
+import { Facebook, Twitter, Instagram, Youtube, Mail, Phone, MapPin, ArrowRight, Heart, ShoppingCart, Globe } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Footer = ({ showToast }) => {
@@ -26,11 +26,9 @@ const Footer = ({ showToast }) => {
 
                 {/* Brand */}
                 <div className="space-y-5">
-                    <Link to="/" className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center">
-                            <Flame size={16} className="text-white" fill="currentColor" />
-                        </div>
-                        <span className="text-xl font-black text-white">Deal<span className="text-orange-400">Hunter</span></span>
+                    <Link to="/" className="flex items-center gap-3">
+                        <img src="/logo.png" alt="DealOrbit" className="h-12 w-auto object-contain bg-white rounded-xl p-1.5 shadow-md" />
+                        <span className="text-3xl font-black text-white tracking-tighter">Deal<span className="text-[#F97316]">Orbit</span></span>
                     </Link>
                     <p className="text-slate-400 leading-relaxed text-sm max-w-xs">
                         India's #1 affiliate deals platform. Discover the best offers, coupons, and cashback across 100+ top stores.
@@ -52,7 +50,7 @@ const Footer = ({ showToast }) => {
                                 <ArrowRight size={14} />
                             </button>
                         </form>
-                        <p className="text-[10px] text-slate-600 mt-1.5">Join 50,000+ deal hunters. Unsubscribe anytime.</p>
+                        <p className="text-[10px] text-slate-600 mt-1.5">Join 50,000+ smart orbiters. Unsubscribe anytime.</p>
                     </div>
                 </div>
 
@@ -114,7 +112,7 @@ const Footer = ({ showToast }) => {
                         </li>
                         <li className="flex items-center gap-3">
                             <Mail size={16} className="text-orange-500 shrink-0" />
-                            <a href="mailto:support@dealshunter.com" className="hover:text-orange-400 transition-colors text-sm">support@dealshunter.com</a>
+                            <a href="mailto:support@dealorbit.com" className="hover:text-orange-400 transition-colors text-sm">support@dealorbit.com</a>
                         </li>
                     </ul>
 
@@ -137,7 +135,7 @@ const Footer = ({ showToast }) => {
             {/* Bottom */}
             <div className="border-t border-slate-800 pt-6 mx-6">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-600">
-                    <p>© 2026 DealHunter. Made with <Heart size={10} className="inline text-red-500 fill-red-500 mx-0.5" /> for Indian shoppers.</p>
+                    <p>© 2026 DealOrbit. Made with <Heart size={10} className="inline text-red-500 fill-red-500 mx-0.5" /> for Indian shoppers.</p>
                     <div className="flex gap-4">
                         <a href="#" onClick={handleComingSoon} className="hover:text-slate-400 transition-colors">Privacy Policy</a>
                         <a href="#" onClick={handleComingSoon} className="hover:text-slate-400 transition-colors">Terms of Service</a>

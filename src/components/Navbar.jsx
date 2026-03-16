@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Search, Menu, X, Heart, Flame, Bell, Zap, Tag, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Search, Menu, X, Heart, Flame, Bell, Zap, Tag, ArrowRight, ShieldCheck, ShoppingCart, Sparkles, Globe } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useWishlistAnimation } from '../context/wishlistAnimationContextDefinition';
 import { AuthContext } from '../context/authContextDefinition';
@@ -14,12 +14,13 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
     const [searchVal, setSearchVal] = useState('');
     const [scrolled, setScrolled] = useState(false);
     const [latestDeals, setLatestDeals] = useState([]);
+    const [hasUnread, setHasUnread] = useState(false);
     const routeLocation = useLocation();
     const navigate = useNavigate();
 
     const isActive = (path) => routeLocation.pathname === path;
 
-    useEffect(() => {
+    const fetchNotifications = () => {
         if (!apiBase) return;
         fetch(apiBase.replace('/user', '') + '/deals')
             .then(res => res.json())
@@ -27,14 +28,46 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                 if (Array.isArray(data)) {
                     const sorted = [...data].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
                     setLatestDeals(sorted.slice(0, 5));
+                    
+                    // Check if the newest deal is unread
+                    if (sorted.length > 0) {
+                        const lastSeenId = localStorage.getItem('lastSeenDealId');
+                        const currentNewestId = String(sorted[0]._id || sorted[0].id);
+                        if (lastSeenId !== currentNewestId) {
+                            setHasUnread(true);
+                        }
+                    }
                 }
             })
             .catch(err => console.error("Failed to fetch notifications:", err));
+    };
+
+    useEffect(() => {
+        fetchNotifications();
+    }, [apiBase]);
+
+    // Listen for new deals added in current session
+    useEffect(() => {
+        const handleNewDeal = () => {
+            setHasUnread(true);
+            fetchNotifications();
+        };
+        window.addEventListener('newDealAdded', handleNewDeal);
+        return () => window.removeEventListener('newDealAdded', handleNewDeal);
     }, [apiBase]);
 
     useEffect(() => {
-        const handleScroll = () => setScrolled(window.scrollY > 10);
-        window.addEventListener('scroll', handleScroll);
+        let ticking = false;
+        const handleScroll = () => {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    setScrolled(window.scrollY > 10);
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        };
+        window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
@@ -85,16 +118,23 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                         <div className={`flex items-center justify-between gap-4 relative transition-all duration-500 ${scrolled ? 'h-14' : 'h-16'}`}>
 
                             {/* Logo */}
-                            <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
-                                <div className="relative">
-                                    <div className="absolute inset-0 bg-orange-500 blur-lg opacity-20 group-hover:opacity-40 transition-opacity" />
-                                    <div className="relative w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                                        <Flame size={20} className="text-white" fill="currentColor" />
-                                    </div>
+                            <Link to="/" className="flex items-center gap-3.5 shrink-0 group">
+                                <div className={`flex items-center transition-all duration-500 ${scrolled ? 'h-10' : 'h-12 sm:h-14'}`}>
+                                    <img 
+                                        src="/logo.png" 
+                                        alt="DealOrbit" 
+                                        className="h-full w-auto object-contain filter drop-shadow-sm group-hover:drop-shadow-md transition-all duration-300" 
+                                    />
                                 </div>
-                                <span className="font-black text-2xl tracking-tighter text-slate-900 hidden lg:block">
-                                    DEAL<span className="text-orange-500">HUNTER</span>
-                                </span>
+                                <div className="flex flex-col leading-none">
+                                    <span className={`font-[1000] tracking-tighter flex items-baseline transition-all duration-500 ${scrolled ? 'text-2xl' : 'text-2xl sm:text-3xl'}`}>
+                                        <span className="text-[#1E3A8A]">Deal</span>
+                                        <span className="text-[#F97316]">Orbit</span>
+                                    </span>
+                                    <span className={`font-bold text-slate-400 uppercase tracking-widest mt-0.5 ml-0.5 transition-all duration-500 ${scrolled ? 'text-[8px]' : 'text-[9px] sm:text-[11px]'}`}>
+                                        Smart Deals Everyday
+                                    </span>
+                                </div>
                             </Link>
 
                             {/* Search Bar */}
@@ -125,9 +165,22 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
 
                                 {/* Notifications */}
                                 <div className="relative">
-                                    <button onClick={() => { setIsNotificationsOpen(!isNotificationsOpen); setIsOpen(false); }} className={`relative flex items-center justify-center w-11 h-11 rounded-2xl transition-all ${isNotificationsOpen ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`}>
+                                    <button 
+                                        onClick={() => { 
+                                            const nextState = !isNotificationsOpen;
+                                            setIsNotificationsOpen(nextState); 
+                                            setIsOpen(false); 
+                                            
+                                            // Clear notification dot when opening
+                                            if (nextState && latestDeals.length > 0) {
+                                                setHasUnread(false);
+                                                localStorage.setItem('lastSeenDealId', String(latestDeals[0]._id || latestDeals[0].id));
+                                            }
+                                        }} 
+                                        className={`relative flex items-center justify-center w-11 h-11 rounded-2xl transition-all ${isNotificationsOpen ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                                    >
                                         <Bell size={22} />
-                                        {latestDeals.length > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border-2 border-white animate-pulse" />}
+                                        {hasUnread && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border-2 border-white animate-pulse" />}
                                     </button>
                                     <AnimatePresence>
                                         {isNotificationsOpen && (

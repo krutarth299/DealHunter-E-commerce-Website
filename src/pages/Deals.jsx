@@ -210,7 +210,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
 
     return (
         <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900">
-            <SEO title="Explore Deals | DealHunter" description="Browse hundreds of verified deals across electronics, fashion, gaming and more." />
+            <SEO title="Explore Deals | DealOrbit" description="Browse hundreds of verified deals across electronics, fashion, gaming and more." />
             <Navbar user={user} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist.length} wishlist={wishlist} />
             <Modal isOpen={isAddDealOpen} onClose={() => setIsAddDealOpen(false)} title="Add a Deal" onSubmit={handleAddDeal} dealForm={dealForm} setDealForm={setDealForm} />
 

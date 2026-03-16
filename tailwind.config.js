@@ -7,9 +7,11 @@ export default {
     theme: {
         extend: {
             colors: {
-                primary: '#2563eb', // Standard Blue (Trustworthy)
-                secondary: '#f3f4f6', // Light Gray Background
-                accent: '#f59e0b', // Amber for stars/highlights
+                primary: '#1E3A8A', // DealOrbit Blue
+                accent: '#F97316',  // DealOrbit Orange
+                'brand-blue': '#1E3A8A',
+                'brand-orange': '#F97316',
+                secondary: '#f3f4f6', 
                 text: {
                     primary: '#1f2937', // Gray 800
                     secondary: '#6b7280', // Gray 500

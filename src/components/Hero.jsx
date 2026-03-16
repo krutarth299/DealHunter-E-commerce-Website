@@ -133,7 +133,7 @@ const Hero = ({ deals = [] }) => {
             onMouseLeave={() => setIsPaused(false)}
         >
             {/* ── Main Slide Banner ── */}
-            <div className="relative overflow-hidden min-h-[600px] sm:min-h-[540px] md:min-h-[480px]">
+            <div className="relative overflow-hidden min-h-[780px] sm:min-h-[680px] md:min-h-[580px] lg:min-h-[500px]">
                 <AnimatePresence>
                     <motion.div
                         key={current}
@@ -144,12 +144,12 @@ const Hero = ({ deals = [] }) => {
                         drag="x"
                         dragConstraints={{ left: 0, right: 0 }}
                         dragElastic={0.2}
-                        onDragEnd={(_, info) => {
-                            const swipe = info.offset.x;
+                        onDragEnd={(e, { offset, velocity }) => {
+                            const swipe = offset.x;
                             if (swipe < -50) nextSlide();
                             else if (swipe > 50) prevSlide();
                         }}
-                        className={`absolute inset-0 bg-gradient-to-br ${slide.bg} flex items-center overflow-hidden cursor-grab active:cursor-grabbing`}
+                        className={`absolute inset-0 bg-gradient-to-br ${slide.bg} flex items-start sm:items-center overflow-hidden cursor-grab active:cursor-grabbing`}
                     >
                         {/* Mesh Gradients */}
                         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 animate-pulse" />
@@ -158,7 +158,7 @@ const Hero = ({ deals = [] }) => {
                         {/* Grid noise fallback */}
                         <div className="absolute inset-0 opacity-[0.1] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] mix-blend-overlay" />
 
-                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12 relative z-10 w-full">
+                        <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-12 pt-32 pb-16 sm:pt-24 md:pt-32 md:pb-24 lg:pt-36 flex flex-col md:flex-row items-center justify-between gap-10 md:gap-16 relative z-10 w-full">
                             {/* ── Text side ── */}
                             <div className="flex-[1.2] text-white space-y-4 md:space-y-6 text-center md:text-left">
                                 <motion.div
@@ -176,10 +176,10 @@ const Hero = ({ deals = [] }) => {
                                 </motion.div>
 
                                 <motion.h1
-                                    initial={{ y: 30, opacity: 0 }}
+                                    initial={{ y: 20, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
                                     transition={{ delay: 0.1 }}
-                                    className="text-xl sm:text-3xl md:text-4xl lg:text-5xl font-[1000] leading-tight tracking-tight"
+                                    className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-[1000] leading-[1.15] tracking-tight py-1"
                                 >
                                     {slide.title.split(' ').map((word, i) => (
                                         <span key={i} className={i % 2 === 0 ? 'text-white' : 'text-white/80 block md:inline'}>

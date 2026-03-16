@@ -1,19 +1,18 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import Home from './pages/Home';
-import Deals from './pages/Deals';
-import Stores from './pages/Stores';
-// Admin accounts now guest-focused with admin-only auth
-import ProductDetails from './pages/ProductDetails';
-import Wishlist from './pages/Wishlist';
+const Home = React.lazy(() => import('./pages/Home'));
+const Deals = React.lazy(() => import('./pages/Deals'));
+const Stores = React.lazy(() => import('./pages/Stores'));
+const ProductDetails = React.lazy(() => import('./pages/ProductDetails'));
+const Wishlist = React.lazy(() => import('./pages/Wishlist'));
+const AdminPanel = React.lazy(() => import('./pages/AdminPanel'));
+const Blog = React.lazy(() => import('./pages/Blog'));
+const BlogPost = React.lazy(() => import('./pages/BlogPost'));
+const Login = React.lazy(() => import('./pages/Login'));
+const Signup = React.lazy(() => import('./pages/Signup'));
 import { INITIAL_DEALS } from './data/initialDeals';
 import { AuthProvider } from './context/AuthContext';
 import { AuthContext } from './context/authContextDefinition';
-import AdminPanel from './pages/AdminPanel';
-import Blog from './pages/Blog';
-import BlogPost from './pages/BlogPost';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
 import ScrollToTop from './components/ScrollToTop';
 import { motion } from 'framer-motion';
 import { Flame, CheckCircle2, Info, AlertCircle, X, Loader2 } from 'lucide-react';
@@ -78,103 +77,7 @@ function AppContent() {
   };
 
   // Global 2D Spatial Arrow Key Navigation - Optimized
-  useEffect(() => {
-    let cachedElements = null;
-    let lastQueryTime = 0;
-
-    const handleKeyDown = (e) => {
-      // Don't interfere if user is typing or if it's a mobile device (touch primary)
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
-      if (window.innerWidth < 1024) return; // Disable on mobile/tablet to save resources
-
-      const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
-      if (!keys.includes(e.key)) return;
-
-      const now = Date.now();
-      // Recalculate elements only every 2 seconds or on first run
-      if (!cachedElements || now - lastQueryTime > 2000) {
-        const focusableSelectors = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-        cachedElements = Array.from(document.querySelectorAll(focusableSelectors)).filter(el => {
-          const rect = el.getBoundingClientRect();
-          const style = window.getComputedStyle(el);
-          return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.opacity !== '0';
-        });
-        lastQueryTime = now;
-      }
-
-      if (cachedElements.length === 0) return;
-      e.preventDefault();
-
-      const current = document.activeElement;
-      
-      if (!cachedElements.includes(current)) {
-        cachedElements[0].focus();
-        return;
-      }
-
-      const currentRect = current.getBoundingClientRect();
-      const currentCenter = { x: currentRect.left + currentRect.width / 2, y: currentRect.top + currentRect.height / 2 };
-
-      let bestElement = null;
-      let minDistance = Infinity;
-
-      cachedElements.forEach(el => {
-        if (el === current) return;
-        const rect = el.getBoundingClientRect();
-        const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-
-        let dx = center.x - currentCenter.x;
-        let dy = center.y - currentCenter.y;
-        
-        let isValidDirection = false;
-        let primaryDist = 0;
-        let secondaryDist = 0;
-
-        if (e.key === 'ArrowUp' && dy < -5) {
-          isValidDirection = true;
-          primaryDist = Math.abs(dy);
-          secondaryDist = Math.abs(dx);
-        } else if (e.key === 'ArrowDown' && dy > 5) {
-          isValidDirection = true;
-          primaryDist = Math.abs(dy);
-          secondaryDist = Math.abs(dx);
-        } else if (e.key === 'ArrowLeft' && dx < -5) {
-          isValidDirection = true;
-          primaryDist = Math.abs(dx);
-          secondaryDist = Math.abs(dy);
-        } else if (e.key === 'ArrowRight' && dx > 5) {
-          isValidDirection = true;
-          primaryDist = Math.abs(dx);
-          secondaryDist = Math.abs(dy);
-        }
-
-        if (isValidDirection) {
-          const distance = primaryDist + (secondaryDist * 5); 
-          if (distance < minDistance) {
-            minDistance = distance;
-            bestElement = el;
-          }
-        }
-      });
-
-      if (!bestElement) {
-        const currentIndex = cachedElements.indexOf(current);
-        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-          bestElement = cachedElements[currentIndex + 1] || cachedElements[0];
-        } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-          bestElement = cachedElements[currentIndex - 1] || cachedElements[cachedElements.length - 1];
-        }
-      }
-
-      if (bestElement) {
-        bestElement.focus();
-        bestElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  // Removed heavy spatial navigation for performance optimization
 
   // Sync Deals from Server
   useEffect(() => {
@@ -220,6 +123,9 @@ function AppContent() {
 
       if (response.ok) {
         const newDeal = await response.json();
+        // Notify other components (like Navbar) about the new deal
+        window.dispatchEvent(new CustomEvent('newDealAdded', { detail: newDeal }));
+        
         // Add new deal to top of list
         setDeals(prev => [newDeal, ...prev]);
         showToast('Deal published successfully!', 'success');
@@ -320,26 +226,35 @@ function AppContent() {
   return (
     <>
       <ScrollToTop />
-      <Routes>
-        <Route path="/" element={<Home {...sharedProps} deals={filteredDeals} onSearch={setSearchQuery} />} />
-        <Route path="/home" element={<Home {...sharedProps} deals={filteredDeals} onSearch={setSearchQuery} />} />
+      <React.Suspense fallback={
+        <div className="min-h-screen bg-white flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+                <Loader2 className="w-10 h-10 text-blue-600 animate-spin" strokeWidth={3} />
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest animate-pulse">Orbit Loading...</span>
+            </div>
+        </div>
+      }>
+        <Routes>
+          <Route path="/" element={<Home {...sharedProps} deals={filteredDeals} onSearch={setSearchQuery} />} />
+          <Route path="/home" element={<Home {...sharedProps} deals={filteredDeals} onSearch={setSearchQuery} />} />
 
-        {/* Dedicated Admin Panel Routes - Protected */}
-        {/* Admin Panel made accessible without login */}
-        <Route path="/admin/*" element={<AdminPanel {...sharedProps} deals={deals} setDeals={setDeals} />} />
-        <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+          {/* Dedicated Admin Panel Routes - Protected */}
+          {/* Admin Panel made accessible without login */}
+          <Route path="/admin/*" element={<AdminPanel {...sharedProps} deals={deals} setDeals={setDeals} />} />
+          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
 
-        <Route path="/deals" element={<Deals {...sharedProps} deals={filteredDeals} onSearch={setSearchQuery} />} />
-        <Route path="/wishlist" element={<Wishlist {...sharedProps} wishlist={wishlist} wishlistCount={wishlist.length} />} />
-        <Route path="/blog" element={<Blog {...sharedProps} />} />
-        <Route path="/blog/:slug" element={<BlogPost {...sharedProps} />} />
-        <Route path="/stores" element={<Stores {...sharedProps} />} />
-        <Route path="/product/:id" element={<ProductDetails {...sharedProps} deals={deals} />} />
-        <Route path="/login" element={<Login {...sharedProps} />} />
-        <Route path="/signup" element={<Signup {...sharedProps} />} />
+          <Route path="/deals" element={<Deals {...sharedProps} deals={filteredDeals} onSearch={setSearchQuery} />} />
+          <Route path="/wishlist" element={<Wishlist {...sharedProps} wishlist={wishlist} wishlistCount={wishlist.length} />} />
+          <Route path="/blog" element={<Blog {...sharedProps} />} />
+          <Route path="/blog/:slug" element={<BlogPost {...sharedProps} />} />
+          <Route path="/stores" element={<Stores {...sharedProps} />} />
+          <Route path="/product/:id" element={<ProductDetails {...sharedProps} deals={deals} />} />
+          <Route path="/login" element={<Login {...sharedProps} />} />
+          <Route path="/signup" element={<Signup {...sharedProps} />} />
 
-        <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
-      </Routes>
+          <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
+        </Routes>
+      </React.Suspense>
 
       {/* Global Toast Notification */}
       {toast.show && (

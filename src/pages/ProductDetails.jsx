@@ -346,7 +346,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
         <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-indigo-100">
             <SEO
                 title={product.title}
-                description={product.description || `Get the best deal on ${product.title} at ${product.store}. Check out the latest offers and coupons on DealHunter.`}
+                description={product.description || `Get the best deal on ${product.title} at ${product.store}. Check out the latest offers and coupons on DealOrbit.`}
                 image={activeImage}
             />
             <Navbar user={null} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />

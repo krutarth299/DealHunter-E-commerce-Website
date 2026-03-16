@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * DealHunter - Live Deal Fetcher
+ * DealOrbit - Live Deal Fetcher
  * ============================================================
  * Pulls real deals from public RSS feeds (no API key needed):
  *  - Slickdeals Frontpage Deals
@@ -10,7 +10,7 @@
  * Usage:
  *   node server/fetchLiveDeals.js
  *
- * It will POST each deal to the DealHunter backend at:
+ * It will POST each deal to the DealOrbit backend at:
  *   http://localhost:5000/api/deals
  * ============================================================
  */
@@ -138,7 +138,7 @@ async function fetchRSS(source) {
     try {
         const res = await fetch(source.url, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; DealHunterBot/1.0)',
+                'User-Agent': 'Mozilla/5.0 (compatible; DealOrbitBot/1.0)',
                 'Accept': 'application/rss+xml, application/xml, text/xml, */*',
             },
             timeout: 15000,
@@ -258,7 +258,7 @@ function detectStore(link, defaultStore) {
 // ─── Main Orchestrator ────────────────────────────────────────────────────────
 async function main() {
     console.log('=================================================');
-    console.log(' DealHunter - Live Deal Fetcher');
+    console.log(' DealOrbit - Live Deal Fetcher');
     console.log(' Fetching real deals from around the world...');
     console.log('=================================================');
 

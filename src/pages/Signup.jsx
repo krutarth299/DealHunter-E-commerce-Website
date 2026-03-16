@@ -1,6 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Mail, Lock, User, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Flame, Mail, Lock, User, ArrowRight, ShieldCheck, ShoppingCart, Globe } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/authContextDefinition';
 
@@ -40,15 +40,10 @@ const Signup = ({ showToast }) => {
                 className="w-full max-w-md relative z-10"
             >
                 <div className="text-center mb-12">
-                    <Link to="/" className="inline-flex items-center gap-3 group mb-8">
-                        <motion.div 
-                            whileHover={{ rotate: 15, scale: 1.1 }}
-                            className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center shadow-2xl shadow-slate-900/20"
-                        >
-                            <Flame size={28} className="text-orange-500" fill="currentColor" />
-                        </motion.div>
-                        <span className="font-[1000] text-4xl tracking-tighter text-slate-900 text-left">
-                            DEAL<span className="text-orange-500">HUNTER</span>
+                    <Link to="/" className="inline-flex items-center gap-4 group mb-8">
+                        <img src="/logo.png" alt="DealOrbit" className="h-16 w-auto object-contain bg-white rounded-2xl p-2 shadow-xl" />
+                        <span className="text-4xl font-[1000] tracking-tighter text-slate-900">
+                            <span className="text-[#1E3A8A]">DEAL</span><span className="text-[#F97316]">ORBIT</span>
                         </span>
                     </Link>
                     <h2 className="text-4xl font-[1000] text-slate-900 tracking-tight leading-none mb-4">Elite Membership</h2>

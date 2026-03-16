@@ -5,7 +5,7 @@ import {
     TrendingUp, LogOut, Shield, ExternalLink, Edit3, Image as ImageIcon,
     Zap, DollarSign, Flame, Menu, X, CheckCircle, AlertCircle, Pencil, Activity,
     TrendingDown, Sparkles, Smartphone, Shirt, Gamepad2, Plane, Utensils, ShoppingBag, Layers,
-    ChevronLeft, ChevronRight, Home as HomeIcon
+    ChevronLeft, ChevronRight, Home as HomeIcon, ShoppingCart
 } from 'lucide-react';
 import { useNavigate, Link, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { optimizeImageUrl } from '../utils/imageOptimizer';
@@ -379,12 +379,10 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
 
                 {/* Logo */}
                 <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100">
-                    <div className="w-9 h-9 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center shadow-md">
-                        <Flame size={18} className="text-white" fill="currentColor" />
-                    </div>
-                    <div>
-                        <div className="text-lg font-black text-slate-900">Deal<span className="text-orange-500">Hunter</span></div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Admin Panel</div>
+                    <img src="/logo.png" alt="DealOrbit" className="h-10 w-auto object-contain bg-white rounded-lg p-1" />
+                    <div className="text-xl font-black tracking-tighter flex items-center">
+                        <span className="text-[#1E3A8A]">Deal</span>
+                        <span className="text-[#F97316]">Orbit</span>
                     </div>
                     <button onClick={() => setIsSidebarOpen(false)} className="ml-auto text-slate-400 lg:hidden hover:text-slate-600">
                         <X size={18} />

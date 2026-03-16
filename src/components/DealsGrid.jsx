@@ -40,7 +40,7 @@ const getDiscountColor = (pct) => {
 /* ─── HOT threshold ─── */
 const isHotDeal = (discountNum) => discountNum && discountNum >= 40;
 
-const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0, onQuickView }) => {
+const DealCard = React.memo(({ deal, wishlist = [], toggleWishlist, index = 0, onQuickView }) => {
     const navigate = useNavigate();
     const { flyToWishlist } = useWishlistAnimation();
     const [activeImageIndex, setActiveImageIndex] = React.useState(0);
@@ -103,6 +103,7 @@ const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0, onQuickView 
                     <img 
                         src={optimizeImageUrl((deal.images && deal.images.length > 0) ? deal.images[0] : (deal.image || ''))} 
                         alt={deal.title}
+                        loading="lazy"
                         className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-md"
                         onError={e => { e.target.style.display = 'none'; }}
                     />
@@ -172,25 +173,25 @@ const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0, onQuickView 
                 </div>
 
                 {/* Title */}
-                <div className="mb-3">
-                    <h3 className="text-[13px] md:text-[14px] font-extrabold text-slate-800 line-clamp-2 leading-[1.3] group-hover:text-blue-600 transition-colors min-h-[2.6rem] overflow-hidden">
+                <div className="mb-4">
+                    <h3 className="text-[13px] md:text-[14px] font-extrabold text-slate-800 line-clamp-3 leading-[1.4] group-hover:text-blue-600 transition-colors min-h-[3rem] md:min-h-[3.5rem]">
                         {deal.title || 'Elite Product Deal'}
                     </h3>
                 </div>
 
                 {/* Price & Action Row */}
                 <div className="mt-auto flex flex-col gap-4">
-                    <div className="flex items-end justify-between gap-1.5 overflow-hidden">
-                        <div className="flex flex-col min-w-0">
-                            <div className="flex items-baseline gap-1 flex-wrap">
-                                <span className="text-lg md:text-xl font-black text-slate-900 tracking-tighter">{price || 'Best Price'}</span>
+                    <div className="flex items-end justify-between gap-2">
+                        <div className="flex flex-col min-w-0 flex-1">
+                            <div className="flex items-baseline gap-1.5 flex-wrap">
+                                <span className="text-lg md:text-2xl font-black text-slate-900 tracking-tighter">{price || 'Best Price'}</span>
                                 {mrp && price && mrp !== price && (
                                     <span className="text-[10px] md:text-xs font-bold text-slate-400 line-through opacity-60 tracking-tighter">{mrp}</span>
                                 )}
                             </div>
                             {savings && (
-                                <div className="text-[9px] md:text-[10px] font-black text-emerald-600 mt-0.5 flex items-center gap-1 uppercase tracking-tighter truncate">
-                                    <Zap size={10} fill="currentColor" className="shrink-0" /> Save {savings}
+                                <div className="text-[9px] md:text-[10px] font-black text-emerald-600 mt-1 flex items-center gap-1 uppercase tracking-tighter flex-wrap">
+                                    <Zap size={10} fill="currentColor" className="shrink-0" /> <span className="whitespace-nowrap">Save {savings}</span>
                                 </div>
                             )}
                         </div>
@@ -217,9 +218,9 @@ const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0, onQuickView 
             <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none" />
         </motion.div>
     );
-};
+});
 
-const DealsGrid = ({ deals = [], wishlist = [], toggleWishlist }) => {
+const DealsGrid = React.memo(({ deals = [], wishlist = [], toggleWishlist }) => {
     const [quickViewProduct, setQuickViewProduct] = useState(null);
     const validDeals = (Array.isArray(deals) ? deals : []).filter(d => d && (d.title || d.store));
 
@@ -256,7 +257,7 @@ const DealsGrid = ({ deals = [], wishlist = [], toggleWishlist }) => {
 
     return (
         <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6 content-visibility-auto optimize-gpu">
                 {validDeals.map((deal, i) => (
                     <DealCard
                         key={deal.id || deal._id || i}
@@ -397,6 +398,6 @@ const DealsGrid = ({ deals = [], wishlist = [], toggleWishlist }) => {
             </AnimatePresence>
         </>
     );
-};
+});
 
 export default DealsGrid;

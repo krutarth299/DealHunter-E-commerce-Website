@@ -410,3 +410,29 @@
 * {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ─── PERFORMANCE OPTIMIZATIONS ─── */
+.optimize-gpu {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 500px;
+}
+
+/* Smooth motion for users who prefer it */
+@media (prefers-reduced-motion: no-preference) {
+  .smooth-scroll {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Optimize backdrop filters on mobile (heavy GPU usage) */
+@media (max-width: 768px) {
+  .glass-premium, .glass-dark {
+    backdrop-filter: blur(8px); /* Reduced blur for performance */
+  }
+}

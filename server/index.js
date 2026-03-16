@@ -23,7 +23,7 @@ const connectDB = async () => {
     }
     try {
         console.log('DATABASE: Connecting...');
-        await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/dealshunter', {
+        await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/dealorbit', {
             serverSelectionTimeoutMS: 5000 // 5 second timeout
         });
         app.locals.isMockMode = false;
@@ -175,7 +175,7 @@ const injectSEO = (html, seoData, htmlBody = '') => {
     const $ = cheerio.load(html);
 
     if (seoData.title) {
-        const fullTitle = `${seoData.title} | DealHunter`;
+        const fullTitle = `${seoData.title} | DealOrbit`;
         $('title').text(fullTitle);
         $('meta[name="title"]').attr('content', fullTitle);
         $('meta[property="og:title"]').attr('content', fullTitle);
@@ -203,7 +203,7 @@ const navbarHtml = `
 <nav class="bg-white border-b border-slate-100 h-20 sticky top-0 z-50">
     <div class="container mx-auto px-6 h-full flex items-center justify-between">
         <div class="flex items-center gap-8">
-            <a href="/" class="text-2xl font-black text-slate-900 tracking-tighter">DealHunter</a>
+            <a href="/" class="text-2xl font-black text-slate-900 tracking-tighter">DealOrbit</a>
             <div class="hidden md:flex items-center gap-6 text-sm font-bold text-slate-600">
                 <a href="/" class="hover:text-orange-500 transition-colors">Hot Deals</a>
                 <a href="/deals" class="hover:text-orange-500 transition-colors">All Deals</a>
@@ -223,7 +223,7 @@ const footerHtml = `
     <div class="container mx-auto px-6 max-w-7xl">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12 border-b border-slate-800 pb-12">
             <div class="md:col-span-1">
-                <div class="flex items-center gap-2 mb-6"><h3 class="text-xl font-black text-white tracking-tighter">DealHunter</h3></div>
+                <div class="flex items-center gap-2 mb-6"><h3 class="text-xl font-black text-white tracking-tighter">DealOrbit</h3></div>
                 <p class="text-sm text-slate-400 leading-relaxed mb-6">India's #1 affiliate deals platform. Discover the best offers, coupons, and cashback across 100+ top stores.</p>
                 <div class="space-y-4">
                     <p class="text-xs font-black text-white uppercase tracking-widest">Get Deal Alerts.</p>
@@ -258,7 +258,7 @@ const footerHtml = `
                 <h3 class="text-white font-bold mb-5 text-xs uppercase tracking-widest">Contact</h3>
                 <ul class="space-y-4 text-sm">
                     <li class="flex items-start gap-3"><span>Embassy Tech Village, Bengaluru, India - 560103</span></li>
-                    <li class="flex items-center gap-3"><a href="mailto:support@dealshunter.com" class="hover:text-orange-400 transition-colors">support@dealshunter.com</a></li>
+                    <li class="flex items-center gap-3"><a href="mailto:support@dealorbit.com" class="hover:text-orange-400 transition-colors">support@dealorbit.com</a></li>
                     <li class="pt-2 flex gap-4">
                         <span class="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-orange-500 transition-colors cursor-pointer text-white">FB</span>
                         <span class="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-orange-500 transition-colors cursor-pointer text-white">TW</span>
@@ -274,7 +274,7 @@ const footerHtml = `
                 <a href="#" class="hover:text-white transition-colors">Terms of Service</a>
                 <a href="#" class="hover:text-white transition-colors">Cookie Policy</a>
             </div>
-            <p>© 2026 DEALHUNTER. ALL RIGHTS RESERVED.</p>
+            <p>© 2026 DealOrbit. ALL RIGHTS RESERVED.</p>
         </div>
     </div>
 </footer>
@@ -350,7 +350,7 @@ app.get('/', async (req, res, next) => {
         const bodyObj = `
             ${navbarHtml}
             ${heroHtml}
-            <header><h1>DealHunter - Best Deals and Coupons</h1></header>
+            <header><h1>DealOrbit - Best Deals and Coupons</h1></header>
             <main>
                 <section>
                     <h2>Shop by Category</h2>
@@ -373,7 +373,7 @@ app.get('/', async (req, res, next) => {
                     <p>We partner with India's best marketplaces to bring you exclusive, verified deals in one place.</p>
                 </section>
                 <section>
-                    <h2>Why DealHunter?</h2>
+                    <h2>Why DealOrbit?</h2>
                     <article>
                         <h3>100% Verified Deals</h3>
                         <p>Every deal is manually reviewed and verified before going live on our platform.</p>
@@ -502,8 +502,8 @@ app.get('/deals', async (req, res, next) => {
             ${footerHtml}
         `;
         serveStaticWithSEO(req, res, next, {
-            title: `${dynamicTitle} | DealHunter`,
-            description: storeQuery ? `Shop all verified deals, discount codes and special offers from ${storeQuery} on DealHunter.` : "Browse the largest collection of verified deals in India.",
+            title: `${dynamicTitle} | DealOrbit`,
+            description: storeQuery ? `Shop all verified deals, discount codes and special offers from ${storeQuery} on DealOrbit.` : "Browse the largest collection of verified deals in India.",
             image: "https://your-domain.com/og-image.jpg"
         }, bodyObj);
     } catch (e) { next(); }
@@ -624,7 +624,7 @@ app.get('/blog', (req, res, next) => {
             <header class="blog-hero-ssr">
                 <div class="hero-left">
                     <span class="hero-overline">EXPERT GUIDES</span>
-                    <h1>DealHunter <span>Blog</span></h1>
+                    <h1>DealOrbit <span>Blog</span></h1>
                     <p>Shopping tips, deal breakdowns, and money-saving strategies — written by India's top bargain hunters.</p>
                 </div>
                 <div class="hero-right">
@@ -678,7 +678,7 @@ app.get('/blog', (req, res, next) => {
         ${footerHtml}
     `;
     serveStaticWithSEO(req, res, next, {
-        title: "DealHunter Blog - Expert Tech & Savings Tips",
+        title: "DealOrbit Blog - Expert Tech & Savings Tips",
         description: "Shopping tips, deal breakdowns, and money-saving strategies — written by India's top bargain hunters.",
         image: "https://your-domain.com/og-image.jpg"
     }, bodyObj);
@@ -783,7 +783,7 @@ app.get('/product/:id', async (req, res, next) => {
 
             htmlData = injectSEO(htmlData, {
                 title: product.title,
-                description: product.description || `Get the best deal on ${product.title} at ${product.store}. Check out the latest offers and coupons on DealHunter.`,
+                description: product.description || `Get the best deal on ${product.title} at ${product.store}. Check out the latest offers and coupons on DealOrbit.`,
                 image: product.image || (product.images && product.images[0]) || ''
             }, fullBodyHtml);
             console.log(`[SSR] Injection successful, sending HTML payload.`);

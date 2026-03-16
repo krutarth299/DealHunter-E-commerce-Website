@@ -55,7 +55,7 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
 
     return (
         <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900 overflow-x-hidden">
-            <SEO title="DealHunter — Best Deals, Coupons & Offers" description="Discover the best deals, discounts and coupons verified in real-time." />
+            <SEO title="DealOrbit — Smart Deals Everyday" description="Discover the best deals, discounts and coupons verified in real-time." />
             <Navbar user={user} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />
 
             <main className="flex-grow pb-24 md:pb-0">
@@ -220,7 +220,7 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                                     >
                                         <div className="absolute inset-0 bg-orange-500/0 group-hover:bg-orange-500/5 transition-colors" />
                                         <div className="w-16 h-16 rounded-3xl bg-white flex items-center justify-center p-3 shadow-2xl group-hover:rotate-6 transition-transform">
-                                            <img src={s.logo} alt={s.name} className="w-full h-full object-contain" />
+                                            <img src={s.logo} alt={s.name} loading="lazy" className="w-full h-full object-contain" />
                                         </div>
                                         <span className="text-white/40 text-[10px] font-black uppercase tracking-widest group-hover:text-white transition-colors">{s.name}</span>
                                     </motion.div>
@@ -230,18 +230,18 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                     </div>
                 </section>
 
-                {/* ─── Why DealHunter ─── */}
+                {/* ─── Why DealOrbit ─── */}
                 <section className="py-12 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-100 mt-6 text-center">
                     <div className="max-w-3xl mx-auto mb-20 text-center">
-                        <span className="text-orange-500 text-xs font-black uppercase tracking-[0.3em] mb-4 block">The DealHunter Edge</span>
+                        <span className="text-orange-500 text-xs font-black uppercase tracking-[0.3em] mb-4 block">The DealOrbit Edge</span>
                         <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">Everything You Need to <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-orange-400">Save 10x Faster.</span></h2>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                         {[
-                            { icon: ShieldCheck, color: 'bg-emerald-500', title: 'Verified Deals Only', desc: 'Every deal is manually reviewed and verified by our expert team before going live on the platform.' },
-                            { icon: Zap, color: 'bg-orange-500', title: 'Real-time Price Watch', desc: 'Our advanced price trackers scan millions of pages every 5 minutes to catch every single price drop.' },
-                            { icon: TrendingDown, color: 'bg-blue-500', title: 'Best Price Log', desc: 'We show you the historical price charts so you know if you are truly getting the lowest price ever.' },
+                            { icon: ShieldCheck, color: 'text-emerald-500', title: 'Verified Deals Only', desc: 'Every deal is manually reviewed and verified by our expert team before going live on the platform.' },
+                            { icon: Zap, color: 'text-orange-500', title: 'Real-time Price Watch', desc: 'Our advanced price trackers scan millions of pages every 5 minutes to catch every single price drop.' },
+                            { icon: TrendingDown, color: 'text-blue-500', title: 'Best Price Log', desc: 'We show you the historical price charts so you know if you are truly getting the lowest price ever.' },
                         ].map((feature, i) => (
                             <motion.div
                                 key={i}
