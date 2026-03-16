@@ -171,23 +171,25 @@ const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0, onQuickView 
                 </div>
 
                 {/* Title */}
-                <h3 className="text-sm font-extrabold text-slate-800 line-clamp-2 leading-tight mb-4 group-hover:text-blue-600 transition-colors min-h-[2.5rem]">
-                    {deal.title}
-                </h3>
+                <div className="mb-4">
+                    <h3 className="text-[13px] md:text-sm font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-blue-600 transition-colors min-h-[2.6rem]">
+                        {deal.title}
+                    </h3>
+                </div>
 
                 {/* Price & Action Row */}
                 <div className="mt-auto flex flex-col gap-4">
-                    <div className="flex items-end justify-between">
-                        <div className="flex flex-col">
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-xl font-black text-slate-900 tracking-tighter">{price || 'Check Price'}</span>
+                    <div className="flex items-end justify-between gap-2">
+                        <div className="flex flex-col min-w-0">
+                            <div className="flex items-baseline gap-1.5 flex-wrap">
+                                <span className="text-lg md:text-xl font-black text-slate-900 tracking-tighter whitespace-nowrap">{price || 'Check Price'}</span>
                                 {mrp && price && mrp !== price && (
-                                    <span className="text-xs font-bold text-slate-400 line-through opacity-60 tracking-tighter">{mrp}</span>
+                                    <span className="text-[10px] md:text-xs font-bold text-slate-400 line-through opacity-60 tracking-tighter whitespace-nowrap">{mrp}</span>
                                 )}
                             </div>
                             {savings && (
-                                <div className="text-[10px] font-black text-emerald-600 mt-0.5 flex items-center gap-1 uppercase tracking-tighter">
-                                    <Zap size={10} fill="currentColor" /> Save {savings}
+                                <div className="text-[9px] md:text-[10px] font-black text-emerald-600 mt-1 flex items-center gap-1 uppercase tracking-tighter">
+                                    <Zap size={10} fill="currentColor" className="shrink-0" /> <span className="truncate">Save {savings}</span>
                                 </div>
                             )}
                         </div>
@@ -202,7 +204,7 @@ const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0, onQuickView 
                     {/* Main CTA */}
                     <button
                         onClick={deal.isExpired ? (e) => { e.preventDefault(); e.stopPropagation(); } : handleGetDeal}
-                        className={`w-full flex items-center justify-center gap-2 font-black py-3.5 rounded-2xl text-[11px] uppercase tracking-widest transition-all duration-500 ${deal.isExpired ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white shadow-[0_10px_20px_-5px_rgba(37,99,235,0.3)] hover:shadow-[0_15px_30px_-5px_rgba(37,99,235,0.4)] hover:bg-blue-700 active:scale-[0.97]'}`}
+                        className={`w-full flex items-center justify-center gap-2 font-black py-3.5 rounded-2xl text-[12px] uppercase tracking-wider transition-all duration-500 ${deal.isExpired ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white shadow-[0_10px_20px_-5px_rgba(37,99,235,0.3)] hover:shadow-[0_15px_30px_-5px_rgba(37,99,235,0.4)] hover:bg-blue-700 active:scale-[0.97]'}`}
                     >
                         {deal.isExpired ? 'Sold Out' : 'Grab Deal'}
                         {!deal.isExpired && <ExternalLink size={14} strokeWidth={3} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />}
