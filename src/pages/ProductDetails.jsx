@@ -349,7 +349,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                 image={activeImage}
             />
             <Navbar user={null} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />
-            <main id="product-details-loaded" className="container mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-24 pb-16">
+            <main id="product-details-loaded" className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-24 pb-16">
                 {/* Breadcrumb / Back */}
                 <button
                     onClick={() => navigate(-1)}
@@ -362,7 +362,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                     <div className="grid grid-cols-1 lg:grid-cols-2">
 
                         {/* Image Section */}
-                        <div className="relative p-6 py-8 md:p-10 lg:p-12 flex flex-col items-center justify-center min-h-[280px] sm:min-h-[350px] md:min-h-[400px] lg:min-h-[450px] group overflow-hidden gap-4 md:gap-6 border-b border-slate-100 lg:border-b-0 lg:border-r">
+                        <div className="relative p-6 py-8 md:p-10 flex flex-col items-center justify-center min-h-[280px] sm:min-h-[350px] md:min-h-[400px] group overflow-hidden gap-4 md:gap-6 border-b border-slate-100 lg:border-b-0 lg:border-r">
                             <motion.div
                                 key={activeImage || 'fallback'}
                                 initial={{ opacity: 0, scale: 0.95 }}
