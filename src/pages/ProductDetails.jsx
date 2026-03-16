@@ -8,6 +8,7 @@ import DealsGrid from '../components/DealsGrid';
 import { useWishlistAnimation } from '../context/wishlistAnimationContextDefinition';
 import SEO from '../components/SEO';
 import { motion, AnimatePresence } from 'framer-motion';
+import { optimizeImageUrl } from '../utils/imageOptimizer';
 
 // ── Currency Detection Utilities ──────────────────────────────────
 const getCurrencySymbol = (price, store, link) => {
@@ -349,7 +350,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                 image={activeImage}
             />
             <Navbar user={null} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />
-            <main id="product-details-loaded" className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-24 pb-16">
+            <main id="product-details-loaded" className="container mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-24 pb-16">
                 {/* Breadcrumb / Back */}
                 <button
                     onClick={() => navigate(-1)}
@@ -362,7 +363,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                     <div className="grid grid-cols-1 lg:grid-cols-2">
 
                         {/* Image Section */}
-                        <div className="relative p-6 py-8 md:p-10 flex flex-col items-center justify-center min-h-[280px] sm:min-h-[350px] md:min-h-[400px] group overflow-hidden gap-4 md:gap-6 border-b border-slate-100 lg:border-b-0 lg:border-r">
+                        <div className="relative p-6 py-8 md:p-10 lg:p-12 flex flex-col items-center justify-center min-h-[280px] sm:min-h-[350px] md:min-h-[400px] lg:min-h-[450px] group overflow-hidden gap-4 md:gap-6 border-b border-slate-100 lg:border-b-0 lg:border-r">
                             <motion.div
                                 key={activeImage || 'fallback'}
                                 initial={{ opacity: 0, scale: 0.95 }}
@@ -370,23 +371,6 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                 transition={{ duration: 0.4 }}
                                 className="relative w-full max-w-2xl aspect-video group-hover:scale-[1.02] transition-transform duration-500 z-10 mx-auto rounded-2xl overflow-hidden bg-slate-50 flex items-center justify-center group/main"
                             >
-                                {/* Navigation Arrows */}
-                                {media.length > 1 && (
-                                    <>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); handlePrevImage(); }}
-                                            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg border border-slate-100 text-slate-800 opacity-0 group-hover/main:opacity-100 transition-all hover:bg-slate-900 hover:text-white"
-                                        >
-                                            <ChevronLeft size={20} />
-                                        </button>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); handleNextImage(); }}
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg border border-slate-100 text-slate-800 opacity-0 group-hover/main:opacity-100 transition-all hover:bg-slate-900 hover:text-white"
-                                        >
-                                            <ChevronRight size={20} />
-                                        </button>
-                                    </>
-                                )}
                                 {activeImage && (activeImage.includes('.mp4') || activeImage.includes('youtube.com') || activeImage.includes('vimeo.com')) ? (
                                     activeImage.includes('youtube.com') || activeImage.includes('vimeo.com') ? (
                                         <iframe
@@ -408,7 +392,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                     <div className="relative w-full h-full group/main">
                                         <img
                                             ref={imageRef}
-                                            src={activeImage || 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=2070&auto=format&fit=crop'}
+                                            src={optimizeImageUrl(activeImage) || 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=2070&auto=format&fit=crop'}
                                             alt={product.title}
                                             className="w-full h-full object-contain filter drop-shadow-2xl p-4"
                                             onError={(e) => {
@@ -418,24 +402,16 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                         />
                                         
                                         {/* Navigation Arrows */}
-                                        {((product.images && product.images.length > 1) || (product.videos && product.videos.length > 0)) && (
+                                        {media.length > 1 && (
                                             <>
                                                 <button 
-                                                    onClick={() => {
-                                                        const items = [...(product.videos || []), ...(product.images || [])];
-                                                        const idx = items.indexOf(activeImage);
-                                                        setActiveImage(items[idx > 0 ? idx - 1 : items.length - 1]);
-                                                    }}
+                                                    onClick={(e) => { e.stopPropagation(); handlePrevImage(); }}
                                                     className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow-lg flex items-center justify-center text-slate-700 opacity-0 group-hover/main:opacity-100 transition-opacity hover:bg-white hover:text-indigo-600 z-10"
                                                 >
                                                     <ChevronLeft size={24} />
                                                 </button>
                                                 <button 
-                                                    onClick={() => {
-                                                        const items = [...(product.videos || []), ...(product.images || [])];
-                                                        const idx = items.indexOf(activeImage);
-                                                        setActiveImage(items[idx < items.length - 1 ? idx + 1 : 0]);
-                                                    }}
+                                                    onClick={(e) => { e.stopPropagation(); handleNextImage(); }}
                                                     className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow-lg flex items-center justify-center text-slate-700 opacity-0 group-hover/main:opacity-100 transition-opacity hover:bg-white hover:text-indigo-600 z-10"
                                                 >
                                                     <ChevronRight size={24} />
@@ -468,7 +444,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                             className={`relative flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-[1.2rem] overflow-hidden snap-center bg-white border-2 transition-all duration-300 ${activeImage === img ? 'border-[#4f46e5]' : 'border-slate-100 hover:border-slate-300 opacity-70 hover:opacity-100'}`}
                                         >
                                             <img
-                                                src={img}
+                                                src={optimizeImageUrl(img)}
                                                 alt={`Thumbnail ${idx}`}
                                                 className="w-full h-full object-contain mix-blend-multiply p-2"
                                                 loading="lazy"

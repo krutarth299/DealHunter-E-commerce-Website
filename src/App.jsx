@@ -77,36 +77,38 @@ function AppContent() {
     setTimeout(() => setToast({ show: false, message: '', type: 'info' }), 3000);
   };
 
-  // Global 2D Spatial Arrow Key Navigation
+  // Global 2D Spatial Arrow Key Navigation - Optimized
   useEffect(() => {
+    let cachedElements = null;
+    let lastQueryTime = 0;
+
     const handleKeyDown = (e) => {
-      // Don't interfere if user is typing in an input, textarea, or select
+      // Don't interfere if user is typing or if it's a mobile device (touch primary)
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+      if (window.innerWidth < 1024) return; // Disable on mobile/tablet to save resources
 
       const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
       if (!keys.includes(e.key)) return;
 
+      const now = Date.now();
+      // Recalculate elements only every 2 seconds or on first run
+      if (!cachedElements || now - lastQueryTime > 2000) {
+        const focusableSelectors = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+        cachedElements = Array.from(document.querySelectorAll(focusableSelectors)).filter(el => {
+          const rect = el.getBoundingClientRect();
+          const style = window.getComputedStyle(el);
+          return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.opacity !== '0';
+        });
+        lastQueryTime = now;
+      }
+
+      if (cachedElements.length === 0) return;
       e.preventDefault();
-
-      const focusableSelectors = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-      const elements = Array.from(document.querySelectorAll(focusableSelectors)).filter(el => {
-        const rect = el.getBoundingClientRect();
-        const style = window.getComputedStyle(el);
-        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.opacity !== '0';
-      });
-
-      if (elements.length === 0) return;
 
       const current = document.activeElement;
       
-      // If nothing is focused, focus the first visible element
-      if (!elements.includes(current)) {
-        const visibleElements = elements.filter(el => {
-          const rect = el.getBoundingClientRect();
-          return rect.top >= 0 && rect.left >= 0 && rect.bottom <= window.innerHeight && rect.right <= window.innerWidth;
-        });
-        if (visibleElements.length > 0) visibleElements[0].focus();
-        else elements[0].focus();
+      if (!cachedElements.includes(current)) {
+        cachedElements[0].focus();
         return;
       }
 
@@ -116,7 +118,7 @@ function AppContent() {
       let bestElement = null;
       let minDistance = Infinity;
 
-      elements.forEach(el => {
+      cachedElements.forEach(el => {
         if (el === current) return;
         const rect = el.getBoundingClientRect();
         const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
@@ -128,7 +130,6 @@ function AppContent() {
         let primaryDist = 0;
         let secondaryDist = 0;
 
-        // Ensure distinct movement (avoid 0 distance bugs for tightly overlapping items)
         if (e.key === 'ArrowUp' && dy < -5) {
           isValidDirection = true;
           primaryDist = Math.abs(dy);
@@ -148,7 +149,6 @@ function AppContent() {
         }
 
         if (isValidDirection) {
-          // Weight secondary axis heavily to ensure strict directional alignment
           const distance = primaryDist + (secondaryDist * 5); 
           if (distance < minDistance) {
             minDistance = distance;
@@ -157,13 +157,12 @@ function AppContent() {
         }
       });
 
-      // Logical Fallback: If at the end of a row/column, just jump to the next DOM element
       if (!bestElement) {
-        const currentIndex = elements.indexOf(current);
+        const currentIndex = cachedElements.indexOf(current);
         if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-          bestElement = elements[currentIndex + 1] || elements[0];
+          bestElement = cachedElements[currentIndex + 1] || cachedElements[0];
         } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-          bestElement = elements[currentIndex - 1] || elements[elements.length - 1];
+          bestElement = cachedElements[currentIndex - 1] || cachedElements[cachedElements.length - 1];
         }
       }
 

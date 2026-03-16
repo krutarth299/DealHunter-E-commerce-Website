@@ -6,6 +6,7 @@ import Footer from '../components/Footer';
 import SEO from '../components/SEO';
 import { useNavigate } from 'react-router-dom';
 import { BLOG_POSTS } from '../data/blogData';
+import { optimizeImageUrl } from '../utils/imageOptimizer';
 
 const CATEGORIES = ["All", "Shopping Tips", "Deal Analysis", "Electronics", "Fashion", "Grocery", "Finance"];
 
@@ -211,7 +212,7 @@ const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen }) => {
                                     {/* Thumbnail container */}
                                     <div className="relative h-60 overflow-hidden">
                                         <img
-                                            src={post.image}
+                                            src={optimizeImageUrl(post.image)}
                                             alt={post.title}
                                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 ease-out"
                                             onError={e => { e.target.src = `https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800&q=80`; }}

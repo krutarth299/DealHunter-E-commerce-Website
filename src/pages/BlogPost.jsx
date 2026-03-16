@@ -6,6 +6,7 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import SEO from '../components/SEO';
 import { BLOG_POSTS } from '../data/blogData';
+import { optimizeImageUrl } from '../utils/imageOptimizer';
 
 const renderBlock = (block, index) => {
     switch (block.type) {
@@ -276,7 +277,7 @@ const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOp
                     {/* Main Core Content */}
                     <main className="flex-1 max-w-2xl mx-auto lg:mx-0">
                         <div className="relative mb-16 rounded-[2.5rem] overflow-hidden shadow-2xl shadow-slate-200/50">
-                            <img src={post.image} alt={post.title} className="w-full h-auto aspect-video object-cover" />
+                                <img src={optimizeImageUrl(post.image)} alt={post.title} className="w-full aspect-[21/9] object-cover" />
                             <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/20 to-transparent" />
                         </div>
 
@@ -434,7 +435,7 @@ const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOp
                                     {relatedPosts.map((p) => (
                                         <Link key={p.id} to={`/blog/${p.slug}`} className="group block space-y-3">
                                             <div className="relative aspect-video rounded-2xl overflow-hidden shadow-sm">
-                                                <img src={p.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                    <img src={optimizeImageUrl(p.image)} alt={p.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                             </div>
                                             <h4 className="text-base font-black text-slate-900 leading-tight group-hover:text-orange-500 transition-colors uppercase tracking-tight line-clamp-2">{p.title}</h4>
                                         </Link>

@@ -3,6 +3,7 @@ import { Heart, ExternalLink, ShoppingBag, Star, Zap, TrendingDown, Flame, Searc
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWishlistAnimation } from '../context/wishlistAnimationContextDefinition';
+import { optimizeImageUrl } from '../utils/imageOptimizer';
 
 const storeColors = {
     'Amazon': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-400' },
@@ -100,7 +101,7 @@ const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0, onQuickView 
                 {/* Product Image */}
                 <div className="w-full h-full relative">
                     <img 
-                        src={(deal.images && deal.images.length > 0) ? deal.images[0] : (deal.image || '')} 
+                        src={optimizeImageUrl((deal.images && deal.images.length > 0) ? deal.images[0] : (deal.image || ''))} 
                         alt={deal.title}
                         className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-md"
                         onError={e => { e.target.style.display = 'none'; }}
@@ -171,32 +172,32 @@ const DealCard = ({ deal, wishlist = [], toggleWishlist, index = 0, onQuickView 
                 </div>
 
                 {/* Title */}
-                <div className="mb-4">
-                    <h3 className="text-[13px] md:text-sm font-extrabold text-slate-800 line-clamp-2 leading-snug group-hover:text-blue-600 transition-colors min-h-[2.6rem]">
-                        {deal.title}
+                <div className="mb-3">
+                    <h3 className="text-[13px] md:text-[14px] font-extrabold text-slate-800 line-clamp-2 leading-[1.3] group-hover:text-blue-600 transition-colors min-h-[2.6rem] overflow-hidden">
+                        {deal.title || 'Elite Product Deal'}
                     </h3>
                 </div>
 
                 {/* Price & Action Row */}
                 <div className="mt-auto flex flex-col gap-4">
-                    <div className="flex items-end justify-between gap-2">
+                    <div className="flex items-end justify-between gap-1.5 overflow-hidden">
                         <div className="flex flex-col min-w-0">
-                            <div className="flex items-baseline gap-1.5 flex-wrap">
-                                <span className="text-lg md:text-xl font-black text-slate-900 tracking-tighter whitespace-nowrap">{price || 'Check Price'}</span>
+                            <div className="flex items-baseline gap-1 flex-wrap">
+                                <span className="text-lg md:text-xl font-black text-slate-900 tracking-tighter">{price || 'Best Price'}</span>
                                 {mrp && price && mrp !== price && (
-                                    <span className="text-[10px] md:text-xs font-bold text-slate-400 line-through opacity-60 tracking-tighter whitespace-nowrap">{mrp}</span>
+                                    <span className="text-[10px] md:text-xs font-bold text-slate-400 line-through opacity-60 tracking-tighter">{mrp}</span>
                                 )}
                             </div>
                             {savings && (
-                                <div className="text-[9px] md:text-[10px] font-black text-emerald-600 mt-1 flex items-center gap-1 uppercase tracking-tighter">
-                                    <Zap size={10} fill="currentColor" className="shrink-0" /> <span className="truncate">Save {savings}</span>
+                                <div className="text-[9px] md:text-[10px] font-black text-emerald-600 mt-0.5 flex items-center gap-1 uppercase tracking-tighter truncate">
+                                    <Zap size={10} fill="currentColor" className="shrink-0" /> Save {savings}
                                 </div>
                             )}
                         </div>
                         
                         {(index % 3 === 0) && (
-                            <div className="bg-blue-50 text-blue-600 text-[8px] font-black px-2 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1 border border-blue-100">
-                                <TrendingDown size={10} /> Best Trend
+                            <div className="bg-blue-50 text-blue-600 text-[8px] font-black px-1.5 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1 border border-blue-100 shrink-0">
+                                <TrendingDown size={9} /> Trend
                             </div>
                         )}
                     </div>
@@ -289,7 +290,7 @@ const DealsGrid = ({ deals = [], wishlist = [], toggleWishlist }) => {
                             <div className="w-full md:w-[45%] p-10 bg-slate-50/50 flex items-center justify-center relative group">
                                 <div className="absolute inset-0 bg-gradient-to-br from-white via-transparent to-slate-100/30 opacity-50" />
                                 <img 
-                                    src={(quickViewProduct.images && quickViewProduct.images.length > 0) ? quickViewProduct.images[0] : (quickViewProduct.image || '')} 
+                                    src={optimizeImageUrl((quickViewProduct.images && quickViewProduct.images.length > 0) ? quickViewProduct.images[0] : (quickViewProduct.image || ''))} 
                                     alt="" 
                                     className="max-h-[400px] w-full object-contain mix-blend-multiply drop-shadow-2xl group-hover:scale-105 transition-transform duration-700" 
                                 />

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, TrendingDown, Zap, ShieldCheck, Clock, ExternalLink, Tag } from 'lucide-react';
+import { ArrowRight, TrendingDown, Zap, ShieldCheck, Clock, ExternalLink, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { optimizeImageUrl } from '../utils/imageOptimizer';
 
 /* ─── helpers ─────────────────────────────────────── */
 const formatPrice = (p) => {
@@ -98,7 +99,7 @@ const Hero = ({ deals = [] }) => {
             href: deal.link || '/deals',
             isExternal: !!deal.link,
             bg: getBg(deal.category),
-            image: deal.image || (deal.images && deal.images[0]) || null,
+            image: optimizeImageUrl(deal.image || (deal.images && deal.images[0]) || null),
             emoji: null,
             stat: deal.store ? `Verified on ${deal.store}` : 'Verified deal',
             price: formatPrice(deal.price),
@@ -110,26 +111,45 @@ const Hero = ({ deals = [] }) => {
         }))
         : FALLBACK_SLIDES;
 
+    const [isPaused, setIsPaused] = useState(false);
+
     useEffect(() => {
-        if (slides.length <= 1) return;
-        const t = setInterval(() => setCurrent(p => (p + 1) % slides.length), 5500);
+        if (slides.length <= 1 || isPaused) return;
+        const t = setInterval(() => {
+            setCurrent(p => (p + 1) % slides.length);
+        }, 5500);
         return () => clearInterval(t);
-    }, [slides.length]);
+    }, [slides.length, isPaused]);
+
+    const nextSlide = () => setCurrent(p => (p + 1) % slides.length);
+    const prevSlide = () => setCurrent(p => (p - 1 + slides.length) % slides.length);
 
     const slide = slides[current] || slides[0];
 
     return (
-        <section className="w-full bg-white overflow-hidden pt-0">
+        <section 
+            className="w-full bg-white overflow-hidden pt-0 group"
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+        >
             {/* ── Main Slide Banner ── */}
-            <div className="relative overflow-hidden h-[600px] sm:h-[540px] md:h-[480px]">
+            <div className="relative overflow-hidden min-h-[600px] sm:min-h-[540px] md:min-h-[480px]">
                 <AnimatePresence>
                     <motion.div
                         key={current}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.8 }}
-                        className={`absolute inset-0 bg-gradient-to-br ${slide.bg} flex items-center overflow-hidden`}
+                        transition={{ duration: 0.8, ease: [0.32, 0.72, 0, 1] }}
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        dragElastic={0.2}
+                        onDragEnd={(_, info) => {
+                            const swipe = info.offset.x;
+                            if (swipe < -50) nextSlide();
+                            else if (swipe > 50) prevSlide();
+                        }}
+                        className={`absolute inset-0 bg-gradient-to-br ${slide.bg} flex items-center overflow-hidden cursor-grab active:cursor-grabbing`}
                     >
                         {/* Mesh Gradients */}
                         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 animate-pulse" />
@@ -299,29 +319,57 @@ const Hero = ({ deals = [] }) => {
                     </motion.div>
                 </AnimatePresence>
 
+                {/* ── Navigation Arrows ── */}
+                {slides.length > 1 && (
+                    <>
+                        <button
+                            onClick={(e) => { e.preventDefault(); prevSlide(); }}
+                            className="absolute left-4 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 text-white flex items-center justify-center hover:bg-white/20 transition-all opacity-0 group-hover:opacity-100 hidden sm:flex"
+                            aria-label="Previous slide"
+                        >
+                            <ChevronLeft size={24} />
+                        </button>
+                        <button
+                            onClick={(e) => { e.preventDefault(); nextSlide(); }}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 text-white flex items-center justify-center hover:bg-white/20 transition-all opacity-0 group-hover:opacity-100 hidden sm:flex"
+                            aria-label="Next slide"
+                        >
+                            <ChevronRight size={24} />
+                        </button>
+                    </>
+                )}
+
                 {/* ── Slide dots ── */}
                 {slides.length > 1 && (
                     <div 
                         className="absolute left-1/2 -translate-x-1/2 flex z-20" 
-                        style={{ bottom: '16px', gap: '8px' }}
+                        style={{ bottom: '24px', gap: '10px' }}
                     >
                         {slides.map((_, i) => (
                             <button
                                 key={i}
-                                onClick={() => setCurrent(i)}
-                                style={{
-                                    width: i === current ? '8px' : '4px',
-                                    height: '4px',
-                                    minHeight: '0',
-                                    borderRadius: '9999px',
-                                    backgroundColor: i === current ? 'white' : 'rgba(255, 255, 255, 0.4)',
-                                    transition: 'all 0.3s ease',
-                                    border: 'none',
-                                    padding: 0,
-                                    boxShadow: i === current ? '0 4px 8px -2px rgba(0, 0, 0, 0.2)' : 'none'
+                                onClick={() => {
+                                    setCurrent(i);
+                                    setIsPaused(true); // Pause auto-rotation when user manually interacts
                                 }}
+                                className="group/dot relative p-3 -m-1" // Increased hit area
                                 aria-label={`Go to slide ${i + 1}`}
-                            />
+                            >
+                                <div 
+                                    className={`h-2 rounded-full transition-all duration-500 ${i === current ? 'w-8 bg-white' : 'w-2 bg-white/30 group-hover/dot:bg-white/60'}`}
+                                    style={{ 
+                                        boxShadow: i === current ? '0 0 15px rgba(255,255,255,0.8)' : 'none',
+                                        transform: i === current ? 'scale(1.1)' : 'scale(1)'
+                                    }}
+                                />
+                                {i === current && (
+                                    <motion.div 
+                                        layoutId="activeDot"
+                                        className="absolute inset-0 rounded-full border border-white/40 scale-150"
+                                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                    />
+                                )}
+                            </button>
                         ))}
                     </div>
                 )}

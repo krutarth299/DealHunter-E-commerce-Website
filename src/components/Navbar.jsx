@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useWishlistAnimation } from '../context/wishlistAnimationContextDefinition';
 import { AuthContext } from '../context/authContextDefinition';
 import { motion, AnimatePresence } from 'framer-motion';
+import { optimizeImageUrl } from '../utils/imageOptimizer';
 
 const Navbar = ({ onSearch, wishlistCount = 0 }) => {
     const { wishlistRef, arrivalEffect } = useWishlistAnimation();
@@ -139,7 +140,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                                     {latestDeals.length > 0 ? latestDeals.map((deal, idx) => (
                                                         <Link key={idx} to={`/product/${deal._id || deal.id}`} onClick={() => setIsNotificationsOpen(false)} className="flex gap-4 p-4 hover:bg-slate-50 transition-colors group/notif">
                                                             <div className="w-12 h-12 bg-white rounded-xl border border-slate-100 p-1 flex-shrink-0">
-                                                                <img src={deal.image || (deal.images && deal.images[0])} alt="" className="w-full h-full object-contain" />
+                                                                <img src={optimizeImageUrl(deal.image || (deal.images && deal.images[0]))} alt="" className="w-full h-full object-contain" />
                                                             </div>
                                                             <div className="flex-1 min-w-0">
                                                                 <p className="text-[10px] font-black text-emerald-600 mb-0.5 flex items-center gap-1"><Zap size={10} fill="currentColor" /> FRESH PRICE DROP</p>

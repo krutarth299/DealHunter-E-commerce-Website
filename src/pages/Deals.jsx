@@ -220,7 +220,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                 <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-orange-50/60 blur-[150px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-blue-50/60 blur-[120px] rounded-full translate-y-1/2 -translate-x-1/3 pointer-events-none" />
                 
-                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                <div className="w-full mx-auto px-4 sm:px-8 lg:px-12 relative z-10">
                     <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-10">
                         <div className="space-y-6 max-w-2xl">
                             <motion.div 
@@ -272,19 +272,19 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                         </div>
                     </div>
 
-                    {/* Store Pill Strip */}
-                    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pt-8 pb-4 mt-2 scroll-smooth">
-                        <div className="flex items-center gap-2 mr-3 py-2 px-4 bg-slate-50 rounded-xl border border-slate-100 shrink-0">
-                            <Zap size={15} className="text-orange-500" fill="currentColor" />
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Official Stores</span>
+                    {/* Store Pill Strip - Elevated Design */}
+                    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pt-6 pb-4 mt-2 scroll-smooth">
+                        <div className="flex items-center gap-2 mr-2 py-1.5 px-3 bg-white/50 backdrop-blur-md rounded-xl border border-slate-200 shrink-0 shadow-sm">
+                            <Zap size={14} className="text-orange-500" fill="currentColor" />
+                            <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Certified</span>
                         </div>
                         
                         <button
                             onClick={() => setSelectedStore('All')}
-                            className={`h-11 px-6 rounded-2xl text-[10px] font-black whitespace-nowrap transition-all border uppercase tracking-[0.1em] flex items-center justify-center
+                            className={`h-11 px-6 rounded-xl text-[11px] font-black whitespace-nowrap transition-all border uppercase tracking-wider flex items-center justify-center
                                 ${selectedStore === 'All'
-                                    ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20 scale-105'
-                                    : 'bg-white text-slate-500 border-slate-200 hover:border-orange-500 hover:text-orange-600'
+                                    ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20'
+                                    : 'bg-white text-slate-500 border-slate-200 hover:border-orange-400 hover:text-orange-500 shadow-sm'
                                 }`}
                         >
                             Global
@@ -295,21 +295,22 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                                 <button
                                     key={store}
                                     onClick={() => setSelectedStore(store)}
-                                    className={`group h-11 px-5 rounded-2xl text-[10px] font-black whitespace-nowrap transition-all border flex items-center gap-3 uppercase tracking-[0.05em]
+                                    className={`group h-11 px-4 rounded-xl text-[11px] font-black whitespace-nowrap transition-all border flex items-center gap-3 uppercase tracking-wide
                                         ${isActive
-                                            ? 'bg-white text-orange-600 border-orange-500 shadow-xl shadow-orange-500/10 scale-105 ring-4 ring-orange-500/5'
-                                            : 'bg-white text-slate-500 border-slate-200 hover:border-orange-300 hover:text-orange-600'
+                                            ? 'bg-gradient-to-r from-orange-500 to-rose-500 text-white border-transparent shadow-lg shadow-orange-500/30'
+                                            : 'bg-white text-slate-600 border-slate-200 hover:border-orange-400 hover:text-orange-500 shadow-sm'
                                         }`}
                                 >
-                                    <div className={`w-7 h-7 rounded-full bg-slate-50 flex items-center justify-center p-1.5 shadow-sm border border-slate-100 transition-all ${isActive ? 'bg-orange-50 border-orange-100' : 'group-hover:scale-110'}`}>
+                                    <div className={`w-7 h-7 rounded-lg bg-white flex items-center justify-center p-1 shadow-sm transition-all group-hover:scale-110 ${isActive ? '' : 'border border-slate-100'}`}>
                                         <img 
-                                            src={`https://www.google.com/s2/favicons?domain=${store.toLowerCase().replace(/\s/g, '')}.com&sz=48`} 
+                                            src={`https://www.google.com/s2/favicons?domain=${store.toLowerCase().replace(/\s/g, '')}.com&sz=64`} 
                                             className="w-full h-full object-contain"
                                             alt=""
-                                            onError={e => { e.target.parentElement.innerHTML = `<span class="text-[8px]">${store[0]}</span>`; }}
+                                            onError={e => { e.target.parentElement.innerHTML = `<span class="text-[9px] font-black text-orange-500">${store[0]}</span>`; }}
                                         />
                                     </div>
-                                    {store}
+                                    <span className="hidden sm:inline">{store}</span>
+                                    {isActive && <span className="sm:hidden">{store}</span>}
                                 </button>
                             );
                         })}
@@ -318,7 +319,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
             </div>
 
             {/* ─── Main Content ─── */}
-            <div className="flex-grow max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 w-full py-10 pb-24 lg:pb-10">
+            <div className="flex-grow w-full mx-auto px-4 sm:px-8 lg:px-12 py-10 pb-24 lg:pb-10">
                 <div className="flex flex-col lg:flex-row gap-10">
                     {/* Desktop Sidebar */}
                     <aside className="hidden lg:block w-64 shrink-0">

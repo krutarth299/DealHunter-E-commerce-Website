@@ -8,6 +8,7 @@ import {
     ChevronLeft, ChevronRight, Home as HomeIcon
 } from 'lucide-react';
 import { useNavigate, Link, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { optimizeImageUrl } from '../utils/imageOptimizer';
 
 const CATEGORY_MAP = {
     'Electronics': Smartphone,
@@ -552,7 +553,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                             {(searchQuery ? filteredDeals : (dashboardStats?.recentDeals ?? deals.slice(0, 6)).slice(0, 8)).map((deal, i) => (
                                                 <div key={i} className="flex items-center gap-3 group">
                                                     <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
-                                                        {deal.image ? <img src={deal.image} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-orange-100" />}
+                                                        {deal.image ? <img src={optimizeImageUrl(deal.image)} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-orange-100" />}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-xs font-bold text-slate-700 truncate group-hover:text-orange-600 transition-colors">{deal.title}</p>
@@ -812,16 +813,35 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                                 {dealForm.images.map((imgUrl, idx) => (
                                                                     <div
                                                                         key={idx}
+                                                                        className={`relative group/img flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden snap-center cursor-pointer transition-all ${dealForm.image === imgUrl ? 'ring-4 ring-orange-500 shadow-md scale-105' : 'bg-slate-50 border border-slate-200 hover:border-orange-300'}`}
                                                                         onClick={() => setDealForm({ ...dealForm, image: imgUrl })}
-                                                                        className={`relative flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden snap-center cursor-pointer transition-all ${dealForm.image === imgUrl ? 'ring-4 ring-orange-500 shadow-md scale-105' : 'bg-slate-50 border border-slate-200 hover:border-orange-300'}`}
                                                                     >
                                                                         <img
-                                                                            src={imgUrl}
+                                                                            src={optimizeImageUrl(imgUrl)}
                                                                             alt={`Scraped Image ${idx}`}
                                                                             className="w-full h-full object-contain relative z-10"
                                                                             loading="lazy"
                                                                             onError={(e) => { e.target.style.display = 'none'; }}
                                                                         />
+                                                                        
+                                                                        {/* Delete Button */}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                const newImages = dealForm.images.filter((_, i) => i !== idx);
+                                                                                setDealForm({
+                                                                                    ...dealForm,
+                                                                                    images: newImages,
+                                                                                    image: dealForm.image === imgUrl ? (newImages[0] || '') : dealForm.image
+                                                                                });
+                                                                            }}
+                                                                            className="absolute top-1 right-1 bg-red-500/90 hover:bg-red-600 text-white p-1 rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity z-30 shadow-lg"
+                                                                            title="Remove this image"
+                                                                        >
+                                                                            <X size={12} strokeWidth={3} />
+                                                                        </button>
+
                                                                         {dealForm.image === imgUrl && (
                                                                             <div className="absolute inset-0 bg-orange-500/20 z-20 flex items-center justify-center pointer-events-none">
                                                                                 <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-sm">
@@ -912,7 +932,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                 <div className="rounded-3xl overflow-hidden bg-white shadow-xl shadow-slate-200/50 border border-slate-100 group/card relative transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
                                                     <div className="relative bg-white h-60 flex items-center justify-center p-8 overflow-hidden">
                                                         <div className="absolute inset-0 bg-gradient-to-b from-slate-50/80 to-transparent pointer-events-none" />
-                                                        <img src={dealForm.image} alt="Preview" className="max-h-full max-w-full object-contain mix-blend-multiply drop-shadow-md z-10 transition-transform duration-500 group-hover/card:scale-105" />
+                                                        <img src={optimizeImageUrl(dealForm.image)} alt="Preview" className="max-h-full max-w-full object-contain mix-blend-multiply drop-shadow-md z-10 transition-transform duration-500 group-hover/card:scale-105" />
                                                         {dealForm.discount && (
                                                             <div className="absolute top-4 left-4 bg-gradient-to-r from-orange-500 to-rose-500 text-white text-[11px] font-black px-3 py-1.5 rounded-full shadow-lg shadow-orange-500/30 z-20">
                                                                 {dealForm.discount} OFF

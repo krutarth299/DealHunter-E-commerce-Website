@@ -472,6 +472,42 @@ router.post('/extract', async (req, res) => {
 
         const cleanTitle = (str) => { if(!str) return ''; return str.trim(); };
 
+        const optimizeImageUrl = (url) => {
+            if (!url || typeof url !== 'string') return url;
+            let optimized = url;
+
+            try {
+                // Amazon: Remove resolution modifiers for original high-res quality
+                // e.g. ._AC_SY200_, ._SL160_, ._SR160,160_, etc.
+                if (url.includes('amazon.in') || url.includes('amazon.com') || url.includes('media-amazon.com')) {
+                    optimized = url.replace(/\._[A-Z0-9,_%]+_\./, '.');
+                    // Ensure we don't accidentally remove the extension if it wasn't a modifier
+                    if (!optimized.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
+                        optimized = url; // fallback
+                    }
+                }
+                
+                // Flipkart: Replace dynamic dimensions with HD values
+                if (url.includes('flipkart.com')) {
+                    optimized = url.replace('{@width}', '800').replace('{@height}', '800').replace(/q=\d+/, 'q=100');
+                }
+
+                // Myntra: Already handled in some places but ensure HD
+                if (url.includes('myntassets.com')) {
+                    optimized = url.replace(/w_\d+/, 'w_1080').replace(/h_\d+/, 'h_1440').replace(/q_\d+/, 'q_100');
+                }
+
+                // Ajio: Ensure high resolution
+                if (url.includes('ajio.com')) {
+                    optimized = url.replace(/w_\d+/, 'w_800').replace(/h_\d+/, 'h_800');
+                }
+            } catch (e) {
+                return url;
+            }
+
+            return optimized;
+        };
+
         const isProductTitleValid = (t) => {
             if (!t || t.length < 5) return false;
 
@@ -2310,8 +2346,12 @@ router.post('/extract', async (req, res) => {
         fs.appendFileSync(logPath, `[DEBUG] Final JSON: ${JSON.stringify(data)}\n`);
 
         if (data.image && junkRegex.test(data.image)) data.image = '';
+        if (data.image) data.image = optimizeImageUrl(data.image);
+
         if (data.images && data.images.length > 0) {
-            data.images = data.images.filter(img => img && !junkRegex.test(img));
+            data.images = data.images
+                .filter(img => img && !junkRegex.test(img))
+                .map(img => optimizeImageUrl(img));
         }
 
         if (!data.price) data.price = '';

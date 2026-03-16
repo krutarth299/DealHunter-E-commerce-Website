@@ -79,7 +79,7 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                     </div>
 
                     {/* Desktop/Tablet Grid */}
-                    <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 sm:gap-6">
+                    <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 sm:gap-5">
                         {categories.map((catName, i) => {
                             const style = getCategoryStyle(catName);
                             const Icon = style.icon;
@@ -95,14 +95,14 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                                     className="relative flex flex-col items-center group cursor-pointer"
                                 >
                                     {/* Card Container */}
-                                    <div className={`relative w-full aspect-square rounded-[2.5rem] ${style.bg} border border-slate-100 flex flex-col items-center justify-center transition-all duration-500 group-hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] group-hover:border-transparent overflow-hidden shadow-sm`}>
+                                    <div className={`relative w-full aspect-square rounded-2xl ${style.bg} border border-slate-100 flex flex-col items-center justify-center transition-all duration-500 group-hover:shadow-[0_15px_30px_-10px_rgba(0,0,0,0.1)] group-hover:border-transparent overflow-hidden shadow-sm`}>
                                         
                                         {/* Ambient Glow */}
                                         <div className={`absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
                                         
                                         {/* Floating Icon Container */}
-                                        <div className={`relative z-10 w-12 h-12 sm:w-16 sm:h-16 rounded-[1.5rem] bg-white shadow-xl shadow-slate-200/50 flex items-center justify-center transform group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 ease-out`}>
-                                            <Icon size={28} className={style.icon_color} strokeWidth={2} />
+                                        <div className={`relative z-10 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-white shadow-md shadow-slate-200/40 flex items-center justify-center transform group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 ease-out`}>
+                                            <Icon size={18} className={style.icon_color} strokeWidth={2.5} />
                                         </div>
 
                                         {/* Decorative Dots */}
@@ -116,7 +116,7 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                                     </div>
                                     
                                     {/* Category Label */}
-                                    <span className="mt-4 text-[10px] sm:text-[11px] font-black text-slate-900 border-b-2 border-transparent group-hover:border-orange-500 group-hover:text-orange-600 transition-all uppercase tracking-widest px-1 text-center leading-tight">
+                                    <span className="mt-2 text-[9px] sm:text-[10px] font-black text-slate-900 border-b-2 border-transparent group-hover:border-orange-500 group-hover:text-orange-600 transition-all uppercase tracking-widest px-1 text-center leading-tight">
                                         {catName.split(' & ').map((part, idx) => (
                                             <React.Fragment key={idx}>
                                                 {part}
