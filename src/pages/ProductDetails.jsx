@@ -346,7 +346,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
         <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-indigo-100">
             <SEO
                 title={product.title}
-                description={product.description || `Get the best deal on ${product.title} at ${product.store}. Check out the latest offers and coupons on DealOrbit.`}
+                description={product.description || `Get the best deal on ${product.title} at ${product.store}. Check out the latest offers and coupons on DealSphere.`}
                 image={activeImage}
             />
             <Navbar user={null} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />
@@ -354,16 +354,16 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                 {/* Breadcrumb / Back */}
                 <button
                     onClick={() => navigate(-1)}
-                    className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors mb-2 md:mb-4 font-bold uppercase tracking-widest text-[10px] md:text-sm"
+                    className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors mb-4 md:mb-6 font-bold uppercase tracking-widest text-[9px] md:text-sm bg-white/80 backdrop-blur-md px-4 py-2 rounded-full border border-slate-100 w-fit shadow-sm"
                 >
-                    <ArrowLeft size={16} /> Back
+                    <ArrowLeft size={14} /> Back
                 </button>
 
                 <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-sm overflow-hidden border border-slate-100">
                     <div className="grid grid-cols-1 lg:grid-cols-2">
 
                         {/* Image Section */}
-                        <div className="relative p-6 py-8 md:p-10 lg:p-12 flex flex-col items-center justify-center min-h-[280px] sm:min-h-[350px] md:min-h-[400px] lg:min-h-[450px] group overflow-hidden gap-4 md:gap-6 border-b border-slate-100 lg:border-b-0 lg:border-r">
+                        <div className="relative p-4 sm:p-6 md:p-10 lg:p-12 flex flex-col items-center justify-center min-h-[250px] sm:min-h-[350px] md:min-h-[400px] lg:min-h-[450px] group overflow-hidden gap-4 md:gap-6 border-b border-slate-100 lg:border-b-0 lg:border-r">
                             <motion.div
                                 key={activeImage || 'fallback'}
                                 initial={{ opacity: 0, scale: 0.95 }}
@@ -457,7 +457,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                         </div>
 
                         {/* Details Section */}
-                        <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full bg-white relative">
+                        <div className="p-5 md:p-6 lg:p-8 flex flex-col h-full bg-white relative">
                             <div className="flex items-start justify-between mb-4">
                                 <div className="flex flex-wrap gap-2">
                                     <span className="text-[10px] font-black bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-full flex items-center gap-1 border border-emerald-100">
@@ -516,12 +516,14 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                             </div>
 
                             <div className="flex items-center gap-2.5 mb-5">
-                                <span className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">{formatProductPrice(product.price, product.store, product.link)}</span>
+                                <span className={`font-extrabold text-slate-900 tracking-tight ${brand.text === 'Store' ? 'text-2xl md:text-3xl' : 'text-3xl md:text-4xl'}`}>
+                                    {formatProductPrice(product.price, product.store, product.link)}
+                                </span>
                                 <div className="flex flex-col">
                                     {product.originalPrice && (
-                                        <span className="text-sm text-slate-400 line-through font-bold">{formatProductPrice(product.originalPrice, product.store, product.link)}</span>
+                                        <span className="text-sm text-slate-400 line-through font-bold opacity-60 tracking-tight">{formatProductPrice(product.originalPrice, product.store, product.link)}</span>
                                     )}
-                                    <span className="text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 flex items-center py-0.5 rounded-md w-fit uppercase tracking-wider">
+                                    <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 flex items-center py-0.5 rounded-md w-fit uppercase tracking-widest leading-none">
                                         {product.discount || '40%'}
                                     </span>
                                 </div>

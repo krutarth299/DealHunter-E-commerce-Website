@@ -25,7 +25,7 @@ export const BLOG_POSTS = [
             },
             {
                 type: "text",
-                text: "Amazon changes prices hundreds of times a day. A product showing '40% off' might have been cheaper 2 weeks ago. Use tools like CamelCamelCamel or Keepa (for international) to check the full price history. On DealOrbit, we track price trends for you automatically."
+                text: "Amazon changes prices hundreds of times a day. A product showing '40% off' might have been cheaper 2 weeks ago. Use tools like CamelCamelCamel or Keepa (for international) to check the full price history. On DealSphere, we track price trends for you automatically."
             },
             {
                 type: "tip",
@@ -101,7 +101,7 @@ export const BLOG_POSTS = [
             },
             {
                 type: "text",
-                text: "Use DealOrbit's wishlist feature to save a product and get notified when its price drops. You can also use Amazon's own 'Watch this Deal' feature for time-limited deals."
+                text: "Use DealSphere's wishlist feature to save a product and get notified when its price drops. You can also use Amazon's own 'Watch this Deal' feature for time-limited deals."
             },
             {
                 type: "heading",
@@ -113,7 +113,7 @@ export const BLOG_POSTS = [
             },
             {
                 type: "conclusion",
-                text: "The biggest shopping mistake is paying retail price when you don't have to. Save this guide, bookmark DealOrbit, and you'll never overpay again. Happy hunting! 🔥"
+                text: "The biggest shopping mistake is paying retail price when you don't have to. Save this guide, bookmark DealSphere, and you'll never overpay again. Happy hunting! 🔥"
             }
         ]
     },
@@ -191,7 +191,7 @@ export const BLOG_POSTS = [
             },
             {
                 type: "conclusion",
-                text: "Our advice: Save your wishlist on DealOrbit before the sale starts. We'll track both platforms and notify you when your item hits its lowest price, so you never miss the real deal."
+                text: "Our advice: Save your wishlist on DealSphere before the sale starts. We'll track both platforms and notify you when your item hits its lowest price, so you never miss the real deal."
             }
         ]
     },
@@ -225,7 +225,7 @@ export const BLOG_POSTS = [
             },
             {
                 type: "tip",
-                text: "🛒 Best Deal: Currently ₹13,999 on Amazon with ₹1,000 bank offer. All-time low. Check DealOrbit for real-time price."
+                text: "🛒 Best Deal: Currently ₹13,999 on Amazon with ₹1,000 bank offer. All-time low. Check DealSphere for real-time price."
             },
             {
                 type: "heading",
@@ -261,7 +261,7 @@ export const BLOG_POSTS = [
             },
             {
                 type: "conclusion",
-                text: "Any of our top 3 picks will serve you excellently for 3+ years. The Redmi Note 13 5G offers the best all-round value, but check DealOrbit daily — flash sales on these models can drop prices by ₹1,000–₹2,000 during festive periods."
+                text: "Any of our top 3 picks will serve you excellently for 3+ years. The Redmi Note 13 5G offers the best all-round value, but check DealSphere daily — flash sales on these models can drop prices by ₹1,000–₹2,000 during festive periods."
             }
         ]
     },
@@ -303,7 +303,7 @@ export const BLOG_POSTS = [
             },
             {
                 type: "text",
-                text: "Use DealOrbit to compare prices across Amazon, Flipkart, Myntra, and Meesho simultaneously. Always start with price comparison — there's no point stacking discounts on an already inflated price."
+                text: "Use DealSphere to compare prices across Amazon, Flipkart, Myntra, and Meesho simultaneously. Always start with price comparison — there's no point stacking discounts on an already inflated price."
             },
             {
                 type: "heading",
@@ -365,7 +365,7 @@ export const BLOG_POSTS = [
             },
             {
                 type: "tip",
-                text: "⚠️ Warning: 'Up to 80% off' banners usually refer to just 2–3 products. Sort by 'Genuine Discount' if available, or compare historical prices using DealOrbit."
+                text: "⚠️ Warning: 'Up to 80% off' banners usually refer to just 2–3 products. Sort by 'Genuine Discount' if available, or compare historical prices using DealSphere."
             },
             {
                 type: "heading",
@@ -557,7 +557,7 @@ export const BLOG_POSTS = [
             },
             {
                 type: "conclusion",
-                text: "Our recommendation for most readers: Start with the Amazon Pay ICICI (no fee) or Axis Flipkart (₹500 fee). As your spend grows, upgrade to HDFC Millennia. Stack these cards with DealOrbit deals for compounded savings on every purchase."
+                text: "Our recommendation for most readers: Start with the Amazon Pay ICICI (no fee) or Axis Flipkart (₹500 fee). As your spend grows, upgrade to HDFC Millennia. Stack these cards with DealSphere deals for compounded savings on every purchase."
             }
         ]
     }

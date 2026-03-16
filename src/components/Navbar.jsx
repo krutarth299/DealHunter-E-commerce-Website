@@ -118,21 +118,21 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                         <div className={`flex items-center justify-between gap-4 relative transition-all duration-500 ${scrolled ? 'h-14' : 'h-16'}`}>
 
                             {/* Logo */}
-                            <Link to="/" className="flex items-center gap-3.5 shrink-0 group">
-                                <div className={`flex items-center transition-all duration-500 ${scrolled ? 'h-10' : 'h-12 sm:h-14'}`}>
+                            <Link to="/" className="flex items-center gap-2 sm:gap-3.5 shrink-0 group">
+                                <div className={`flex items-center transition-all duration-500 ${scrolled ? 'h-9 sm:h-12' : 'h-12 sm:h-20'}`}>
                                     <img 
                                         src="/logo.png" 
-                                        alt="DealOrbit" 
-                                        className="h-full w-auto object-contain filter drop-shadow-sm group-hover:drop-shadow-md transition-all duration-300" 
+                                        alt="DealSphere" 
+                                        className="h-full w-auto object-contain filter drop-shadow-sm group-hover:drop-shadow-md transition-all duration-300 scale-105 sm:scale-110" 
                                     />
                                 </div>
                                 <div className="flex flex-col leading-none">
-                                    <span className={`font-[1000] tracking-tighter flex items-baseline transition-all duration-500 ${scrolled ? 'text-2xl' : 'text-2xl sm:text-3xl'}`}>
+                                    <span className={`font-[1000] tracking-tighter flex items-baseline transition-all duration-500 ${scrolled ? 'text-xl sm:text-3xl' : 'text-2xl sm:text-4xl'}`}>
                                         <span className="text-[#1E3A8A]">Deal</span>
-                                        <span className="text-[#F97316]">Orbit</span>
+                                        <span className="text-[#F97316]">Sphere</span>
                                     </span>
-                                    <span className={`font-bold text-slate-400 uppercase tracking-widest mt-0.5 ml-0.5 transition-all duration-500 ${scrolled ? 'text-[8px]' : 'text-[9px] sm:text-[11px]'}`}>
-                                        Smart Deals Everyday
+                                    <span className={`font-bold text-slate-400 uppercase tracking-widest mt-0.5 ml-0.5 transition-all duration-500 hidden sm:block ${scrolled ? 'text-[7px] sm:text-[8px]' : 'text-[8px] sm:text-[11px]'}`}>
+                                        Smart Deals Around the World
                                     </span>
                                 </div>
                             </Link>
@@ -290,7 +290,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
 
             {/* Mobile Bottom Float Navigation */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pb-6">
-                <div className="max-w-md mx-auto h-16 bg-slate-900/90 backdrop-blur-2xl rounded-3xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between px-2">
+                <div className="w-full max-w-md mx-auto h-16 bg-slate-900/90 backdrop-blur-2xl rounded-3xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between px-2">
                     <Link to="/" className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-all ${isActive('/') ? 'text-white scale-110' : 'text-slate-500'}`}>
                         <Flame size={20} className={isActive('/') ? 'fill-orange-500 text-orange-500' : ''} />
                         <span className="text-[9px] font-black uppercase tracking-tighter">Home</span>

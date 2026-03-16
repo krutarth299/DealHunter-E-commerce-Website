@@ -39,7 +39,7 @@ const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen }) => {
     const handleSubscribe = (e) => {
         e.preventDefault();
         if (!email) return;
-        if (showToast) showToast("You've subscribed to DealOrbit Blog! 🎉", "success");
+        if (showToast) showToast("You've subscribed to DealSphere Blog! 🎉", "success");
         setEmail("");
     };
 
@@ -49,7 +49,7 @@ const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen }) => {
         <div className="min-h-screen flex flex-col bg-slate-50 selection:bg-orange-100">
             <SEO
                 title="Blog — Deal Tips & Shopping Guides"
-                description="Expert shopping guides, deal analysis, and money-saving tips from the DealOrbit team."
+                description="Expert shopping guides, deal analysis, and money-saving tips from the DealSphere team."
             />
             <Navbar user={user} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist ? wishlist.length : 0} wishlist={wishlist} />
 
@@ -80,7 +80,7 @@ const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen }) => {
                                 Intelligent Insights
                             </motion.div>
                             <h1 className="text-5xl md:text-7xl font-[1000] text-slate-900 tracking-tight leading-[0.95] mb-6">
-                                The <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Smart</span> Orbiter 
+                                The <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Smart</span> Spherer 
                                 <span className="block text-slate-400/50 text-4xl md:text-5xl mt-2 tracking-tighter italic">Official Blog</span>
                             </h1>
                             <p className="text-slate-500 text-lg md:text-xl font-medium max-w-xl leading-relaxed">

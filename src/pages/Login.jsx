@@ -41,9 +41,9 @@ const Login = ({ showToast }) => {
             >
                 <div className="text-center mb-12">
                     <Link to="/" className="inline-flex items-center gap-4 group mb-8">
-                        <img src="/logo.png" alt="DealOrbit" className="h-16 w-auto object-contain bg-white rounded-2xl p-2 shadow-xl" />
+                        <img src="/logo.png" alt="DealSphere" className="h-24 w-auto object-contain bg-white rounded-2xl p-3 shadow-xl scale-105" />
                         <span className="text-4xl font-[1000] tracking-tighter text-slate-900">
-                            <span className="text-[#1E3A8A]">DEAL</span><span className="text-[#F97316]">ORBIT</span>
+                            <span className="text-[#1E3A8A]">DEAL</span><span className="text-[#F97316]">SPHERE</span>
                         </span>
                     </Link>
                     <h2 className="text-4xl font-[1000] text-slate-900 tracking-tight leading-none mb-4">Elite Access</h2>
@@ -63,7 +63,7 @@ const Login = ({ showToast }) => {
                                     type="email" 
                                     required
                                     className="w-full bg-slate-50/50 backdrop-blur-sm border border-slate-100 rounded-[1.4rem] py-5 pl-14 pr-6 text-base font-bold outline-none focus:bg-white focus:border-orange-500/30 focus:shadow-[0_10px_30px_-10px_rgba(249,115,22,0.1)] transition-all text-slate-900 placeholder:text-slate-300"
-                                    placeholder="admin@dealorbit.com"
+                                    placeholder="admin@dealsphere.com"
                                     value={formData.email}
                                     onChange={e => setFormData({...formData, email: e.target.value})}
                                 />

@@ -285,7 +285,7 @@ const DealsGrid = React.memo(({ deals = [], wishlist = [], toggleWishlist }) => 
                             initial={{ opacity: 0, scale: 0.9, y: 30 }} 
                             animate={{ opacity: 1, scale: 1, y: 0 }} 
                             exit={{ opacity: 0, scale: 0.9, y: 30 }}
-                            className="relative bg-white border border-slate-100 rounded-[3rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.4)] w-full max-w-5xl overflow-hidden flex flex-col md:flex-row max-h-[85vh] z-10"
+                            className="relative bg-white border border-slate-100 rounded-[2.5rem] md:rounded-[3rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.4)] w-full max-w-5xl overflow-hidden flex flex-col md:flex-row max-h-[90vh] z-10"
                         >
                             {/* Left: Enhanced Image Container */}
                             <div className="w-full md:w-[45%] p-10 bg-slate-50/50 flex items-center justify-center relative group">
@@ -297,9 +297,9 @@ const DealsGrid = React.memo(({ deals = [], wishlist = [], toggleWishlist }) => 
                                 />
                                 <button 
                                     onClick={() => setQuickViewProduct(null)} 
-                                    className="absolute top-6 left-6 w-12 h-12 rounded-2xl bg-white/80 backdrop-blur-md border border-white flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all hover:rotate-90 md:hidden shadow-lg"
+                                    className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-white/90 backdrop-blur-md border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 transition-all hover:rotate-90 md:hidden z-50 shadow-sm"
                                 >
-                                    <X size={20} />
+                                    <X size={18} />
                                 </button>
                                 
                                 <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-1.5">
@@ -331,7 +331,7 @@ const DealsGrid = React.memo(({ deals = [], wishlist = [], toggleWishlist }) => 
                                         </div>
                                     </div>
 
-                                    <h3 className="text-3xl md:text-4xl font-[1000] text-slate-900 leading-[1.1] mb-6 tracking-tight">
+                                    <h3 className="text-2xl md:text-4xl font-[1000] text-slate-900 leading-tight mb-6 tracking-tight">
                                         {quickViewProduct.title}
                                     </h3>
                                     
@@ -348,7 +348,7 @@ const DealsGrid = React.memo(({ deals = [], wishlist = [], toggleWishlist }) => 
                                         )}
                                         {quickViewProduct.discount && (
                                             <div className="mb-1.5 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-[11px] font-[1000] uppercase tracking-widest shadow-sm border border-emerald-100">
-                                                {quickViewProduct.discount} OFF
+                                                {String(quickViewProduct.discount).toUpperCase().includes('OFF') ? quickViewProduct.discount : `${quickViewProduct.discount} OFF`}
                                             </div>
                                         )}
                                     </div>
@@ -369,25 +369,36 @@ const DealsGrid = React.memo(({ deals = [], wishlist = [], toggleWishlist }) => 
                                     </div>
 
                                     {/* Footer Actions */}
-                                    <div className="mt-auto pt-10 border-t border-slate-50 flex flex-col sm:flex-row gap-4">
+                                    <div className="mt-auto pt-8 border-t border-slate-50 flex flex-col gap-4">
+                                        <div className="flex flex-col sm:flex-row gap-4">
+                                            <button 
+                                                onClick={() => {
+                                                    if (quickViewProduct.link) window.open(quickViewProduct.link, '_blank');
+                                                    setQuickViewProduct(null);
+                                                }}
+                                                className="flex-1 bg-slate-900 hover:bg-orange-500 text-white font-[1000] py-5 px-8 rounded-2xl shadow-2xl shadow-slate-900/10 hover:shadow-orange-500/30 transition-all active:scale-95 flex items-center justify-center gap-3 uppercase text-xs tracking-[0.1em]"
+                                            >
+                                                Secure This Deal <ExternalLink size={18} strokeWidth={2.5} />
+                                            </button>
+                                            <button 
+                                                onClick={() => toggleWishlist?.(quickViewProduct)}
+                                                className={`h-16 w-full sm:w-20 rounded-2xl border transition-all flex items-center justify-center group ${wishlist.some(w => (w.id || w._id) === (quickViewProduct.id || quickViewProduct._id)) ? 'bg-pink-50 text-pink-500 border-pink-100 shadow-xl shadow-pink-500/10' : 'bg-slate-50 text-slate-400 border-slate-100 hover:bg-white hover:border-pink-200 hover:text-pink-400'}`}
+                                            >
+                                                <Heart 
+                                                    size={24} 
+                                                    className="group-hover:scale-110 transition-transform" 
+                                                    fill={wishlist.some(w => (w.id || w._id) === (quickViewProduct.id || quickViewProduct._id)) ? 'currentColor' : 'none'} 
+                                                />
+                                            </button>
+                                        </div>
                                         <button 
                                             onClick={() => {
-                                                if (quickViewProduct.link) window.open(quickViewProduct.link, '_blank');
+                                                navigate(`/product/${quickViewProduct.id || quickViewProduct._id}`);
                                                 setQuickViewProduct(null);
                                             }}
-                                            className="flex-1 bg-slate-900 hover:bg-orange-500 text-white font-[1000] py-5 px-8 rounded-2xl shadow-2xl shadow-slate-900/10 hover:shadow-orange-500/30 transition-all active:scale-95 flex items-center justify-center gap-3 uppercase text-xs tracking-[0.1em]"
+                                            className="w-full py-4 text-slate-400 hover:text-blue-600 font-bold text-[11px] uppercase tracking-widest transition-colors flex items-center justify-center gap-2 group"
                                         >
-                                            Secure This Deal <ExternalLink size={18} strokeWidth={2.5} />
-                                        </button>
-                                        <button 
-                                            onClick={() => toggleWishlist?.(quickViewProduct)}
-                                            className={`h-16 w-full sm:w-20 rounded-2xl border transition-all flex items-center justify-center group ${wishlist.some(w => (w.id || w._id) === (quickViewProduct.id || quickViewProduct._id)) ? 'bg-pink-50 text-pink-500 border-pink-100 shadow-xl shadow-pink-500/10' : 'bg-slate-50 text-slate-400 border-slate-100 hover:bg-white hover:border-pink-200 hover:text-pink-400'}`}
-                                        >
-                                            <Heart 
-                                                size={24} 
-                                                className="group-hover:scale-110 transition-transform" 
-                                                fill={wishlist.some(w => (w.id || w._id) === (quickViewProduct.id || quickViewProduct._id)) ? 'currentColor' : 'none'} 
-                                            />
+                                            View Full Product Details <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
                                         </button>
                                     </div>
                                 </div>

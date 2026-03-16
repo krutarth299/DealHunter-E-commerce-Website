@@ -50,7 +50,7 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
 
     return (
         <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900 overflow-x-hidden">
-            <SEO title="DealOrbit — Smart Deals Everyday" description="Discover the best deals, discounts and coupons verified in real-time." />
+            <SEO title="DealSphere — Smart Deals Around the World" description="Discover the best deals, discounts and coupons verified in real-time." />
             <Navbar user={user} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />
 
             <main className="flex-grow pb-24 md:pb-0">
@@ -206,10 +206,10 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                     </div>
                 </section>
 
-                {/* ─── Why DealOrbit ─── */}
+                {/* ─── Why DealSphere ─── */}
                 <section className="py-24 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-100 mt-6">
                     <div className="max-w-3xl mx-auto mb-20 text-center">
-                        <span className="text-orange-500 text-xs font-black uppercase tracking-[0.3em] mb-4 block">The DealOrbit Edge</span>
+                        <span className="text-orange-500 text-xs font-black uppercase tracking-[0.3em] mb-4 block">The DealSphere Edge</span>
                         <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">Everything You Need to <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-orange-400">Save 10x Faster.</span></h2>
                     </div>
                     

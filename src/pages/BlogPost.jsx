@@ -346,7 +346,7 @@ const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOp
                                             <input
                                                 value={name}
                                                 onChange={e => setName(e.target.value)}
-                                                placeholder="e.g. DealOrbit99"
+                                                placeholder="e.g. DealSphere99"
                                                 className="w-full bg-slate-50 rounded-xl px-5 py-3.5 font-bold text-slate-900 outline-none border border-transparent focus:bg-white focus:border-orange-500 transition-all"
                                             />
                                         </div>

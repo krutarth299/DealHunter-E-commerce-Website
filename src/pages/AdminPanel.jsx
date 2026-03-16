@@ -379,10 +379,10 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
 
                 {/* Logo */}
                 <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100">
-                    <img src="/logo.png" alt="DealOrbit" className="h-10 w-auto object-contain bg-white rounded-lg p-1" />
+                    <img src="/logo.png" alt="DealSphere" className="h-14 w-auto object-contain bg-white rounded-xl p-1.5 shadow-sm scale-110" />
                     <div className="text-xl font-black tracking-tighter flex items-center">
                         <span className="text-[#1E3A8A]">Deal</span>
-                        <span className="text-[#F97316]">Orbit</span>
+                        <span className="text-[#F97316]">Sphere</span>
                     </div>
                     <button onClick={() => setIsSidebarOpen(false)} className="ml-auto text-slate-400 lg:hidden hover:text-slate-600">
                         <X size={18} />

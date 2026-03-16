@@ -36,7 +36,7 @@ const Stores = ({ onSearch, user, wishlist, setIsAddDealOpen }) => {
 
     return (
         <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900">
-            <SEO title="Partner Stores | DealOrbit" description="Explore our network of verified partner stores for the best deals." />
+            <SEO title="Partner Stores | DealSphere" description="Explore our network of verified partner stores for the best deals." />
             <Navbar user={user} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />
 
             <main className="flex-grow">

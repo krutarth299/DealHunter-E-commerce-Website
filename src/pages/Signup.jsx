@@ -41,9 +41,9 @@ const Signup = ({ showToast }) => {
             >
                 <div className="text-center mb-12">
                     <Link to="/" className="inline-flex items-center gap-4 group mb-8">
-                        <img src="/logo.png" alt="DealOrbit" className="h-16 w-auto object-contain bg-white rounded-2xl p-2 shadow-xl" />
+                        <img src="/logo.png" alt="DealSphere" className="h-24 w-auto object-contain bg-white rounded-2xl p-3 shadow-xl scale-105" />
                         <span className="text-4xl font-[1000] tracking-tighter text-slate-900">
-                            <span className="text-[#1E3A8A]">DEAL</span><span className="text-[#F97316]">ORBIT</span>
+                            <span className="text-[#1E3A8A]">DEAL</span><span className="text-[#F97316]">SPHERE</span>
                         </span>
                     </Link>
                     <h2 className="text-4xl font-[1000] text-slate-900 tracking-tight leading-none mb-4">Elite Membership</h2>
