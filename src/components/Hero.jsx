@@ -121,7 +121,7 @@ const Hero = ({ deals = [] }) => {
     return (
         <section className="w-full bg-white overflow-hidden pt-0">
             {/* ── Main Slide Banner ── */}
-            <div className="relative overflow-hidden h-[420px] md:h-[480px]">
+            <div className="relative overflow-hidden h-[600px] sm:h-[540px] md:h-[480px]">
                 <AnimatePresence>
                     <motion.div
                         key={current}
