@@ -220,7 +220,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                 <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-orange-50/60 blur-[150px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-blue-50/60 blur-[120px] rounded-full translate-y-1/2 -translate-x-1/3 pointer-events-none" />
                 
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                     <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-10">
                         <div className="space-y-6 max-w-2xl">
                             <motion.div 
@@ -318,7 +318,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
             </div>
 
             {/* ─── Main Content ─── */}
-            <div className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-10 pb-24 lg:pb-10">
+            <div className="flex-grow max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 w-full py-10 pb-24 lg:pb-10">
                 <div className="flex flex-col lg:flex-row gap-10">
                     {/* Desktop Sidebar */}
                     <aside className="hidden lg:block w-64 shrink-0">

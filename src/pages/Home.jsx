@@ -62,7 +62,7 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                 <Hero deals={deals} />
 
                 {/* ─── Shop by Category ─── */}
-                <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <section className="py-12 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
                         <div className="space-y-2">
                             <span className="text-orange-500 text-[10px] font-black uppercase tracking-[0.2em] bg-orange-50 px-3 py-1 rounded-full border border-orange-100 mb-2 inline-block">Curated Collections</span>
@@ -138,7 +138,7 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                 </section>
 
                 {/* ─── Featured Grid ─── */}
-                <section id="deals-grid" className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <section id="deals-grid" className="py-12 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between mb-8">
                         <div className="flex items-center gap-4">
                             <div className="w-1.5 h-10 rounded-full bg-blue-500" />
@@ -154,7 +154,7 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                 {/* ─── Recently Viewed ─── */}
                 {recentlyViewed && recentlyViewed.length > 0 && (
                     <section className="py-12 bg-white border-y border-slate-100 overflow-hidden">
-                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
                             <div className="flex items-center justify-between mb-8">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
@@ -174,7 +174,7 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
 
                 {/* ─── Partner Stores Banner ─── */}
                 <section className="py-12 px-4 sm:px-6 lg:px-8">
-                    <div className="max-w-7xl mx-auto bg-slate-900 rounded-[4rem] overflow-hidden relative shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)]">
+                    <div className="max-w-[1600px] mx-auto bg-slate-900 rounded-[4rem] overflow-hidden relative shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)]">
                         {/* Background Effects */}
                         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-orange-500/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
                         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/10 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/3" />
@@ -231,7 +231,7 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                 </section>
 
                 {/* ─── Why DealHunter ─── */}
-                <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-100 mt-6 text-center">
+                <section className="py-12 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-100 mt-6 text-center">
                     <div className="max-w-3xl mx-auto mb-20 text-center">
                         <span className="text-orange-500 text-xs font-black uppercase tracking-[0.3em] mb-4 block">The DealHunter Edge</span>
                         <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">Everything You Need to <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-orange-400">Save 10x Faster.</span></h2>
