@@ -273,21 +273,21 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                     </div>
 
                     {/* Store Pill Strip */}
-                    <div className="flex items-center gap-4 overflow-x-auto no-scrollbar pt-12 pb-2 mt-4 scroll-smooth">
-                        <div className="flex items-center gap-3 mr-6 py-2 px-4 bg-slate-50 rounded-2xl border border-slate-100 shrink-0">
-                            <Zap size={18} className="text-orange-500" fill="currentColor" />
-                            <span className="text-[11px] font-[1000] text-slate-400 uppercase tracking-[0.1em]">Certified Merchants</span>
+                    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pt-8 pb-4 mt-2 scroll-smooth">
+                        <div className="flex items-center gap-2 mr-3 py-2 px-4 bg-slate-50 rounded-xl border border-slate-100 shrink-0">
+                            <Zap size={15} className="text-orange-500" fill="currentColor" />
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Official Stores</span>
                         </div>
                         
                         <button
                             onClick={() => setSelectedStore('All')}
-                            className={`h-12 px-8 rounded-2xl text-[11px] font-[1000] whitespace-nowrap transition-all border uppercase tracking-widest
+                            className={`h-11 px-6 rounded-2xl text-[10px] font-black whitespace-nowrap transition-all border uppercase tracking-[0.1em] flex items-center justify-center
                                 ${selectedStore === 'All'
-                                    ? 'bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-900/30'
-                                    : 'bg-white text-slate-500 border-slate-100 hover:border-orange-300 hover:text-orange-600 hover:shadow-lg'
+                                    ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20 scale-105'
+                                    : 'bg-white text-slate-500 border-slate-200 hover:border-orange-500 hover:text-orange-600'
                                 }`}
                         >
-                            Global Source
+                            Global
                         </button>
                         {[...new Set(deals.map(d => d.store).filter(Boolean))].map(store => {
                             const isActive = selectedStore === store;
@@ -295,18 +295,18 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                                 <button
                                     key={store}
                                     onClick={() => setSelectedStore(store)}
-                                    className={`group h-12 px-6 rounded-2xl text-[11px] font-[1000] whitespace-nowrap transition-all border flex items-center gap-4 uppercase tracking-[0.05em]
+                                    className={`group h-11 px-5 rounded-2xl text-[10px] font-black whitespace-nowrap transition-all border flex items-center gap-3 uppercase tracking-[0.05em]
                                         ${isActive
-                                            ? 'bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-900/30'
-                                            : 'bg-white text-slate-500 border-slate-100 hover:border-orange-300 hover:text-orange-600 hover:shadow-lg'
+                                            ? 'bg-white text-orange-600 border-orange-500 shadow-xl shadow-orange-500/10 scale-105 ring-4 ring-orange-500/5'
+                                            : 'bg-white text-slate-500 border-slate-200 hover:border-orange-300 hover:text-orange-600'
                                         }`}
                                 >
-                                    <div className={`w-8 h-8 rounded-xl bg-white flex items-center justify-center p-1.5 shadow-sm border border-slate-50 transition-all ${isActive ? 'scale-110' : 'grayscale group-hover:grayscale-0 group-hover:scale-110'}`}>
+                                    <div className={`w-7 h-7 rounded-full bg-slate-50 flex items-center justify-center p-1.5 shadow-sm border border-slate-100 transition-all ${isActive ? 'bg-orange-50 border-orange-100' : 'group-hover:scale-110'}`}>
                                         <img 
                                             src={`https://www.google.com/s2/favicons?domain=${store.toLowerCase().replace(/\s/g, '')}.com&sz=48`} 
                                             className="w-full h-full object-contain"
                                             alt=""
-                                            onError={e => e.target.style.display = 'none'}
+                                            onError={e => { e.target.parentElement.innerHTML = `<span class="text-[8px]">${store[0]}</span>`; }}
                                         />
                                     </div>
                                     {store}
