@@ -17,16 +17,9 @@ function seoPlugin() {
                     return next();
                 }
 
-                // ONLY run SSR if explicitly requested via ?seo=true or if it's a known crawler
-                // This prevents the "laggy" feeling during normal development/browsing
-                const isSeoRequest = url.includes('seo=true');
-                const userAgent = req.headers['user-agent'] || '';
-                const isBot = /bot|googlebot|crawler|spider|robot|crawling/i.test(userAgent);
-
-                if (!isSeoRequest && !isBot) {
-                    return next();
-                }
-
+                // SSR is now ENABLED by default for all Page requests to ensure "Page Source"
+                // contains the full rendered HTML including sliders, categories and product data.
+                
                 // If this request comes from our own Puppeteer bot, bypass to let Vite serve the raw React App
                 if (req.headers['x-ssr-bot']) {
                     return next();

@@ -42,13 +42,30 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
     const [sortBy, setSortBy] = useState('newest');
     const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const feedRef = useRef(null);
+
+    const scrollToFeed = useCallback(() => {
+        if (feedRef.current) {
+            const yOffset = -100; // Account for sticky navbar
+            const y = feedRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
+            window.scrollTo({ top: y, behavior: 'smooth' });
+        }
+    }, []);
+
+    useEffect(() => {
+        // Initial scroll on mount or path change
+        const timer = setTimeout(scrollToFeed, 100);
+        return () => clearTimeout(timer);
+    }, [scrollToFeed]);
 
     useEffect(() => {
         const cat = searchParams.get('category');
         const store = searchParams.get('store');
-        if (cat) setSelectedCategory(cat);
-        if (store) setSelectedStore(store);
-    }, [searchParams]);
+        setSelectedCategory(cat || 'All');
+        setSelectedStore(store || 'All');
+        // Scroll when filters change
+        scrollToFeed();
+    }, [searchParams, scrollToFeed]);
 
     useEffect(() => {
         const fetchCategories = async () => {
@@ -233,7 +250,12 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                                 Live Pulse Intelligence
                             </motion.div>
                             <h1 className="text-5xl md:text-7xl font-[1000] text-slate-900 tracking-tight leading-[0.9]">
-                                {selectedStore !== 'All' ? (
+                                {selectedCategory !== 'All' ? (
+                                    <>
+                                        Best <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-600">{selectedCategory}</span>
+                                        <span className="block text-slate-400 mt-2">Collections</span>
+                                    </>
+                                ) : selectedStore !== 'All' ? (
                                     <>
                                         Curated <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-600">{selectedStore}</span> 
                                         <span className="block text-slate-400 mt-2">Intelligence</span>
@@ -246,7 +268,10 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                                 )}
                             </h1>
                             <p className="text-slate-500 text-lg md:text-xl font-medium tracking-tight">
-                                Analyzing {filteredDeals.length} premium offers across India's top retailers.
+                                {selectedCategory !== 'All' 
+                                    ? `Discover the latest price drops and premium offers in ${selectedCategory}.`
+                                    : `Analyzing ${filteredDeals.length} premium offers across India's top retailers.`
+                                }
                             </p>
                         </div>
                         
@@ -332,7 +357,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                     </aside>
 
                     {/* Feed */}
-                    <div className="flex-1 min-w-0">
+                    <div ref={feedRef} className="flex-1 min-w-0">
                         {/* Toolbar */}
                         <div className="flex items-center justify-between mb-10 gap-6 flex-wrap">
                             <div className="flex items-center gap-4 text-sm font-bold text-slate-400 bg-white px-5 py-3 rounded-2xl border border-slate-100 shadow-sm">

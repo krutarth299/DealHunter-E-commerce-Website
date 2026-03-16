@@ -128,12 +128,12 @@ const Hero = ({ deals = [] }) => {
 
     return (
         <section 
-            className="w-full bg-white overflow-hidden pt-0 group"
+            className="w-full bg-white overflow-hidden pt-0 group select-none relative"
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
         >
             {/* ── Main Slide Banner ── */}
-            <div className="relative overflow-hidden min-h-[780px] sm:min-h-[680px] md:min-h-[580px] lg:min-h-[500px]">
+            <div className="relative overflow-hidden h-[500px] sm:h-[550px] md:h-[520px] lg:h-[580px]">
                 <AnimatePresence>
                     <motion.div
                         key={current}
@@ -158,9 +158,9 @@ const Hero = ({ deals = [] }) => {
                         {/* Grid noise fallback */}
                         <div className="absolute inset-0 opacity-[0.1] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] mix-blend-overlay" />
 
-                        <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-12 pt-32 pb-16 sm:pt-24 md:pt-32 md:pb-24 lg:pt-36 flex flex-col md:flex-row items-center justify-between gap-10 md:gap-16 relative z-10 w-full">
+                        <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-12 pt-20 pb-12 sm:pt-20 md:pt-24 md:pb-20 lg:pt-28 flex flex-col md:flex-row items-center justify-between gap-4 md:gap-16 relative z-10 w-full h-full">
                             {/* ── Text side ── */}
-                            <div className="flex-[1.2] text-white space-y-4 md:space-y-6 text-center md:text-left">
+                            <div className="flex-[1.2] text-white space-y-3 md:space-y-6 text-center md:text-left">
                                 <motion.div
                                     initial={{ x: -20, opacity: 0 }}
                                     animate={{ x: 0, opacity: 1 }}
@@ -179,13 +179,9 @@ const Hero = ({ deals = [] }) => {
                                     initial={{ y: 20, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
                                     transition={{ delay: 0.1 }}
-                                    className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-[1000] leading-[1.15] tracking-tight py-1"
+                                    className="text-lg sm:text-xl md:text-3xl lg:text-5xl font-[1000] leading-[1.1] tracking-tight py-1 line-clamp-2 md:line-clamp-3"
                                 >
-                                    {slide.title.split(' ').map((word, i) => (
-                                        <span key={i} className={i % 2 === 0 ? 'text-white' : 'text-white/80 block md:inline'}>
-                                            {word}{' '}
-                                        </span>
-                                    ))}
+                                    {slide.title}
                                 </motion.h1>
 
                                 <motion.p
@@ -206,11 +202,11 @@ const Hero = ({ deals = [] }) => {
                                         className="flex flex-wrap items-center gap-4 justify-center md:justify-start"
                                     >
                                         <div className="flex flex-col">
-                                            <span className="text-white/40 text-[8px] font-black uppercase tracking-widest mb-1">Live Valuation</span>
+                                            <span className="text-white/40 text-[7px] md:text-[8px] font-black uppercase tracking-widest mb-1">Live Valuation</span>
                                             <div className="flex items-baseline gap-2">
-                                                <span className="text-3xl md:text-4xl font-black text-white tracking-tighter">{slide.price}</span>
+                                                <span className="text-2xl md:text-4xl font-black text-white tracking-tighter">{slide.price}</span>
                                                 {slide.mrp && (
-                                                    <span className="text-base md:text-lg font-bold text-white/30 line-through decoration-white/40">{slide.mrp}</span>
+                                                    <span className="text-sm md:text-lg font-bold text-white/30 line-through decoration-white/40">{slide.mrp}</span>
                                                 )}
                                             </div>
                                         </div>
@@ -229,24 +225,24 @@ const Hero = ({ deals = [] }) => {
                                     initial={{ y: 30, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
                                     transition={{ delay: 0.4 }}
-                                    className="flex flex-wrap gap-2.5 items-center justify-center md:justify-start pt-1"
+                                    className="flex flex-wrap gap-2.5 items-center justify-center md:justify-start pt-0 md:pt-1"
                                 >
                                     <Link
                                         to={slide.href}
-                                        className="h-12 px-6 md:h-14 md:px-8 bg-white rounded-xl text-slate-900 font-black text-[10px] md:text-xs uppercase tracking-[0.15em] flex items-center gap-2 hover:translate-y-[-2px] active:translate-y-[0] transition-all shadow-xl shadow-black/10 group overflow-hidden relative"
+                                        className="h-11 px-6 md:h-13 md:px-8 bg-white rounded-xl text-slate-900 font-black text-[9px] md:text-xs uppercase tracking-[0.15em] flex items-center gap-2 hover:translate-y-[-2px] active:translate-y-[0] transition-all shadow-xl shadow-black/10 group overflow-hidden relative"
                                     >
                                         <div className="absolute inset-0 bg-slate-900 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
                                         <span className="relative z-10 group-hover:text-white transition-colors">Access Deal</span>
-                                        <ArrowRight size={14} className="relative z-10 group-hover:text-white transition-colors group-hover:translate-x-1" />
+                                        <ArrowRight size={13} className="relative z-10 group-hover:text-white transition-colors group-hover:translate-x-1" />
                                     </Link>
                                     
-                                    <div className="h-12 md:h-14 px-5 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl flex items-center gap-2.5">
-                                        <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center">
-                                            <ShieldCheck size={14} className="text-white opacity-60" />
+                                    <div className="h-11 md:h-13 px-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl hidden sm:flex items-center gap-2.5">
+                                        <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center">
+                                            <ShieldCheck size={13} className="text-white opacity-60" />
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="text-white/40 text-[7px] font-black uppercase tracking-widest leading-none mb-1">Authenticity</span>
-                                            <span className="text-white text-[10px] font-black tracking-tight">{slide.stat}</span>
+                                            <span className="text-white/40 text-[7px] font-black uppercase tracking-widest leading-none mb-0.5">Authenticity</span>
+                                            <span className="text-white text-[9px] font-black tracking-tight">{slide.stat}</span>
                                         </div>
                                     </div>
                                 </motion.div>
@@ -257,7 +253,7 @@ const Hero = ({ deals = [] }) => {
                                 initial={{ x: 50, opacity: 0 }}
                                 animate={{ x: 0, opacity: 1 }}
                                 transition={{ delay: 0.3, duration: 0.8 }}
-                                className="flex-1 w-full md:w-auto flex justify-center mt-8 md:mt-0 relative"
+                                className="flex-1 w-full md:w-auto flex justify-center mt-2 md:mt-0 relative"
                             >
                                 {/* Decorative elements */}
                                 <div className="absolute -inset-8 bg-white/20 blur-[80px] rounded-full opacity-30 animate-pulse" />
@@ -271,11 +267,11 @@ const Hero = ({ deals = [] }) => {
                                         transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
                                         className="relative group"
                                     >
-                                        <div className="relative w-52 h-52 sm:w-64 sm:h-64 lg:w-[340px] lg:h-[340px] rounded-[3rem] bg-gradient-to-br from-white/20 to-white/5 border border-white/30 backdrop-blur-2xl flex items-center justify-center p-10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4)]">
+                                        <div className="relative w-32 h-32 xs:w-40 xs:h-40 sm:w-52 sm:h-52 md:w-64 md:h-64 lg:w-[380px] lg:h-[380px] rounded-[2rem] md:rounded-[3rem] bg-gradient-to-br from-white/20 to-white/5 border border-white/30 backdrop-blur-2xl flex items-center justify-center p-4 md:p-10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4)]">
                                             <img
                                                 src={slide.image}
                                                 alt={slide.title}
-                                                className="w-full h-full object-contain drop-shadow-[0_15px_40px_rgba(0,0,0,0.4)] transform group-hover:scale-105 transition-transform duration-700"
+                                                className="w-full h-full object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] transform group-hover:scale-110 transition-transform duration-700"
                                                 onError={(e) => { e.target.style.display = 'none'; }}
                                             />
                                         </div>
@@ -285,9 +281,9 @@ const Hero = ({ deals = [] }) => {
                                             <motion.div 
                                                 animate={{ y: [0, 8, 0] }}
                                                 transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
-                                                className="absolute -bottom-4 -right-4 lg:-bottom-6 lg:-right-6 bg-white p-4 rounded-[1.5rem] shadow-2xl border border-slate-100 flex items-center gap-2"
+                                                className="absolute bottom-0 -right-2 md:-bottom-4 md:-right-4 lg:-bottom-6 lg:-right-6 bg-white p-2.5 md:p-4 rounded-2xl md:rounded-[1.5rem] shadow-2xl border border-slate-100 flex items-center gap-2"
                                             >
-                                                <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center p-1.5">
+                                                <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-50 flex items-center justify-center p-1 md:p-1.5">
                                                     <img 
                                                         src={`https://www.google.com/s2/favicons?domain=${slide.store?.toLowerCase() || 'amazon'}.com&sz=64`} 
                                                         alt="" 
@@ -295,8 +291,8 @@ const Hero = ({ deals = [] }) => {
                                                     />
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Marketplace</span>
-                                                    <span className="text-xs font-[1000] text-slate-900">{slide.store}</span>
+                                                    <span className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Marketplace</span>
+                                                    <span className="text-[10px] md:text-xs font-[1000] text-slate-900">{slide.store}</span>
                                                 </div>
                                             </motion.div>
                                         )}
@@ -343,7 +339,7 @@ const Hero = ({ deals = [] }) => {
                 {slides.length > 1 && (
                     <div 
                         className="absolute left-1/2 -translate-x-1/2 flex z-20" 
-                        style={{ bottom: '24px', gap: '10px' }}
+                        style={{ bottom: '16px', gap: '8px' }}
                     >
                         {slides.map((_, i) => (
                             <button

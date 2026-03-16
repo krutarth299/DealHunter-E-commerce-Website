@@ -12,8 +12,6 @@ import { useRecentlyViewed } from '../context/RecentlyViewedContext';
 import SEO from '../components/SEO';
 import { CATEGORY_MAP, FEATURED_CATEGORIES, getCategoryStyle, normalizeCategory } from '../utils/categoryConstants';
 
-// Shared category styles are now imported from ../utils/categoryConstants
-
 const DEFAULT_CAT_STYLE = { icon: Package, bg: 'bg-slate-50', icon_color: 'text-slate-500', border: 'border-slate-200' };
 
 const STORES = [
@@ -24,8 +22,6 @@ const STORES = [
     { name: 'Croma', logo: 'https://www.google.com/s2/favicons?domain=croma.com&sz=128', id: 'croma' },
     { name: 'Nykaa', logo: 'https://www.google.com/s2/favicons?domain=nykaa.com&sz=128', id: 'nykaa' },
 ];
-
-// Shared categories are now imported from ../utils/categoryConstants
 
 const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlist, apiBase }) => {
     const navigate = useNavigate();
@@ -41,7 +37,6 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                     const data = await r.json();
                     if (data && data.length > 0) {
                         const normalized = data.map(c => normalizeCategory(c)).filter(c => c && c.trim() !== '');
-                        // Merge and ensure consistency with Deals page
                         const merged = [...new Set([...FEATURED_CATEGORIES, ...normalized])];
                         setCategories(merged);
                     }
@@ -64,21 +59,20 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                 {/* ─── Shop by Category ─── */}
                 <section className="py-12 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
-                        <div className="space-y-2">
+                        <div className="space-y-2 text-center md:text-left">
                             <span className="text-orange-500 text-[10px] font-black uppercase tracking-[0.2em] bg-orange-50 px-3 py-1 rounded-full border border-orange-100 mb-2 inline-block">Curated Collections</span>
-                            <h2 className="text-4xl font-black text-slate-900 tracking-tight leading-none">Shop by Category</h2>
+                            <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-none">Shop by Category</h2>
                             <p className="text-slate-400 text-sm font-medium">Explore hand-picked deals across all your favorite categories.</p>
                         </div>
                         <motion.button 
                             whileHover={{ x: 5 }}
                             onClick={() => navigate('/deals')} 
-                            className="flex items-center gap-2 text-sm font-black text-slate-500 hover:text-orange-500 transition-colors group"
+                            className="flex items-center justify-center gap-2 text-sm font-black text-slate-500 hover:text-orange-500 transition-colors group"
                         >
                             VIEW ALL <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-orange-500 group-hover:text-white transition-all"><ArrowRight size={14} /></div>
                         </motion.button>
                     </div>
 
-                    {/* Desktop/Tablet Grid */}
                     <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 sm:gap-5">
                         {categories.map((catName, i) => {
                             const style = getCategoryStyle(catName);
@@ -94,31 +88,19 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                                     onClick={() => navigate('/deals?category=' + encodeURIComponent(catName))}
                                     className="relative flex flex-col items-center group cursor-pointer"
                                 >
-                                    {/* Card Container */}
                                     <div className={`relative w-full aspect-square rounded-2xl ${style.bg} border border-slate-100 flex flex-col items-center justify-center transition-all duration-500 group-hover:shadow-[0_15px_30px_-10px_rgba(0,0,0,0.1)] group-hover:border-transparent overflow-hidden shadow-sm`}>
-                                        
-                                        {/* Ambient Glow */}
                                         <div className={`absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
-                                        
-                                        {/* Floating Icon Container */}
                                         <div className={`relative z-10 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-white shadow-md shadow-slate-200/40 flex items-center justify-center transform group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 ease-out`}>
                                             <Icon size={18} className={style.icon_color} strokeWidth={2.5} />
                                         </div>
-
-                                        {/* Decorative Dots */}
                                         <div className="absolute top-4 right-4 flex gap-1 group-hover:translate-x-1 transition-transform">
                                             <div className={`w-1 h-1 rounded-full ${style.icon_color} opacity-20`} />
                                             <div className={`w-1 h-1 rounded-full ${style.icon_color} opacity-10`} />
                                         </div>
-
-                                        {/* Glass Shine Effect */}
-                                        <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/30 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
                                     </div>
-                                    
-                                    {/* Category Label */}
                                     <span className="mt-2 text-[9px] sm:text-[10px] font-black text-slate-900 border-b-2 border-transparent group-hover:border-orange-500 group-hover:text-orange-600 transition-all uppercase tracking-widest px-1 text-center leading-tight">
                                         {catName.split(' & ').map((part, idx) => (
-                                            <React.Fragment key={idx}>
+                                            <React.Fragment key={part + idx}>
                                                 {part}
                                                 {idx === 0 && catName.includes(' & ') && <br />}
                                             </React.Fragment>
@@ -127,13 +109,6 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                                 </motion.button>
                             );
                         })}
-                    </div>
-                    
-                    {/* Mobile Hint */}
-                    <div className="mt-8 flex items-center justify-center lg:hidden">
-                        <div className="h-[1px] flex-1 bg-slate-100" />
-                        <span className="px-4 text-[9px] font-black text-slate-300 uppercase tracking-widest">Scroll to explore</span>
-                        <div className="h-[1px] flex-1 bg-slate-100" />
                     </div>
                 </section>
 
@@ -174,55 +149,56 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
 
                 {/* ─── Partner Stores Banner ─── */}
                 <section className="py-12 px-4 sm:px-6 lg:px-8">
-                    <div className="max-w-[1600px] mx-auto bg-slate-900 rounded-[4rem] overflow-hidden relative shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)]">
-                        {/* Background Effects */}
+                    <div className="max-w-[1600px] mx-auto bg-slate-900 rounded-[3rem] md:rounded-[4rem] overflow-hidden relative shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)]">
                         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-orange-500/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
                         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/10 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/3" />
                         <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(circle, white 0.4px, transparent 0.4px)', backgroundSize: '32px 32px' }} />
 
-                        <div className="relative z-10 flex flex-col lg:flex-row items-center gap-16 p-12 md:p-24">
-                            <div className="flex-[1.2] text-white text-center lg:text-left space-y-10">
+                        <div className="relative z-10 flex flex-col lg:flex-row items-center gap-12 md:gap-16 p-8 md:p-20 lg:p-24">
+                            <div className="flex-[1.2] text-white text-center lg:text-left space-y-6 md:space-y-10">
                                 <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl px-5 py-2.5 text-[10px] font-black text-white/60 uppercase tracking-[0.2em]">
                                     <Store size={14} className="text-orange-400" /> Partner Ecosystem
                                 </div>
-                                <h2 className="text-5xl md:text-7xl font-black tracking-tighter leading-[0.95]">
+                                <h2 className="text-3xl md:text-5xl lg:text-7xl font-black tracking-tighter leading-[1.1] lg:leading-[0.95]">
                                     Shop From The <br />
                                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-200">World's Best.</span>
                                 </h2>
-                                <p className="text-white/40 text-lg md:text-xl font-medium max-w-lg leading-relaxed">
+                                <p className="text-white/40 text-base md:text-lg lg:text-xl font-medium max-w-lg mx-auto lg:mx-0 leading-relaxed">
                                     We aggregate live prices and exclusive discount codes from India's most trusted marketplaces in real-time.
                                 </p>
-                                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
-                                    <button onClick={() => navigate('/stores')} className="h-16 px-10 rounded-2xl bg-orange-500 text-white font-black text-sm uppercase tracking-widest hover:bg-orange-400 transition-all shadow-2xl shadow-orange-500/20 active:scale-95 group flex items-center gap-3">
+                                <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-6">
+                                    <button onClick={() => navigate('/stores')} className="h-14 md:h-16 px-8 md:px-10 rounded-2xl bg-orange-500 text-white font-black text-xs md:text-sm uppercase tracking-widest hover:bg-orange-400 transition-all shadow-2xl shadow-orange-500/20 active:scale-95 group flex items-center gap-3">
                                         View All Stores <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                                     </button>
-                                    <div className="flex -space-x-3">
-                                        {[1, 2, 3, 4].map(i => (
-                                            <div key={i} className="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center overflow-hidden">
-                                                <img src={`https://i.pravatar.cc/100?img=${i + 10}`} alt="" />
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex -space-x-3">
+                                            {[1, 2, 3, 4].map(i => (
+                                                <div key={i} className="w-8 h-8 md:w-10 md:h-10 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center overflow-hidden">
+                                                    <img src={`https://i.pravatar.cc/100?img=${i + 10}`} alt="" />
+                                                </div>
+                                            ))}
+                                            <div className="w-8 h-8 md:w-10 md:h-10 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center text-[9px] md:text-[10px] font-black text-white">
+                                                +2k
                                             </div>
-                                        ))}
-                                        <div className="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center text-[10px] font-black text-white">
-                                            +2k
                                         </div>
+                                        <span className="text-white/30 text-[10px] md:text-xs font-bold italic underline underline-offset-4 decoration-white/10">Active shoppers</span>
                                     </div>
-                                    <span className="text-white/30 text-xs font-bold ml-2 italic underline underline-offset-4 decoration-white/10">Active shoppers today</span>
                                 </div>
                             </div>
 
-                            <div className="flex-1 grid grid-cols-3 gap-6 w-full">
+                            <div className="flex-1 grid grid-cols-3 gap-4 md:gap-6 w-full max-w-md mx-auto">
                                 {STORES.map((s) => (
                                     <motion.div
                                         key={s.id}
                                         whileHover={{ y: -10, scale: 1.05 }}
-                                        className="aspect-square bg-gradient-to-br from-white/10 to-transparent border border-white/10 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 p-6 cursor-pointer hover:bg-white/5 transition-all group relative overflow-hidden"
+                                        className="aspect-square bg-white/5 backdrop-blur-md border border-white/10 rounded-full flex flex-col items-center justify-center gap-2 md:gap-4 p-4 md:p-6 cursor-pointer hover:bg-white/10 transition-all group relative overflow-hidden shadow-xl"
                                         onClick={() => navigate('/deals?category=' + s.id)}
                                     >
                                         <div className="absolute inset-0 bg-orange-500/0 group-hover:bg-orange-500/5 transition-colors" />
-                                        <div className="w-16 h-16 rounded-3xl bg-white flex items-center justify-center p-3 shadow-2xl group-hover:rotate-6 transition-transform">
+                                        <div className="w-10 h-10 md:w-16 md:h-16 rounded-full bg-white flex items-center justify-center p-2.5 md:p-3 shadow-2xl group-hover:rotate-6 transition-transform relative z-10">
                                             <img src={s.logo} alt={s.name} loading="lazy" className="w-full h-full object-contain" />
                                         </div>
-                                        <span className="text-white/40 text-[10px] font-black uppercase tracking-widest group-hover:text-white transition-colors">{s.name}</span>
+                                        <span className="text-white/40 text-[7px] md:text-[10px] font-black uppercase tracking-widest group-hover:text-white transition-colors relative z-10">{s.name}</span>
                                     </motion.div>
                                 ))}
                             </div>
@@ -231,7 +207,7 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                 </section>
 
                 {/* ─── Why DealOrbit ─── */}
-                <section className="py-12 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-100 mt-6 text-center">
+                <section className="py-24 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-100 mt-6">
                     <div className="max-w-3xl mx-auto mb-20 text-center">
                         <span className="text-orange-500 text-xs font-black uppercase tracking-[0.3em] mb-4 block">The DealOrbit Edge</span>
                         <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">Everything You Need to <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-orange-400">Save 10x Faster.</span></h2>

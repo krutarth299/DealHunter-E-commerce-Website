@@ -21,6 +21,8 @@ router.get('/:slug/comments', async (req, res) => {
     }
 });
 
+const ssrEngine = require('../ssrEngine');
+
 // Add a comment to a blog post
 router.post('/:slug/comments', async (req, res) => {
     try {
@@ -38,6 +40,7 @@ router.post('/:slug/comments', async (req, res) => {
                 createdAt: new Date()
             };
             blogComments.push(newComment);
+            ssrEngine.clearCache && ssrEngine.clearCache(req.params.slug);
             return res.status(201).json(newComment);
         }
 
@@ -48,6 +51,7 @@ router.post('/:slug/comments', async (req, res) => {
         });
 
         const savedComment = await newComment.save();
+        ssrEngine.clearCache && ssrEngine.clearCache(req.params.slug);
         res.status(201).json(savedComment);
     } catch (err) {
         console.error('Error saving comment:', err);

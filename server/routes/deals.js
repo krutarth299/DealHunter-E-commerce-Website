@@ -141,6 +141,7 @@ router.put('/:id', async (req, res) => {
             if (index === -1) return res.status(404).json({ message: 'Cannot find deal' });
 
             deals[index] = { ...deals[index], ...req.body, updatedAt: new Date() };
+            ssrEngine.clearCache && ssrEngine.clearCache();
             return res.json(deals[index]);
         }
 
@@ -158,6 +159,7 @@ router.put('/:id', async (req, res) => {
         });
 
         const updatedDeal = await deal.save();
+        ssrEngine.clearCache && ssrEngine.clearCache();
         res.json(updatedDeal);
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -172,6 +174,7 @@ router.delete('/:id', async (req, res) => {
             const index = deals.findIndex(d => d._id === req.params.id);
             if (index === -1) return res.status(404).json({ message: 'Cannot find deal' });
             deals.splice(index, 1);
+            ssrEngine.clearCache && ssrEngine.clearCache();
             return res.json({ message: 'Deleted Deal' });
         }
 
@@ -180,6 +183,7 @@ router.delete('/:id', async (req, res) => {
             return res.status(404).json({ message: 'Cannot find deal' });
         }
         await deal.deleteOne();
+        ssrEngine.clearCache && ssrEngine.clearCache();
         res.json({ message: 'Deleted Deal' });
     } catch (err) {
         res.status(500).json({ message: err.message });

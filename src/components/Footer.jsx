@@ -86,12 +86,12 @@ const Footer = ({ showToast }) => {
                             { name: 'Electronics', label: '📱 Electronics' },
                             { name: 'Fashion', label: '👗 Fashion' },
                             { name: 'Gaming', label: '🎮 Gaming' },
-                            { name: 'Grocery', label: '🛒 Grocery' },
+                            { name: 'Groceries', label: '🛒 Grocery' },
                             { name: 'Travel', label: '✈️ Travel' },
-                            { name: 'Home', label: '🏠 Home & Living' }
+                            { name: 'Home & Kitchen', label: '🏠 Home & Living' }
                         ].map(item => (
                             <li key={item.name}>
-                                <Link to={`/deals?category=${item.name}`} className="text-slate-400 hover:text-orange-400 transition-colors text-sm font-medium flex items-center gap-2 group">
+                                <Link to={`/deals?category=${encodeURIComponent(item.name)}`} className="text-slate-400 hover:text-orange-400 transition-colors text-sm font-medium flex items-center gap-2 group">
                                     <span className="w-1 h-1 rounded-full bg-slate-700 group-hover:bg-orange-500 transition-colors" />
                                     {item.label}
                                 </Link>
