@@ -23,7 +23,7 @@ const Wishlist = ({ user, wishlist, wishlistCount, toggleWishlist, clearWishlist
     }).format(totalValue);
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+        <div className="min-h-screen bg-slate-50 flex flex-col font-sans overflow-x-hidden no-scrollbar">
             <SEO title="My Wishlist" description="View and manage your saved deals and discounts." />
             <Navbar
                 user={user}
@@ -33,10 +33,12 @@ const Wishlist = ({ user, wishlist, wishlistCount, toggleWishlist, clearWishlist
                 wishlist={wishlist}
             />
 
-            <main className="flex-grow container mx-auto px-4 md:px-8 pt-32 md:pt-44 pb-24 relative">
+            <main className="flex-grow container mx-auto px-4 md:px-8 pt-32 md:pt-44 pb-24 relative overflow-x-hidden">
                 {/* Decorative Background Elements */}
-                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-pink-50/50 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-                <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-indigo-50/50 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+                <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+                    <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-pink-50/50 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
+                    <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-indigo-50/50 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/2" />
+                </div>
 
                 {/* Header Section */}
                 <motion.div
@@ -63,18 +65,18 @@ const Wishlist = ({ user, wishlist, wishlistCount, toggleWishlist, clearWishlist
                     </div>
 
                     {wishlistCount > 0 && (
-                        <div className="bg-white/70 backdrop-blur-xl px-8 py-5 rounded-[2rem] border border-slate-100 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] flex items-center gap-8 group">
+                        <div className="bg-white/70 backdrop-blur-xl px-5 py-4 md:px-8 md:py-5 rounded-[2rem] border border-slate-100 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] flex items-center gap-4 md:gap-8 group self-start md:self-auto">
                             <div className="text-right">
                                 <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mb-1">Portfolio Value</p>
-                                <p className="text-3xl font-black text-slate-900 tracking-tighter">{formattedTotal}</p>
+                                <p className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">{formattedTotal}</p>
                             </div>
                             <div className="h-10 w-[1px] bg-slate-100"></div>
                             <button 
                                 onClick={clearWishlist} 
-                                className="group/btn w-12 h-12 flex items-center justify-center bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all duration-300" 
+                                className="group/btn w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all duration-300" 
                                 title="Clear Wishlist"
                             >
-                                <Trash2 size={24} className="group-hover/btn:rotate-12 transition-transform" />
+                                <Trash2 size={20} className="md:size-6 group-hover/btn:rotate-12 transition-transform" />
                             </button>
                         </div>
                     )}

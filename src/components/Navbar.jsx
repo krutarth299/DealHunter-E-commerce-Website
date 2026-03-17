@@ -289,8 +289,8 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
             </div>
 
             {/* Mobile Bottom Float Navigation */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pb-6">
-                <div className="w-full max-w-md mx-auto h-16 bg-slate-900/90 backdrop-blur-2xl rounded-3xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between px-2">
+            <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-center px-4 pb-6 pointer-events-none">
+                <div className="w-full max-w-md h-16 bg-slate-900/90 backdrop-blur-2xl rounded-3xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between px-2 pointer-events-auto">
                     <Link to="/" className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-all ${isActive('/') ? 'text-white scale-110' : 'text-slate-500'}`}>
                         <Flame size={20} className={isActive('/') ? 'fill-orange-500 text-orange-500' : ''} />
                         <span className="text-[9px] font-black uppercase tracking-tighter">Home</span>
