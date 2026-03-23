@@ -68,20 +68,63 @@ import blogRouter from './routes/blog.js';
 app.use('/api/deals', dealsRouter);
 app.use('/api/blog', blogRouter);
 
-// ==================== [STATIC SPA SERVING] ====================
-// Serve static assets from 'dist'
-app.use(express.static(path.join(__dirname, '../dist')));
+// ==================== [PRODUCTION SSR ENGINE] ====================
+app.use(express.static(path.join(__dirname, '../dist/client'), { index: false }));
+app.use(express.static(path.join(__dirname, '../dist'), { index: false }));
 
-// Fallback all other GET requests to index.html for client-side routing
-app.get('*', (req, res) => {
-    // Skip API and files
+app.get('*', async (req, res, next) => {
     if (req.url.startsWith('/api') || req.url.includes('.')) return next();
-    
-    const indexPath = path.resolve(__dirname, '../dist/index.html');
-    if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-    } else {
-        res.status(404).send('Production build missing. Please run npm run build.');
+
+    try {
+        let templatePath = path.resolve(__dirname, '../dist/client/index.html');
+        if (!fs.existsSync(templatePath)) templatePath = path.resolve(__dirname, '../dist/index.html');
+        
+        if (!fs.existsSync(templatePath)) {
+            return res.status(500).send('Production build missing. Please run npm run build.');
+        }
+
+        let template = fs.readFileSync(templatePath, 'utf8');
+        let preloadedDeals = [];
+        let preloadedCategories = [];
+        
+        try {
+            const [d, c] = await Promise.all([
+                Deal.find().sort({ createdAt: -1 }).limit(20).lean(),
+                Deal.distinct('category').lean()
+            ]);
+            preloadedDeals = (d || []).map(item => ({...item, _id: item._id.toString()}));
+            preloadedCategories = (c || []).filter(Boolean);
+        } catch(e) {
+            console.error('[Production SSR] DB Error:', e.message);
+        }
+
+        const ssrDataScript = `<script>
+            window.__INITIAL_DATA__ = ${JSON.stringify(preloadedDeals)};
+            window.__INITIAL_CATEGORIES__ = ${JSON.stringify(preloadedCategories)};
+        </script>`;
+
+        const serverEntryPath = path.resolve(__dirname, '../dist/server/entry-server.js');
+        if (fs.existsSync(serverEntryPath)) {
+            const { render } = await import('file://' + serverEntryPath.replace(/\\/g, '/'));
+            const { html, helmet } = await render(req.originalUrl, preloadedDeals, preloadedCategories);
+            
+            const helmetTags = helmet ? `${helmet.title?.toString() || ''}${helmet.meta?.toString() || ''}` : '';
+
+            template = template
+                .replace(/<!--\s*ssr-outlet\s*-->/gi, () => html)
+                .replace(/<!--\s*ssr-data\s*-->/gi, () => ssrDataScript)
+                .replace(/<\/head>/i, () => `${helmetTags}</head>`)
+                .replace(/<div\s+id=["']root["']\s*>/gi, () => '<div id="root" data-ssr-status="active">');
+        } else {
+             template = template.replace(`<!--ssr-data-->`, ssrDataScript);
+        }
+
+        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('X-SSR-Status', 'active-v4');
+        res.status(200).send(template);
+    } catch(err) {
+        console.error('[Production SSR Failed]', err);
+        res.status(500).send('Internal Server Error During Render');
     }
 });
 

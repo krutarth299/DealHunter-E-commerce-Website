@@ -24,19 +24,32 @@ let socket;
 const API_BASE_URL = 'http://127.0.0.1:5000/api';
 
 
-export function AppContent() {
+export function AppContent({ preloadedDeals = null, preloadedCategories = null }) {
   const { user, logout, loading, apiBase } = useContext(AuthContext);
   
   const [deals, setDeals] = useState(() => {
-    // Normal Client-Side Initialization
+    // 1. High-priority Server Injected Prop (Hydration)
+    if (preloadedDeals && Array.isArray(preloadedDeals) && preloadedDeals.length > 0) return preloadedDeals;
+    // 2. High-priority Window Global (Dynamic Hydration)
+    if (typeof window !== 'undefined' && window.__INITIAL_DATA__ && Array.isArray(window.__INITIAL_DATA__)) return window.__INITIAL_DATA__;
+    
+    // 3. Medium-priority Cache
     const cached = typeof window !== 'undefined' ? localStorage.getItem('cached_deals') : null;
     if (cached) {
         try { return JSON.parse(cached); } catch(e) { /* corrupted */ }
     }
+    // 4. Fallback Static Data
     return INITIAL_DEALS;
   });
 
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState(() => {
+    // 1. High-priority Server Injected Prop (Hydration)
+    if (preloadedCategories && Array.isArray(preloadedCategories) && preloadedCategories.length > 0) return preloadedCategories;
+    // 2. High-priority Window Global (Dynamic Hydration)
+    if (typeof window !== 'undefined' && window.__INITIAL_CATEGORIES__ && Array.isArray(window.__INITIAL_CATEGORIES__)) return window.__INITIAL_CATEGORIES__;
+    return []; 
+  });
+
   const [searchQuery, setSearchQuery] = useState('');
 
   // Global Toast State
