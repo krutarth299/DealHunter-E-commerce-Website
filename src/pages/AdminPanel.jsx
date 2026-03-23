@@ -143,7 +143,6 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
     const [categories, setCategories] = useState(['Electronics', 'Fashion', 'Gaming', 'Grocery', 'Travel', 'Food', 'Beauty', 'Home & Living', 'Multi-category']);
 
     const [isStatsLoading, setIsStatsLoading] = useState(true);
-    const [oneClickEnabled, setOneClickEnabled] = useState(false);
 
     /* ── auth guard ── (Centrally managed by App.jsx Route) */
 
@@ -255,11 +254,11 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
         }
     };
 
-    const handleFetchUrl = async (urlParam, autoPublish = false) => {
+    const handleFetchUrl = async (urlParam) => {
         const url = sanitizeUrl(urlParam || dealForm.link);
         if (!url) { setFetchStatus({ type: 'error', msg: 'Enter a URL first' }); return null; }
         if (!isLikelyHttpUrl(url)) { setFetchStatus({ type: 'error', msg: 'Enter a valid http/https URL' }); return null; }
-        setFetchStatus({ type: 'loading', msg: autoPublish ? 'Extracting & Publishing...' : 'Extracting deal info...' });
+        setFetchStatus({ type: 'loading', msg: 'Extracting deal info...' });
         setIsLoading(true);
         try {
             const extractApi = apiBase.replace('/user', '') + '/deals/extract';
@@ -304,15 +303,6 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                 setFetchStatus({ type: 'success', msg: `✓ Extracted ${populated.size} fields` });
                 showToast?.('Smart Extraction Complete!', 'success');
 
-                if (autoPublish) {
-                    const success = await handleAddDeal(null, {
-                        ...nextForm,
-                        rating: (Math.random() * 2 + 3).toFixed(1)
-                    });
-                    if (success) {
-                        navigate('/admin/dashboard');
-                    }
-                }
                 return nextForm;
             } else {
                 if (r.status === 401) {

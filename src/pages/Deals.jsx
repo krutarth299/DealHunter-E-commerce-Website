@@ -33,9 +33,14 @@ const SORT_OPTIONS = [
     { label: 'Price: High to Low', value: 'price_desc' },
 ];
 
-const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen, setIsAddDealOpen, handleAddDeal, dealForm, setDealForm, showToast, apiBase }) => {
+const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen, setIsAddDealOpen, handleAddDeal, dealForm, setDealForm, showToast, apiBase, categories: globalCategories }) => {
     const [searchParams] = useSearchParams();
-    const [categories, setCategories] = useState(FEATURED_CATEGORIES);
+    
+    const categories = React.useMemo(() => {
+        const normalizedGlobal = (globalCategories || []).map(c => normalizeCategory(c)).filter(Boolean);
+        return [...new Set([...FEATURED_CATEGORIES, ...normalizedGlobal])];
+    }, [globalCategories]);
+
     const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || 'All');
     const [selectedStore, setSelectedStore] = useState(searchParams.get('store') || 'All');
     const [priceRange, setPriceRange] = useState(PRICE_RANGES[0]);
@@ -66,27 +71,6 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
         // Scroll when filters change
         scrollToFeed();
     }, [searchParams, scrollToFeed]);
-
-    useEffect(() => {
-        const fetchCategories = async () => {
-            try {
-                const baseUrl = apiBase ? apiBase.replace('/user', '') : 'http://localhost:5000/api';
-                const r = await fetch(`${baseUrl}/deals/categories`);
-                if (r.ok) {
-                    const data = await r.json();
-                    if (data && data.length > 0) {
-                        const normalized = data.map(c => normalizeCategory(c)).filter(c => c && c.trim() !== '');
-                        // Merge featured and normalized fetched categories
-                        const sortedMerged = [...new Set([...FEATURED_CATEGORIES, ...normalized])];
-                        setCategories(sortedMerged);
-                    }
-                }
-            } catch (err) {
-                console.error("Deals Categories fetch error:", err);
-            }
-        };
-        fetchCategories();
-    }, [apiBase]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {

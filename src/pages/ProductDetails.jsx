@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -8,7 +8,7 @@ import DealsGrid from '../components/DealsGrid';
 import { useWishlistAnimation } from '../context/wishlistAnimationContextDefinition';
 import SEO from '../components/SEO';
 import { motion, AnimatePresence } from 'framer-motion';
-import { optimizeImageUrl } from '../utils/imageOptimizer';
+import { optimizeImageUrl, getMainProductImage } from '../utils/imageOptimizer';
 
 // ── Currency Detection Utilities ──────────────────────────────────
 const getCurrencySymbol = (price, store, link) => {
@@ -197,21 +197,28 @@ const MobileFloatingBar = ({ product, brand }) => {
     );
 };
 
-const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSearch, setIsAddDealOpen }) => {
+const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSearch, setIsAddDealOpen, apiBase }) => {
     // ... params & hooks
     const { id } = useParams();
     const navigate = useNavigate();
     const { flyToWishlist } = useWishlistAnimation();
     const imageRef = useRef(null);
-    const [product, setProduct] = useState(null);
-    const [loading, setLoading] = useState(true);
+
+    // Synchronous initialization for SSR support
+    const initialProduct = useMemo(() => {
+        if (!deals || !id) return null;
+        return deals.find(d => (d.id || d._id || d.dealId)?.toString() === id);
+    }, [id, deals]);
+
+    const [product, setProduct] = useState(initialProduct);
+    const [loading, setLoading] = useState(!initialProduct);
     const [timeLeft, setTimeLeft] = useState({ hours: 9, minutes: 14, seconds: 30 });
-    const [activeImage, setActiveImage] = useState('');
+    const [activeImage, setActiveImage] = useState(initialProduct ? getMainProductImage(initialProduct) : '');
     const [showReviewModal, setShowReviewModal] = useState(false);
     const [allReviewsExpanded, setAllReviewsExpanded] = useState(false);
     const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
-    const [reviews, setReviews] = useState([]);
-    const [viewCount, setViewCount] = useState(0);
+    const [reviews, setReviews] = useState(initialProduct?.reviews || []);
+    const [viewCount, setViewCount] = useState(initialProduct?.views || 100);
 
     // Populate reviews when product loads
     useEffect(() => {
@@ -288,27 +295,27 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
         }).slice(0, 5)
         : [];
 
+    // Real-time View Tracking & Sync
     useEffect(() => {
         if (deals && deals.length > 0) {
-            const foundProduct = deals.find(d => (d.id || d._id).toString() === id);
+            const foundProduct = deals.find(d => (d.id || d._id || d.dealId)?.toString() === id);
             if (foundProduct) {
-                const timer = setTimeout(() => {
-                    setProduct(foundProduct);
-                    setActiveImage(foundProduct.image || (foundProduct.images && foundProduct.images[0]) || '');
-                    setViewCount(foundProduct.views || Math.floor(Math.random() * 500) + 100);
-                    setLoading(false);
+                setProduct(foundProduct);
+                if (!activeImage) setActiveImage(getMainProductImage(foundProduct));
+                setLoading(false);
 
-                    // Track view in background
-                    fetch(`http://localhost:5000/api/deals/${foundProduct._id || foundProduct.id}/view`, { method: 'POST' })
+                // Track view in background (client only)
+                if (typeof window !== 'undefined') {
+                    const nid = foundProduct._id || foundProduct.id;
+                    const api = apiBase?.replace('/user', '') || 'http://localhost:5000/api';
+                    fetch(`${api}/deals/${nid}/view`, { method: 'POST' })
                         .then(res => res.json())
                         .then(data => { if (data.views) setViewCount(data.views); })
                         .catch(err => console.error("Error tracking view", err));
-
-                }, 0);
-                return () => clearTimeout(timer);
+                }
             }
         }
-    }, [id, deals]);
+    }, [id, deals, apiBase]);
 
     if (loading) {
         return (
@@ -350,7 +357,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                 image={activeImage}
             />
             <Navbar user={null} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />
-            <main id="product-details-loaded" className="container mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-24 pb-16">
+            <main id="product-details-loaded" data-ssr-ready={!loading ? "true" : "false"} className="product-details-container container mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-24 pb-16">
                 {/* Breadcrumb / Back */}
                 <button
                     onClick={() => navigate(-1)}

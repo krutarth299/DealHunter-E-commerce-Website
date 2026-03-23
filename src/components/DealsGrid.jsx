@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Heart, ExternalLink, ShoppingBag, Star, Zap, TrendingDown, Flame, Search, X, ShieldCheck } from 'lucide-react';
+import { Heart, ExternalLink, ShoppingBag, Star, Zap, TrendingDown, Flame, Search, X, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWishlistAnimation } from '../context/wishlistAnimationContextDefinition';
-import { optimizeImageUrl } from '../utils/imageOptimizer';
+import { optimizeImageUrl, getMainProductImage } from '../utils/imageOptimizer';
 
 const storeColors = {
     'Amazon': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-400' },
@@ -71,7 +71,7 @@ const DealCard = React.memo(({ deal, wishlist = [], toggleWishlist, index = 0, o
     };
 
     return (
-        <motion.div
+        <motion.article
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: index * 0.05, ease: 'easeOut' }}
@@ -101,11 +101,15 @@ const DealCard = React.memo(({ deal, wishlist = [], toggleWishlist, index = 0, o
                 {/* Product Image */}
                 <div className="w-full h-full relative">
                     <img 
-                        src={optimizeImageUrl((deal.images && deal.images.length > 0) ? deal.images[0] : (deal.image || ''))} 
+                        src={getMainProductImage(deal)} 
                         alt={deal.title}
+                        data-main-img="true"
                         loading="lazy"
-                        className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-md"
-                        onError={e => { e.target.style.display = 'none'; }}
+                        className="w-full h-[220px] object-contain group-hover:scale-110 transition-transform duration-700 ease-out mix-blend-multiply drop-shadow-md"
+                        onError={e => { 
+                            e.target.onerror = null; 
+                            e.target.src = "https://placehold.co/400x400/f8fafc/94a3b8.png?text=No+Image"; 
+                        }}
                     />
                 </div>
 
@@ -216,7 +220,7 @@ const DealCard = React.memo(({ deal, wishlist = [], toggleWishlist, index = 0, o
 
             {/* Interactive Shine */}
             <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none" />
-        </motion.div>
+        </motion.article>
     );
 });
 
@@ -257,7 +261,7 @@ const DealsGrid = React.memo(({ deals = [], wishlist = [], toggleWishlist }) => 
 
     return (
         <>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6 content-visibility-auto optimize-gpu">
+        <div id="deals-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6 content-visibility-auto optimize-gpu">
                 {validDeals.map((deal, i) => (
                     <DealCard
                         key={deal.id || deal._id || i}
@@ -294,6 +298,10 @@ const DealsGrid = React.memo(({ deals = [], wishlist = [], toggleWishlist }) => 
                                     src={optimizeImageUrl((quickViewProduct.images && quickViewProduct.images.length > 0) ? quickViewProduct.images[0] : (quickViewProduct.image || ''))} 
                                     alt="" 
                                     className="max-h-[400px] w-full object-contain mix-blend-multiply drop-shadow-2xl group-hover:scale-105 transition-transform duration-700" 
+                                    onError={e => { 
+                                        e.target.onerror = null; 
+                                        e.target.src = "https://placehold.co/400x400/f8fafc/94a3b8.png?text=No+Image"; 
+                                    }}
                                 />
                                 <button 
                                     onClick={() => setQuickViewProduct(null)} 

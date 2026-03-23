@@ -1,0 +1,16 @@
+[36mvite v7.3.1 [32mbuilding ssr environment for production...[36m[39m
+transforming...
+[32m✓[39m 1 modules transformed.
+[31m✗[39m Build failed in 30ms
+[31merror during build:
+[31m[commonjs--resolver] Missing "./server" specifier in "react-router-dom" package[31m
+    at e (file:///C:/Users/dhana/OneDrive/Desktop/project/node_modules/vite/dist/node/chunks/config.js:6651:8)
+    at n (file:///C:/Users/dhana/OneDrive/Desktop/project/node_modules/vite/dist/node/chunks/config.js:6663:14)
+    at o (file:///C:/Users/dhana/OneDrive/Desktop/project/node_modules/vite/dist/node/chunks/config.js:6691:10)
+    at resolveExportsOrImports (file:///C:/Users/dhana/OneDrive/Desktop/project/node_modules/vite/dist/node/chunks/config.js:32827:45)
+    at resolveDeepImport (file:///C:/Users/dhana/OneDrive/Desktop/project/node_modules/vite/dist/node/chunks/config.js:32841:22)
+    at tryNodeResolve (file:///C:/Users/dhana/OneDrive/Desktop/project/node_modules/vite/dist/node/chunks/config.js:32716:70)
+    at Object.handler (file:///C:/Users/dhana/OneDrive/Desktop/project/node_modules/vite/dist/node/chunks/config.js:32555:16)
+    at Object.handler (file:///C:/Users/dhana/OneDrive/Desktop/project/node_modules/vite/dist/node/chunks/config.js:33706:13)
+    at file:///C:/Users/dhana/OneDrive/Desktop/project/node_modules/rollup/dist/es/shared/node-entry.js:22548:40
+    at async PluginDriver.hookFirstAndGetPlugin (file:///C:/Users/dhana/OneDrive/Desktop/project/node_modules/rollup/dist/es/shared/node-entry.js:22430:28)[39m

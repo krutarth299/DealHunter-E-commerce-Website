@@ -1,15 +1,23 @@
-const ssrEngine = require('../ssrEngine');
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const Deal = require('../models/Deal');
-const { deals } = require('../mockStore');
-const fetch = require('node-fetch');
-const cheerio = require('cheerio');
-const { sleep, PROFILES, getRandomProfile, injectStealth } = require('../scraper-utils');
+import https from 'https';
+import fs from 'fs';
+import path from 'path';
+import axios from 'axios';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+import Deal from '../models/Deal.js';
+import { deals } from '../mockStore.js';
+import fetch from 'node-fetch';
+import * as cheerioModule from 'cheerio';
+const cheerio = cheerioModule.default || cheerioModule;
+import { sleep, PROFILES, getRandomProfile, injectStealth } from '../scraper-utils.js';
 
 // puppeteer-extra with stealth for Meesho/bot-protected sites
-const puppeteerExtra = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+import puppeteerExtra from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 puppeteerExtra.use(StealthPlugin());
 const puppeteer = puppeteerExtra;
 const puppeteerStealth = puppeteerExtra;
@@ -105,8 +113,32 @@ router.post('/', async (req, res) => {
                 createdAt: new Date()
             };
             deals.push(newDeal);
-            ssrEngine.clearCache && ssrEngine.clearCache();
+            const io = req.app.get('socketio');
+            if (io) io.emit('newDeal', newDeal);
+                        // Cache clearing placeholder
             return res.status(201).json(newDeal);
+        }
+
+        // Validate image before saving
+        const finalImage = req.body.image || (req.body.images && req.body.images.length > 0 ? req.body.images[0] : null);
+        if (!finalImage || !finalImage.startsWith('http')) {
+            return res.status(400).json({ message: 'Valid high-quality product image URL is required. Product not saved.' });
+        }
+
+        // Prevent saving logos or placeholder/blank images
+        const imageStr = finalImage.toLowerCase();
+        if (
+            imageStr.includes('logo') || 
+            imageStr.includes('placeholder') || 
+            imageStr.includes('default') || 
+            imageStr.includes('blank') ||
+            imageStr.includes('icon') ||
+            imageStr.includes('arrow') ||
+            imageStr.includes('sprite') ||
+            imageStr.endsWith('.svg') ||
+            imageStr.includes('/svg')
+        ) {
+            return res.status(400).json({ message: 'Placeholder, icon, or logo image detected. Original high-quality image required.' });
         }
 
         const deal = new Deal({
@@ -125,7 +157,9 @@ router.post('/', async (req, res) => {
         });
 
         const newDeal = await deal.save();
-        ssrEngine.clearCache && ssrEngine.clearCache();
+        const io = req.app.get('socketio');
+        if (io) io.emit('newDeal', newDeal);
+                    // Cache clearing placeholder
         res.status(201).json(newDeal);
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -141,7 +175,9 @@ router.put('/:id', async (req, res) => {
             if (index === -1) return res.status(404).json({ message: 'Cannot find deal' });
 
             deals[index] = { ...deals[index], ...req.body, updatedAt: new Date() };
-            ssrEngine.clearCache && ssrEngine.clearCache();
+            const io = req.app.get('socketio');
+            if (io) io.emit('updateDeal', deals[index]);
+                        // Cache clearing placeholder
             return res.json(deals[index]);
         }
 
@@ -159,7 +195,9 @@ router.put('/:id', async (req, res) => {
         });
 
         const updatedDeal = await deal.save();
-        ssrEngine.clearCache && ssrEngine.clearCache();
+        const io = req.app.get('socketio');
+        if (io) io.emit('updateDeal', updatedDeal);
+                    // Cache clearing placeholder
         res.json(updatedDeal);
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -173,8 +211,11 @@ router.delete('/:id', async (req, res) => {
         if (req.app.locals.isMockMode) {
             const index = deals.findIndex(d => d._id === req.params.id);
             if (index === -1) return res.status(404).json({ message: 'Cannot find deal' });
+            const deletedId = deals[index]._id;
             deals.splice(index, 1);
-            ssrEngine.clearCache && ssrEngine.clearCache();
+            const io = req.app.get('socketio');
+            if (io) io.emit('deleteDeal', deletedId);
+                        // Cache clearing placeholder
             return res.json({ message: 'Deleted Deal' });
         }
 
@@ -182,8 +223,11 @@ router.delete('/:id', async (req, res) => {
         if (deal == null) {
             return res.status(404).json({ message: 'Cannot find deal' });
         }
+        const dealId = deal._id;
         await deal.deleteOne();
-        ssrEngine.clearCache && ssrEngine.clearCache();
+        const io = req.app.get('socketio');
+        if (io) io.emit('deleteDeal', dealId);
+                    // Cache clearing placeholder
         res.json({ message: 'Deleted Deal' });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -274,10 +318,8 @@ router.post('/:id/reviews', async (req, res) => {
     }
 });
 
-const https = require('https');
+// Modules are now imported at the top of the file
 
-const fs = require('fs');
-const path = require('path');
 
 const logPath = path.join(__dirname, '../extract.log');
 const log = (msg) => {
@@ -293,6 +335,8 @@ const agent = new https.Agent({
 
 // Extract deal details from URL (Accessible to all)
 router.post('/extract', async (req, res) => {
+    // Define a standard junk regex to exclude UI elements/logos
+    const junkRegex = /logo|icon|sprite|pixel|loading|placeholder|banner|nav|menu|button|spacer|gif|svg|avatar|profile|captcha|bot|delivery|shipping|portal|pingportal/i;
     try {
         const { url: rawUrl } = req.body;
         if (!rawUrl) return res.status(400).json({ message: 'URL is required' });
@@ -415,7 +459,7 @@ router.post('/extract', async (req, res) => {
             if (!str) return null;
             let s = str.split(' [')[0].replace(/\s+/g, ' ').trim();
 
-            const anchoredRegex = /(?:₹|Rs\.?|INR|\$|€|£)\s*([\d,]+(?:\.\d+)?)/gi;
+            const anchoredRegex = /(?:₹|Rs\.?|INR|\$|€|£|¥)\s*([\d,]+(?:\.\d+)?)/gi;
             const anchored = [...s.matchAll(anchoredRegex)];
             if (anchored.length > 0) {
                 const vals = anchored.map(m => parseFloat(m[1].replace(/,/g, ''))).filter(v => !isNaN(v) && v > 0);
@@ -425,8 +469,6 @@ router.post('/extract', async (req, res) => {
             const numRegex = /[\d,]+(?:\.\d+)?/g;
             const nums = [...s.matchAll(numRegex)].map(m => parseFloat(m[0].replace(/,/g, ''))).filter(v => !isNaN(v) && v > 0);
 
-            // Only exclude years if the string has no currency symbol AND is exactly 4 digits long
-            // e.g., "2024" is excluded if it's the only text, but "₹2024" or "2024.00" is kept.
             const currentYear = new Date().getFullYear();
             const validNums = nums.filter(v => {
                 if (v >= currentYear - 1 && v <= currentYear + 2 && s.length <= 6) return false;
@@ -441,7 +483,7 @@ router.post('/extract', async (req, res) => {
             if (!str) return null;
             let s = str.split(' [')[0].replace(/\s+/g, ' ').trim();
 
-            const anchoredRegex = /(?:₹|Rs\.?|INR|\$|€|£)\s*([\d,]+(?:\.\d+)?)/gi;
+            const anchoredRegex = /(?:₹|Rs\.?|INR|\$|€|£|¥)\s*([\d,]+(?:\.\d+)?)/gi;
             const anchored = [...s.matchAll(anchoredRegex)];
             if (anchored.length > 0) {
                 const vals = anchored.map(m => parseFloat(m[1].replace(/,/g, ''))).filter(v => !isNaN(v) && v > 0);
@@ -465,13 +507,7 @@ router.post('/extract', async (req, res) => {
         const cleanPrice = (str, preferHigher = false) => {
             const val = preferHigher ? extractHighestPrice(str) : extractFirstPrice(str);
             if (val === null) return null;
-            return { value: val, symbol: '₹' };
-        };
-
-        const formatPrice = (p) => {
-            if (typeof p === 'number') return p;
-            if (!p || typeof p !== 'object' || isNaN(p.value)) return null;
-            return p.value;
+            return { value: val };
         };
 
         const cleanTitle = (str) => { if(!str) return ''; return str.trim(); };
@@ -684,7 +720,9 @@ router.post('/extract', async (req, res) => {
             return null;
         };
 
-        const getStoreName = (link) => {
+        const getStoreName = (link, metadata = {}) => {
+    if (metadata.ogSiteName) return metadata.ogSiteName;
+    if (metadata.applicationName) return metadata.applicationName;
     try {
         const url = new URL(link);
         const host = url.hostname.toLowerCase();
@@ -975,13 +1013,9 @@ router.post('/extract', async (req, res) => {
                     log(`[Extract] Phase 0.26: Amazon Construction Image (ASIN: ${asin})`);
                 }
             } else if (isMyntra) {
-                const pidMatch = url.match(/\/(\d{5,12})(?:\/buy|$|\?)/);
-                if (pidMatch && pidMatch[1]) {
-                    const pid = pidMatch[1];
-                    data.image = `https://assets.myntassets.com/h_1440,q_100,w_1080/v1/assets/images/${pid}/image.jpg`;
-                    data.images = [data.image];
-                    log(`[Extract] Phase 0.26: Myntra Construction Image (PID: ${pid})`);
-                }
+                // Do NOT construct random image URLs for Myntra as their asset CDN relies on random hashes.
+                // Rely purely on the stateData (pdpData) extraction or Open Graph tags to ensure original HD images.
+                log(`[Extract] Phase 0.26: Myntra URL Detected. Skipping hardcoded image construction to prevent broken images.`);
             }
         }
 
@@ -1333,7 +1367,8 @@ router.post('/extract', async (req, res) => {
         if (!data.title && isFlipkart && !html) { // Only try if no title yet and no HTML from Phase 1
             log(`[Extract] Phase 2.5: Attempting Axios mobile spoof for ${url}`);
             try {
-                const axios = require('axios');
+                // axios imported at top
+
                 const cacheUrl = `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}`;
                 log(`[Extract] Fetching Google Cache for Flipkart: ${cacheUrl}`);
                 const spoofRes = await axios.get(cacheUrl, {
@@ -1375,6 +1410,12 @@ router.post('/extract', async (req, res) => {
                 let $ = cheerio.load(html);
 
                 const getMeta = (prop) => $(`meta[property="${prop}"]`).attr('content') || $(`meta[name="${prop}"]`).attr('content') || '';
+                
+                const metadata = {
+                    ogSiteName: getMeta('og:site_name'),
+                    applicationName: getMeta('application-name') || getMeta('apple-mobile-web-app-title')
+                };
+                data.store = getStoreName(url, metadata);
 
                 // 1. Parse Universal JSON-LD Structured Data
                 let jsonLd = {};
@@ -1619,25 +1660,11 @@ router.post('/extract', async (req, res) => {
                 data.title = data.title || amazonTitle || myntraTitle || ajioTitle || jsonLd.name || getMeta('og:title') || getMeta('twitter:title') || $('title').text() || $('h1').first().text();
                 if (data.title) data.title = cleanTitle(data.title);
 
-                // IMAGE
-                let rawImage = $('#landingImage').attr('data-old-hires') || $('#landingImage').attr('src') ||
-                    $('#imgBlkFront').attr('src') || $('#main-image').attr('src') ||
-                    $('#imgTagWrapperId img').attr('src') || $('#main-image-container img').attr('src') ||
-                    $('img[data-old-hires]').attr('data-old-hires') || $('img.a-dynamic-image').attr('data-a-dynamic-image') || $('img.a-dynamic-image').attr('src') ||
-                    // Myntra-specific image selectors
-                    $('img.image-grid-image').attr('src') || $('img.pdp-main-image').attr('src') || $('img[class*="product-image"]').attr('src') ||
-                    // Ajio-specific
-                    $('.img-alignment img').attr('src') || $('.img-alignment').attr('src') || $('img.pdp-main-image').attr('src') ||
-                    $('.rilrtl-lazy-img-container img').attr('src') || $('img.multi-image-first').attr('src') || $('img[class*="base-image"]').attr('src') || '';
-
-                if (rawImage && rawImage.startsWith('{')) {
-                    try {
-                        const imgObj = JSON.parse(rawImage);
-                        rawImage = Object.keys(imgObj).reduce((a, b) => imgObj[a] > imgObj[b] ? a : b);
-                    } catch (e) { }
-                  /* empty */
-}
-
+                // IMAGE Prioritize High Quality (Meta/JSON) over Generic Tags
+                let rawImage = '';
+                
+                if (data.image) rawImage = data.image; // from pdpData state extraction
+                
                 if (!rawImage && jsonLd.image) {
                     rawImage = Array.isArray(jsonLd.image) ? jsonLd.image[0] : jsonLd.image;
                     if (typeof rawImage === 'object' && rawImage.url) rawImage = rawImage.url;
@@ -1645,6 +1672,25 @@ router.post('/extract', async (req, res) => {
                 if (!rawImage) {
                     rawImage = getMeta('og:image') || getMeta('twitter:image');
                 }
+
+                // Fallback to specific UI selectors
+                if (!rawImage) {
+                    rawImage = $('#landingImage').attr('data-old-hires') || $('#landingImage').attr('src') ||
+                        $('#imgBlkFront').attr('src') || $('#main-image').attr('src') ||
+                        $('#imgTagWrapperId img').attr('src') || $('#main-image-container img').attr('src') ||
+                        $('img[data-old-hires]').attr('data-old-hires') || $('img.a-dynamic-image').attr('data-a-dynamic-image') || $('img.a-dynamic-image').attr('src') ||
+                        $('img.image-grid-image').attr('src') || $('img.pdp-main-image').attr('src') || $('img[class*="product-image"]').attr('src') ||
+                        $('.img-alignment img').attr('src') || $('.img-alignment').attr('src') || $('img.pdp-main-image').attr('src') ||
+                        $('.rilrtl-lazy-img-container img').attr('src') || $('img.multi-image-first').attr('src') || $('img[class*="base-image"]').attr('src') || '';
+                }
+
+                if (rawImage && rawImage.startsWith('{')) {
+                    try {
+                        const imgObj = JSON.parse(rawImage);
+                        rawImage = Object.keys(imgObj).reduce((a, b) => imgObj[a] > imgObj[b] ? a : b);
+                    } catch (e) { }
+                }
+
                 if (rawImage) data.image = rawImage;
                 if (data.image && data.image.startsWith('//')) data.image = 'https:' + data.image;
 
@@ -1653,9 +1699,19 @@ router.post('/extract', async (req, res) => {
                     data.image = '';
                 }
 
-                // Collect ALL significant images
-                const allImgs = [...(data.images || [])];
-                if (data.image && !allImgs.includes(data.image)) allImgs.push(data.image);
+                // Collect ALL significant images - ensure main image is FIRST
+                let allImgs = [...(data.images || [])];
+                
+                // If main image exists but isn't at index 0, move it there
+                if (data.image && (data.image.startsWith('http') || data.image.startsWith('//'))) {
+                    const normalized = data.image.startsWith('//') ? 'https:' + data.image : data.image;
+                    if (!allImgs.includes(normalized)) {
+                        allImgs.unshift(normalized);
+                    } else if (allImgs.indexOf(normalized) !== 0) {
+                        allImgs = [normalized, ...allImgs.filter(u => u !== normalized)];
+                    }
+                    data.image = normalized;
+                }
 
                 const cheerioImgSelector = isAmazon
                     ? '#main-image-container img, #imgTagWrapperId img, #landingImage, #altImages img, .a-dynamic-image'
@@ -1666,17 +1722,34 @@ router.post('/extract', async (req, res) => {
                         const badParent = $(el).closest('#buybox, #similarities_feature_div, #rhf, .a-carousel, #dp-sponsored-links, #sp_detail, #sims-fbt-content, .sims-carousel, .deal-item-carousel');
                         if (badParent.length > 0) return; // Ignore recommended products
                     }
-                    const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src') || $(el).attr('data-old-hires');
-                    if (src && src.startsWith('http')) {
-                        if (!junkRegex.test(src)) {
-                            const lowSrc = src.toLowerCase();
-                            if (lowSrc.includes('product') || lowSrc.includes('item') || lowSrc.includes('images/i/') || lowSrc.includes('/p/')) {
-                                if (!allImgs.includes(src)) allImgs.push(src);
+                    const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src') || $(el).attr('data-old-hires') || $(el).attr('data-a-dynamic-image');
+                    
+                    if (src) {
+                        let finalSrc = src;
+                        if (src.startsWith('{')) { // Amazon JSON data-a-dynamic-image
+                            try {
+                                const imgObj = JSON.parse(src);
+                                finalSrc = Object.keys(imgObj).reduce((a, b) => imgObj[a] > imgObj[b] ? a : b);
+                            } catch (e) { return; }
+                        }
+                        
+                        if (finalSrc && (finalSrc.startsWith('http') || finalSrc.startsWith('//'))) {
+                            const normalized = finalSrc.startsWith('//') ? 'https:' + finalSrc : finalSrc;
+                            if (!junkRegex.test(normalized)) {
+                                const lowSrc = normalized.toLowerCase();
+                                const isProduct = lowSrc.includes('product') || lowSrc.includes('item') || lowSrc.includes('images/i/') || lowSrc.includes('/p/') || lowSrc.includes('media-amazon');
+                                if (isProduct && !allImgs.includes(normalized)) {
+                                    allImgs.push(normalized);
+                                }
                             }
                         }
                     }
                 });
-                data.images = allImgs.slice(0, 8);
+
+                // Final cleanup: filter junk again and remove duplicates
+                data.images = [...new Set(allImgs)].filter(u => u && (u.startsWith('http') || u.startsWith('//')) && !junkRegex.test(u)).slice(0, 8);
+                // Ensure data.image reflects the first element of this array
+                if (data.images.length > 0) data.image = data.images[0];
 
                 // Video Extraction
                 const videos = [];
@@ -1984,7 +2057,15 @@ router.post('/extract', async (req, res) => {
                                 return el.innerText || el.getAttribute('content') || el.value;
                             };
 
+                            const getStore = () => {
+                                const siteName = getMeta(['og:site_name', 'application-name']);
+                                if (siteName) return siteName;
+                                const host = window.location.hostname.replace('www.', '').split('.')[0];
+                                return host.charAt(0).toUpperCase() + host.slice(1);
+                            };
+
                             const titleEl = getValue('.pdp-title') || getValue('.pdp-name') || getValue('#productTitle') ||
+                                getValue('.product-title') || getValue('.product-name') ||
                                 getMeta(['og:title', 'twitter:title']) || document.title || '';
 
                             const getImg = (sel) => {
@@ -1994,19 +2075,22 @@ router.post('/extract', async (req, res) => {
                             };
                             const imageEl = getMeta(['og:image', 'twitter:image']) ||
                                 getImg('.rilrtl-lazy-img') || getImg('.img-alignment img') || getImg('.pdp-main-img img') ||
-                                getImg('#landingImage') || getImg('.ProductImage img') || '';
+                                getImg('#landingImage') || getImg('.ProductImage img') || getImg('.product-image img') || '';
 
-                            const images = Array.from(document.querySelectorAll('.img-alignment img, #altImages img, .rilrtl-lazy-img'))
+                            const images = Array.from(document.querySelectorAll('.img-alignment img, #altImages img, .rilrtl-lazy-img, .product-gallery img'))
                                 .map(el => el.src || el.getAttribute('data-src')).filter(src => src && src.startsWith('http')).slice(0, 10);
 
-                            const descParts = Array.from(document.querySelectorAll('.product-details-container li, .prod-desc li, #feature-bullets li'))
-                                .map(el => el.innerText.trim()).filter(t => t.length > 2);
-                            const descEl = descParts.length > 0 ? descParts.join(' | ') : (getMeta(['og:description', 'description']) || '');
+                            const descParts = Array.from(document.querySelectorAll('.product-details-container, .prod-desc, #productDescription, .product-description, #feature-bullets'))
+                                .map(el => el.innerText.trim()).filter(t => t.length > 10);
+                            const descEl = descParts.length > 0 ? descParts[0] : (getMeta(['og:description', 'description']) || '');
 
-                            const price = getValue('.pdp-price') || getValue('.price-value') || getValue('.prod-sp') || getValue('#corePrice_desktop .a-offscreen') || getValue('.a-price .a-offscreen');
-                            const mrp = getValue('.strike-off') || getValue('.pdp-mrp') || getValue('.a-text-strike') || getValue('.basisPrice .a-offscreen');
+                            const price = getValue('.pdp-price') || getValue('.price-value') || getValue('.prod-sp') || 
+                                          getValue('#corePrice_desktop .a-offscreen') || getValue('.a-price .a-offscreen') ||
+                                          getValue('.product-price') || getValue('.current-price');
+                            const mrp = getValue('.strike-off') || getValue('.pdp-mrp') || getValue('.a-text-strike') || 
+                                        getValue('.basisPrice .a-offscreen') || getValue('.old-price') || getValue('.original-price');
 
-                            return { title: titleEl, image: imageEl, images, description: descEl, price, mrp };
+                            return { title: titleEl, image: imageEl, images, description: descEl, price, mrp, store: getStore() };
                         }).catch(() => null);
 
                         if (partialResult) {
@@ -2020,6 +2104,7 @@ router.post('/extract', async (req, res) => {
                                 data.images = partialResult.images.slice(0, 8);
                             }
                             if (!data.description && partialResult.description) data.description = partialResult.description;
+                            if (!data.store && partialResult.store) data.store = partialResult.store;
 
                             if (partialResult.price && !data.price) {
                                 const p = parseFloat(String(partialResult.price).replace(/[^\d.]/g, ''));
@@ -2373,4 +2458,4 @@ router.post('/extract', async (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;

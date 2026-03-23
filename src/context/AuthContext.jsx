@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { AuthContext } from './authContextDefinition';
+import React, { useState, useEffect, createContext } from 'react';
+
+export const AuthContext = createContext();
 
 const API_BASE_URL = 'http://localhost:5000/api'; // Defined API_BASE_URL as it was used in the provider value
 

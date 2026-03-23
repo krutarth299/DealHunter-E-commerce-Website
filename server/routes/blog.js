@@ -1,7 +1,7 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const Comment = require('../models/Comment');
-const { blogComments } = require('../mockStore');
+import Comment from '../models/Comment.js';
+import { blogComments } from '../mockStore.js';
 
 // Get comments for a blog post
 router.get('/:slug/comments', async (req, res) => {
@@ -21,7 +21,7 @@ router.get('/:slug/comments', async (req, res) => {
     }
 });
 
-const ssrEngine = require('../ssrEngine');
+// ssrEngine requirement removed for stability
 
 // Add a comment to a blog post
 router.post('/:slug/comments', async (req, res) => {
@@ -40,7 +40,7 @@ router.post('/:slug/comments', async (req, res) => {
                 createdAt: new Date()
             };
             blogComments.push(newComment);
-            ssrEngine.clearCache && ssrEngine.clearCache(req.params.slug);
+                        // SSR cache clearing placeholder
             return res.status(201).json(newComment);
         }
 
@@ -51,7 +51,7 @@ router.post('/:slug/comments', async (req, res) => {
         });
 
         const savedComment = await newComment.save();
-        ssrEngine.clearCache && ssrEngine.clearCache(req.params.slug);
+                    // SSR cache clearing placeholder
         res.status(201).json(savedComment);
     } catch (err) {
         console.error('Error saving comment:', err);
@@ -59,4 +59,4 @@ router.post('/:slug/comments', async (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;

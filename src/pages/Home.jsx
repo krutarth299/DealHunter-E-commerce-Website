@@ -23,30 +23,14 @@ const STORES = [
     { name: 'Nykaa', logo: 'https://www.google.com/s2/favicons?domain=nykaa.com&sz=128', id: 'nykaa' },
 ];
 
-const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlist, apiBase }) => {
+const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlist, apiBase, categories: globalCategories }) => {
     const navigate = useNavigate();
     const { recentlyViewed } = useRecentlyViewed();
-    const [categories, setCategories] = useState(FEATURED_CATEGORIES);
 
-    useEffect(() => {
-        const fetchCategories = async () => {
-            try {
-                const baseUrl = apiBase ? apiBase.replace('/user', '') : 'http://localhost:5000/api';
-                const r = await fetch(`${baseUrl}/deals/categories`);
-                if (r.ok) {
-                    const data = await r.json();
-                    if (data && data.length > 0) {
-                        const normalized = data.map(c => normalizeCategory(c)).filter(c => c && c.trim() !== '');
-                        const merged = [...new Set([...FEATURED_CATEGORIES, ...normalized])];
-                        setCategories(merged);
-                    }
-                }
-            } catch (err) {
-                console.error("Home Categories fetch error:", err);
-            }
-        };
-        fetchCategories();
-    }, [apiBase]);
+    const categories = React.useMemo(() => {
+        const normalizedGlobal = (globalCategories || []).map(c => normalizeCategory(c)).filter(Boolean);
+        return [...new Set([...FEATURED_CATEGORIES, ...normalizedGlobal])];
+    }, [globalCategories]);
 
     return (
         <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900 overflow-x-hidden">

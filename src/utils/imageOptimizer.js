@@ -43,3 +43,31 @@ export const optimizeImageUrl = (url) => {
 
     return optimized;
 };
+
+// Standard junk image filter to exclude icons, logos, etc.
+export const JUNK_IMAGE_REGEX = /logo|icon|sprite|pixel|loading|placeholder|banner|nav|menu|button|spacer|gif|svg|avatar|profile|captcha|bot|delivery|shipping|portal|pingportal/i;
+
+/**
+ * Robustly selects the main product image from a deal object.
+ * Follows the rule: Favor the first element of images[] that is NOT junk, 
+ * falling back to the image property if it's NOT junk.
+ */
+export const getMainProductImage = (deal) => {
+    if (!deal) return '/no-image.png';
+
+    // 1. Try images array
+    if (deal.images && Array.isArray(deal.images)) {
+        const validImages = deal.images.filter(img => img && typeof img === 'string' && !JUNK_IMAGE_REGEX.test(img));
+        if (validImages.length > 0) return optimizeImageUrl(validImages[0]);
+    }
+
+    // 2. Try single image property
+    if (deal.image && typeof deal.image === 'string' && !JUNK_IMAGE_REGEX.test(deal.image)) {
+        return optimizeImageUrl(deal.image);
+    }
+
+    // 3. Last resort: first available image even if junk-ish (or fallback)
+    if (deal.images && deal.images.length > 0) return optimizeImageUrl(deal.images[0]);
+    
+    return deal.image ? optimizeImageUrl(deal.image) : '/no-image.png';
+};

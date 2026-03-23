@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, TrendingDown, Zap, ShieldCheck, Clock, ExternalLink, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { optimizeImageUrl } from '../utils/imageOptimizer';
+import { optimizeImageUrl, getMainProductImage } from '../utils/imageOptimizer';
 
 /* ─── helpers ─────────────────────────────────────── */
 const formatPrice = (p) => {
@@ -99,7 +99,7 @@ const Hero = ({ deals = [] }) => {
             href: deal.link || '/deals',
             isExternal: !!deal.link,
             bg: getBg(deal.category),
-            image: optimizeImageUrl(deal.image || (deal.images && deal.images[0]) || null),
+            image: getMainProductImage(deal),
             emoji: null,
             stat: deal.store ? `Verified on ${deal.store}` : 'Verified deal',
             price: formatPrice(deal.price),
@@ -272,7 +272,10 @@ const Hero = ({ deals = [] }) => {
                                                 src={slide.image}
                                                 alt={slide.title}
                                                 className="w-full h-full object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] transform group-hover:scale-110 transition-transform duration-700"
-                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                                onError={(e) => { 
+                                                    e.target.onerror = null; 
+                                                    e.target.src = "https://placehold.co/400x400/f8fafc/94a3b8.png?text=No+Image"; 
+                                                }}
                                             />
                                         </div>
                                         

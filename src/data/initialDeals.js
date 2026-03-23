@@ -500,3 +500,5 @@ export const INITIAL_DEALS = [
         expiry: Date.now() + 7000000
     }
 ];
+
+export const INITIAL_CATEGORIES = [...new Set(INITIAL_DEALS.map(d => d.category))].filter(Boolean);

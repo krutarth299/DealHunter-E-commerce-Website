@@ -1,6 +1,6 @@
-const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+export const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
-const PROFILES = [
+export const PROFILES = [
     { type: 'Desktop_Chrome', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36', platform: 'Win32' },
     { type: 'Mobile_Flipkart', ua: 'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36 FlipkartApp/23.0.0', platform: 'Linux armv8l' },
     { type: 'Mobile_iPhone', ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1', platform: 'iPhone' },
@@ -10,9 +10,9 @@ const PROFILES = [
     { type: 'Mobile_Myntra', ua: 'Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Mobile Safari/537.36 Myntra/13.0.0', platform: 'Linux armv8l' }
 ];
 
-const getRandomProfile = () => PROFILES[Math.floor(Math.random() * PROFILES.length)];
+export const getRandomProfile = () => PROFILES[Math.floor(Math.random() * PROFILES.length)];
 
-const injectStealth = async (page, profile) => {
+export const injectStealth = async (page, profile) => {
     const prof = profile || getRandomProfile();
     await page.evaluateOnNewDocument((p) => {
         Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
@@ -76,11 +76,4 @@ const injectStealth = async (page, profile) => {
                 originalQuery(parameters)
         );
     }, prof);
-};
-
-module.exports = {
-    sleep,
-    PROFILES,
-    getRandomProfile,
-    injectStealth
 };

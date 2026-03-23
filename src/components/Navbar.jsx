@@ -2,9 +2,9 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Search, Menu, X, Heart, Flame, Bell, Zap, Tag, ArrowRight, ShieldCheck, ShoppingCart, Sparkles, Globe } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useWishlistAnimation } from '../context/wishlistAnimationContextDefinition';
-import { AuthContext } from '../context/authContextDefinition';
+import { AuthContext } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { optimizeImageUrl } from '../utils/imageOptimizer';
+import { optimizeImageUrl, getMainProductImage } from '../utils/imageOptimizer';
 
 const Navbar = ({ onSearch, wishlistCount = 0 }) => {
     const { wishlistRef, arrivalEffect } = useWishlistAnimation();
@@ -97,11 +97,9 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                     Limited Time Offer
                 </span>
                 <span className="w-1 h-1 rounded-full bg-slate-700" />
-                <a href="https://t.me/yourtelegram" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-orange-400 transition-colors group">
-                    <span className="bg-orange-600 text-[8px] px-1.5 py-0.5 rounded leading-none mr-1">NEW</span>
-                    Join our Telegram for Instant Deal Alerts
-                    <ArrowRight size={10} className="group-hover:translate-x-1 transition-transform" />
-                </a>
+                <span className="flex items-center gap-2 text-orange-400 group transition-all">
+                    Handpicked Premium Deals for You
+                </span>
                 <span className="w-1 h-1 rounded-full bg-slate-700" />
                 <span className="opacity-60 flex items-center gap-1.5">
                     <ShieldCheck size={10} className="text-emerald-500" />
@@ -193,7 +191,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                                     {latestDeals.length > 0 ? latestDeals.map((deal, idx) => (
                                                         <Link key={idx} to={`/product/${deal._id || deal.id}`} onClick={() => setIsNotificationsOpen(false)} className="flex gap-4 p-4 hover:bg-slate-50 transition-colors group/notif">
                                                             <div className="w-12 h-12 bg-white rounded-xl border border-slate-100 p-1 flex-shrink-0">
-                                                                <img src={optimizeImageUrl(deal.image || (deal.images && deal.images[0]))} alt="" className="w-full h-full object-contain" />
+                                                                <img src={getMainProductImage(deal)} alt="" className="w-full h-full object-contain" />
                                                             </div>
                                                             <div className="flex-1 min-w-0">
                                                                 <p className="text-[10px] font-black text-emerald-600 mb-0.5 flex items-center gap-1"><Zap size={10} fill="currentColor" /> FRESH PRICE DROP</p>

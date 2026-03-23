@@ -1,64 +1,51 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-const Home = React.lazy(() => import('./pages/Home'));
-const Deals = React.lazy(() => import('./pages/Deals'));
-const Stores = React.lazy(() => import('./pages/Stores'));
-const ProductDetails = React.lazy(() => import('./pages/ProductDetails'));
-const Wishlist = React.lazy(() => import('./pages/Wishlist'));
-const AdminPanel = React.lazy(() => import('./pages/AdminPanel'));
-const Blog = React.lazy(() => import('./pages/Blog'));
-const BlogPost = React.lazy(() => import('./pages/BlogPost'));
-const Login = React.lazy(() => import('./pages/Login'));
-const Signup = React.lazy(() => import('./pages/Signup'));
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import Home from './pages/Home';
+import Deals from './pages/Deals';
+import Stores from './pages/Stores';
+import ProductDetails from './pages/ProductDetails';
+import Wishlist from './pages/Wishlist';
+import AdminPanel from './pages/AdminPanel';
+import Blog from './pages/Blog';
+import BlogPost from './pages/BlogPost';
 import { INITIAL_DEALS } from './data/initialDeals';
-import { AuthProvider } from './context/AuthContext';
-import { AuthContext } from './context/authContextDefinition';
+import { AuthProvider, AuthContext } from './context/AuthContext';
 import ScrollToTop from './components/ScrollToTop';
 import { motion } from 'framer-motion';
 import { Flame, CheckCircle2, Info, AlertCircle, X, Loader2 } from 'lucide-react';
 import { WishlistAnimationProvider } from './context/WishlistAnimationContext';
 import { RecentlyViewedProvider } from './context/RecentlyViewedContext';
 import Modal from './components/Modal';
+import { io } from 'socket.io-client';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+// socket initialized inside useEffect to avoid SSR crashes
+let socket;
 
-function SeoServerData({ deals }) {
-  const location = useLocation();
-  const dealMatch = location.pathname.match(/^\/product\/([a-zA-Z0-9_-]+)/);
+const API_BASE_URL = 'http://127.0.0.1:5000/api';
 
-  let dealsToRender = deals;
-  if (dealMatch) {
-    const matchedDeal = deals.find(d => (d._id || d.id) === dealMatch[1]);
-    if (matchedDeal) {
-      dealsToRender = [matchedDeal];
-    }
-  }
 
-  if (!dealsToRender || dealsToRender.length === 0) return null;
-
-  return (
-    <div id="seo-server-data" style={{ display: 'none', visibility: 'hidden', height: 0, overflow: 'hidden' }} aria-hidden="true">
-      {dealsToRender.map(deal => (
-        <article className="seo-deal-item" data-id={deal._id || deal.id} key={deal._id || deal.id}>
-          <h2>{deal.title}</h2>
-          <p>Store: {deal.store}</p>
-          <p>Price: {deal.price} <del>{deal.originalPrice}</del></p>
-          <p>Discount: {deal.discount}</p>
-          <p>Category: {deal.category}</p>
-          <img src={deal.image} alt={deal.title} />
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function AppContent() {
+export function AppContent() {
   const { user, logout, loading, apiBase } = useContext(AuthContext);
-  const [deals, setDeals] = useState(INITIAL_DEALS);
+  
+  const [deals, setDeals] = useState(() => {
+    // Normal Client-Side Initialization
+    const cached = typeof window !== 'undefined' ? localStorage.getItem('cached_deals') : null;
+    if (cached) {
+        try { return JSON.parse(cached); } catch(e) { /* corrupted */ }
+    }
+    return INITIAL_DEALS;
+  });
+
+  const [categories, setCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Global Toast State
   const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
+
+  const showToast = (message, type = 'info') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'info' }), 3000);
+  };
 
   // Global Custom Event Listener for Toasts
   useEffect(() => {
@@ -71,28 +58,71 @@ function AppContent() {
     return () => window.removeEventListener('showToast', handleCustomToast);
   }, []);
 
-  const showToast = (message, type = 'info') => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'info' }), 3000);
-  };
-
-  // Global 2D Spatial Arrow Key Navigation - Optimized
-  // Removed heavy spatial navigation for performance optimization
-
-  // Sync Deals from Server
+  // Sync Deals & Categories from Server & Handle Real-time Updates
   useEffect(() => {
     const fetchDeals = async () => {
       try {
-        const res = await fetch(`${apiBase.replace('/user', '')}/deals`);
-        if (!res.ok) throw new Error('Fetch failed');
-        const data = await res.json();
-        setDeals(data.length > 0 ? data : INITIAL_DEALS);
+        const baseUrl = apiBase.replace('/user', '');
+        const [dealsRes, catsRes] = await Promise.all([
+            fetch(`${baseUrl}/deals`),
+            fetch(`${baseUrl}/deals/categories`)
+        ]);
+        
+        if (dealsRes.ok) {
+            const d = await dealsRes.json();
+            if (d.length > 0) {
+                setDeals(d);
+                localStorage.setItem('cached_deals', JSON.stringify(d));
+            }
+        }
+        if (catsRes.ok) {
+            const c = await catsRes.json();
+            if (c.length > 0) setCategories(c);
+        }
       } catch (err) {
-        console.error("Failed to fetch deals:", err);
-        setDeals(INITIAL_DEALS);
+        console.error("Failed to sync app data:", err);
       }
     };
+
     if (apiBase) fetchDeals();
+
+    // Socket.io Real-time Listeners (Client-side ONLY)
+    if (typeof window !== 'undefined' && !socket) {
+        socket = io('http://127.0.0.1:5000');
+    }
+
+    if (socket) {
+        socket.on('newDeal', (newDeal) => {
+          setDeals(prev => {
+            const next = [newDeal, ...prev.filter(d => (d._id || d.id) !== (newDeal._id || newDeal.id))];
+            localStorage.setItem('cached_deals', JSON.stringify(next));
+            return next;
+          });
+          showToast('New deal just went live! 🔥', 'info');
+        });
+
+        socket.on('updateDeal', (updatedDeal) => {
+          setDeals(prev => {
+            const next = prev.map(d => (d._id || d.id) === (updatedDeal._id || updatedDeal.id) ? updatedDeal : d);
+            localStorage.setItem('cached_deals', JSON.stringify(next));
+            return next;
+          });
+        });
+
+        socket.on('deleteDeal', (dealId) => {
+          setDeals(prev => {
+            const next = prev.filter(d => (d._id || d.id) !== dealId);
+            localStorage.setItem('cached_deals', JSON.stringify(next));
+            return next;
+          });
+        });
+
+        return () => {
+          socket.off('newDeal');
+          socket.off('updateDeal');
+          socket.off('deleteDeal');
+        };
+    }
   }, [apiBase]);
 
   // Add Deal Form State (Shared)
@@ -145,10 +175,12 @@ function AppContent() {
     }
   };
 
-  const filteredDeals = deals.filter(deal =>
-    (deal.title && deal.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (deal.store && deal.store.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (deal.category && deal.category.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredDeals = (deals || []).filter(deal =>
+    deal && (
+      (deal.title && deal.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (deal.store && deal.store.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (deal.category && deal.category.toLowerCase().includes(searchQuery.toLowerCase()))
+    )
   );
 
   const [wishlist, setWishlist] = useState(() => {
@@ -195,14 +227,29 @@ function AppContent() {
 
 
 
-  const location = useLocation();
-  const isBot = location.search.includes('seo=true');
+  // Optimized Hydration Loading System:
+  // If we have no data at all (not even cached/default), we show a clean loading screen on the CLIENT.
+  // We NEVER show the loading screen during SSR (server-side rendering) to ensure the Page Source is complete.
+  const isServer = typeof window === 'undefined';
+  const hasData = (deals && deals.length > 0) || (categories && categories.length > 0);
 
-  // Global Loading Spinner removed or simplified
-  if (loading && !isBot) {
+  // loading is from AuthContext, deals/hasData is our content
+  if (loading && !isServer && !hasData) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+         <div className="flex flex-col items-center gap-6">
+            <div className="w-20 h-20 bg-white rounded-3xl shadow-xl flex items-center justify-center">
+                <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+            </div>
+            <div className="flex flex-col items-center gap-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Initializing DealSphere</span>
+                <div className="flex gap-1">
+                    <div className="w-1 h-1 rounded-full bg-blue-600 animate-bounce" />
+                    <div className="w-1 h-1 rounded-full bg-blue-600 animate-bounce [animation-delay:-0.15s]" />
+                    <div className="w-1 h-1 rounded-full bg-blue-600 animate-bounce [animation-delay:-0.3s]" />
+                </div>
+            </div>
+         </div>
       </div>
     );
   }
@@ -220,20 +267,15 @@ function AppContent() {
     toggleWishlist,
     clearWishlist,
     showToast,
-    apiBase
+    apiBase,
+    categories,
+    setCategories
   };
 
   return (
     <>
       <ScrollToTop />
-      <React.Suspense fallback={
-        <div className="min-h-screen bg-white flex items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-                <Loader2 className="w-10 h-10 text-blue-600 animate-spin" strokeWidth={3} />
-                <span className="text-xs font-black text-slate-400 uppercase tracking-widest animate-pulse">Orbit Loading...</span>
-            </div>
-        </div>
-      }>
+      <div id="main-app-container" className="min-h-screen">
         <Routes>
           <Route path="/" element={<Home {...sharedProps} deals={filteredDeals} onSearch={setSearchQuery} />} />
           <Route path="/home" element={<Home {...sharedProps} deals={filteredDeals} onSearch={setSearchQuery} />} />
@@ -249,12 +291,10 @@ function AppContent() {
           <Route path="/blog/:slug" element={<BlogPost {...sharedProps} />} />
           <Route path="/stores" element={<Stores {...sharedProps} />} />
           <Route path="/product/:id" element={<ProductDetails {...sharedProps} deals={deals} />} />
-          <Route path="/login" element={<Login {...sharedProps} />} />
-          <Route path="/signup" element={<Signup {...sharedProps} />} />
 
           <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
         </Routes>
-      </React.Suspense>
+      </div>
 
       {/* Global Toast Notification */}
       {toast.show && (
@@ -273,19 +313,16 @@ function AppContent() {
       )}
 
       {/* Dynamic SEO Data Container for Client-Side Routing */}
-      <SeoServerData deals={deals} />
     </>
   );
 }
 
-function App() {
+export function App({ children }) {
   return (
     <AuthProvider>
       <WishlistAnimationProvider>
         <RecentlyViewedProvider>
-          <Router>
-            <AppContent />
-          </Router>
+          {children}
         </RecentlyViewedProvider>
       </WishlistAnimationProvider>
     </AuthProvider>

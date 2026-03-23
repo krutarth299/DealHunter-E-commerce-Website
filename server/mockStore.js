@@ -1,5 +1,6 @@
 // Initial Deals (Hot Deals & Regular)
-const deals = [
+// Initial Deals (Hot Deals & Regular)
+export const deals = [
     {
         _id: 'hot_1',
         title: "realme Buds T310 True Wireless in-Ear Earbuds with 46dB Hybrid ANC, 360° Spatial Audio",
@@ -78,6 +79,4 @@ const deals = [
     }
 ];
 
-const blogComments = [];
-
-module.exports = { deals, blogComments };
+export const blogComments = [];
