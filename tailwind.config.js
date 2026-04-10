@@ -7,8 +7,8 @@ export default {
     theme: {
         extend: {
             colors: {
-                primary: '#1E3A8A', // DealOrbit Blue
-                accent: '#F97316',  // DealOrbit Orange
+                primary: '#1E3A8A', // DealSphere Blue
+                accent: '#F97316',  // DealSphere Orange
                 'brand-blue': '#1E3A8A',
                 'brand-orange': '#F97316',
                 secondary: '#f3f4f6', 

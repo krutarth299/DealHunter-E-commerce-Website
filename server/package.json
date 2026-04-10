@@ -1,12 +1,14 @@
 {
     "name": "project-server",
     "version": "1.0.0",
-    "description": "Backend for DealOrbit",
+    "description": "Backend for DealSphere",
     "type": "module",
     "main": "index.js",
     "scripts": {
         "start": "node index.js",
-        "dev": "nodemon index.js"
+        "dev": "nodemon index.js",
+        "repair:pricing": "node scripts/repair-deal-pricing.js",
+        "repair:pricing:reextract": "node scripts/reextract-invalid-pricing.js"
     },
     "keywords": [],
     "author": "",

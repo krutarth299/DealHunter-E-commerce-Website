@@ -1,52 +1,166 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import DealsGrid from '../components/DealsGrid';
 import Footer from '../components/Footer';
 import Navbar from '../components/Navbar';
-import {
-    Sparkles, TrendingDown, ArrowRight, Zap, ShieldCheck, Store, ChevronRight, Package, Flame, Clock
-} from 'lucide-react';
+import { TrendingDown, ArrowRight, Zap, ShieldCheck, Package, Clock, Star } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Hero from '../components/Hero';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useRecentlyViewed } from '../context/RecentlyViewedContext';
 import SEO from '../components/SEO';
-import { CATEGORY_MAP, FEATURED_CATEGORIES, getCategoryStyle, normalizeCategory } from '../utils/categoryConstants';
+import { FEATURED_CATEGORIES, getCategoryStyle, normalizeCategory } from '../utils/categoryConstants';
+import { selectBalancedDeals } from '../utils/dealCollections';
+import useHasHydrated from '../hooks/useHasHydrated';
+import { getMainProductImage, NO_PRODUCT_IMAGE } from '../utils/imageOptimizer';
+import { formatPriceDisplay, parsePriceNumber } from '../utils/dealUi';
+import { getCardTitle } from '../utils/productTitles';
 
-const DEFAULT_CAT_STYLE = { icon: Package, bg: 'bg-slate-50', icon_color: 'text-slate-500', border: 'border-slate-200' };
+const getDealKey = (deal = {}) => String(deal._id || deal.id || deal.productUrl || deal.link || deal.title || '');
 
-const STORES = [
-    { name: 'Amazon', logo: 'https://www.google.com/s2/favicons?domain=amazon.in&sz=128', id: 'amazon' },
-    { name: 'Flipkart', logo: 'https://www.google.com/s2/favicons?domain=flipkart.com&sz=128', id: 'flipkart' },
-    { name: 'Myntra', logo: 'https://www.google.com/s2/favicons?domain=myntra.com&sz=128', id: 'myntra' },
-    { name: 'Meesho', logo: 'https://www.google.com/s2/favicons?domain=meesho.com&sz=128', id: 'meesho' },
-    { name: 'Croma', logo: 'https://www.google.com/s2/favicons?domain=croma.com&sz=128', id: 'croma' },
-    { name: 'Nykaa', logo: 'https://www.google.com/s2/favicons?domain=nykaa.com&sz=128', id: 'nykaa' },
-];
+const getPrimaryPrice = (deal = {}) => (
+    parsePriceNumber(deal.pricing?.dealPrice || deal.pricing?.currentPrice || deal.dealPrice || deal.currentPrice || deal.price)
+);
 
-const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlist, apiBase, categories: globalCategories }) => {
+const getOriginalPrice = (deal = {}) => {
+    const candidates = [
+        deal.pricing?.mrp,
+        deal.pricing?.originalPrice,
+        deal.mrp,
+        deal.originalPrice
+    ].map(parsePriceNumber).filter((value) => value && value > 0);
+    return candidates.sort((a, b) => b - a)[0] || null;
+};
+
+const getDiscountPercent = (deal = {}) => {
+    const price = getPrimaryPrice(deal);
+    const mrp = getOriginalPrice(deal);
+    if (price && mrp && mrp > price) return Math.round(((mrp - price) / mrp) * 100);
+    return Math.max(0, Math.round(Number(deal.discount || deal.discountPercent || deal.pricing?.discount || 0)));
+};
+
+const getFeaturedDeals = (deals = []) => (
+    [...deals]
+        .filter((deal) => deal && (deal.title || deal.displayTitle) && getPrimaryPrice(deal))
+        .sort((a, b) => {
+            const scoreA = (a.featured ? 25 : 0) + getDiscountPercent(a);
+            const scoreB = (b.featured ? 25 : 0) + getDiscountPercent(b);
+            return scoreB - scoreA;
+        })
+        .slice(0, 3)
+);
+
+const FeaturedDealCard = ({ deal, index }) => {
+    const price = getPrimaryPrice(deal);
+    const mrp = getOriginalPrice(deal);
+    const discount = getDiscountPercent(deal);
+    const title = getCardTitle(deal.displayTitle || deal.title);
+    const storeName = deal.store || deal.storeName || 'Online Store';
+    const productPath = `/product/${deal.id || deal._id}`;
+    const rating = parsePriceNumber(deal.rating || deal.averageRating || deal.productRating);
+    const ctaClassName = "inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-rose-500 px-5 py-3 text-[11px] font-black uppercase tracking-widest text-white shadow-[0_16px_34px_-18px_rgba(249,115,22,1)] transition-all hover:-translate-y-1 hover:from-slate-950 hover:to-blue-950 hover:shadow-[0_18px_38px_-18px_rgba(2,6,23,1)] active:scale-[0.97]";
+
+    return (
+        <motion.article
+            initial={{ opacity: 0, y: 18 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-80px' }}
+            transition={{ delay: index * 0.08, duration: 0.45 }}
+            className="group relative flex h-full min-h-[34rem] flex-col overflow-hidden rounded-[2.2rem] border border-slate-200 bg-white p-4 shadow-[0_20px_60px_-45px_rgba(15,23,42,0.9)] transition-all hover:-translate-y-1 hover:border-orange-200 hover:shadow-[0_32px_75px_-45px_rgba(15,23,42,0.95)]"
+        >
+            <Link to={productPath} className="flex flex-1 flex-col">
+                <div className="relative mb-5 flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[1.8rem] bg-slate-50 p-6">
+                    <img
+                        src={getMainProductImage(deal)}
+                        alt={deal.title || title}
+                        className="h-full w-full object-contain drop-shadow-lg transition-transform duration-700 group-hover:scale-105"
+                        loading="lazy"
+                        onError={(event) => {
+                            event.target.onerror = null;
+                            event.target.src = NO_PRODUCT_IMAGE;
+                        }}
+                    />
+                    <div className="absolute left-4 top-4 rounded-2xl bg-slate-950/90 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-white backdrop-blur">
+                        Featured
+                    </div>
+                    {discount > 0 && (
+                        <div className="absolute right-4 top-4 rounded-2xl bg-orange-500 px-3 py-2 text-[10px] font-black text-white shadow-lg">
+                            {discount}% OFF
+                        </div>
+                    )}
+                </div>
+
+                <div className="mb-4 flex items-center justify-between gap-3">
+                    <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-blue-700">
+                        {storeName}
+                    </span>
+                    {rating > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-black text-orange-600">
+                            <Star size={12} fill="currentColor" />
+                            {rating.toFixed(1).replace(/\.0$/, '')}
+                        </span>
+                    )}
+                </div>
+
+                <h3 className="mb-5 line-clamp-2 min-h-[3rem] overflow-hidden text-base font-black leading-snug tracking-tight text-slate-950 transition-colors group-hover:text-blue-700 md:min-h-[3.2rem] md:text-lg">
+                    {title}
+                </h3>
+
+                <div className="mt-auto mb-5 flex min-h-[3.65rem] flex-wrap items-end gap-2">
+                    <span className="text-3xl font-black leading-none tracking-tighter text-slate-950">
+                        {price ? formatPriceDisplay(price) : 'Live price'}
+                    </span>
+                    {mrp && mrp > price && (
+                        <span className="pb-1 text-sm font-bold text-slate-400 line-through">
+                            {formatPriceDisplay(mrp)}
+                        </span>
+                    )}
+                </div>
+            </Link>
+
+            <Link to={productPath} className={ctaClassName}>
+                Grab Deal
+                <ArrowRight size={14} strokeWidth={3} />
+            </Link>
+        </motion.article>
+    );
+};
+
+const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlist, apiBase, categories: globalCategories, dealsLoading = false, dealsError = '' }) => {
     const navigate = useNavigate();
-    const { recentlyViewed } = useRecentlyViewed();
+    const { recentlyViewed, clearRecentlyViewed } = useRecentlyViewed();
+    const hasHydrated = useHasHydrated();
 
     const categories = React.useMemo(() => {
         const normalizedGlobal = (globalCategories || []).map(c => normalizeCategory(c)).filter(Boolean);
         return [...new Set([...FEATURED_CATEGORIES, ...normalizedGlobal])];
     }, [globalCategories]);
+    const homepageDeals = React.useMemo(() => selectBalancedDeals(deals, { limit: 12 }), [deals]);
+    const featuredHomepageDeals = React.useMemo(() => getFeaturedDeals(homepageDeals), [homepageDeals]);
+    const featuredDealKeys = React.useMemo(() => new Set(featuredHomepageDeals.map(getDealKey)), [featuredHomepageDeals]);
+    const mainGridDeals = React.useMemo(() => {
+        if (homepageDeals.length < 9 || featuredDealKeys.size === 0) return homepageDeals;
+        return homepageDeals.filter((deal) => !featuredDealKeys.has(getDealKey(deal)));
+    }, [featuredDealKeys, homepageDeals]);
 
     return (
         <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900 overflow-x-hidden">
-            <SEO title="DealSphere — Smart Deals Around the World" description="Discover the best deals, discounts and coupons verified in real-time." />
+            <SEO
+                title="Verified Online Deals, Coupons & Price Drops"
+                description="Shop verified online deals, live discounts, coupons and price drops from Amazon, Flipkart, Myntra and other trusted stores."
+                itemList={homepageDeals}
+            />
             <Navbar user={user} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />
 
-            <main className="flex-grow pb-24 md:pb-0">
+            <main className="flex-grow pb-48 md:pb-0">
                 <Hero deals={deals} />
 
                 {/* ─── Shop by Category ─── */}
-                <section className="py-12 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+                <section className="py-14 md:py-16 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between mb-9 gap-5">
                         <div className="space-y-2 text-center md:text-left">
                             <span className="text-orange-500 text-[10px] font-black uppercase tracking-[0.2em] bg-orange-50 px-3 py-1 rounded-full border border-orange-100 mb-2 inline-block">Curated Collections</span>
-                            <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-none">Shop by Category</h2>
-                            <p className="text-slate-400 text-sm font-medium">Explore hand-picked deals across all your favorite categories.</p>
+                            <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-none">Shop by Category</h2>
+                            <p className="text-slate-500 text-sm md:text-base font-semibold max-w-xl">Jump straight into live, store-verified deals by the product type you need.</p>
                         </div>
                         <motion.button 
                             whileHover={{ x: 5 }}
@@ -64,25 +178,25 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                             return (
                                 <motion.button
                                     key={catName}
-                                    initial={{ opacity: 0, y: 20 }}
+                                    initial={hasHydrated ? { opacity: 0, y: 20 } : false}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: i * 0.05, duration: 0.5, ease: "easeOut" }}
-                                    whileHover={{ y: -12, scale: 1.02 }}
+                                    whileHover={{ y: -8, scale: 1.02 }}
                                     whileTap={{ scale: 0.95 }}
                                     onClick={() => navigate('/deals?category=' + encodeURIComponent(catName))}
                                     className="relative flex flex-col items-center group cursor-pointer"
                                 >
-                                    <div className={`relative w-full aspect-square rounded-2xl ${style.bg} border border-slate-100 flex flex-col items-center justify-center transition-all duration-500 group-hover:shadow-[0_15px_30px_-10px_rgba(0,0,0,0.1)] group-hover:border-transparent overflow-hidden shadow-sm`}>
+                                    <div className={`relative w-full aspect-square rounded-[1.35rem] ${style.bg} border border-slate-200/70 flex flex-col items-center justify-center transition-all duration-500 group-hover:shadow-[0_18px_36px_-20px_rgba(15,23,42,0.6)] group-hover:border-blue-200 overflow-hidden shadow-sm md:rounded-[1.65rem]`}>
                                         <div className={`absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
-                                        <div className={`relative z-10 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-white shadow-md shadow-slate-200/40 flex items-center justify-center transform group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 ease-out`}>
-                                            <Icon size={18} className={style.icon_color} strokeWidth={2.5} />
+                                        <div className={`relative z-10 w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-white shadow-md shadow-slate-200/50 flex items-center justify-center transform group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 ease-out`}>
+                                            <Icon size={24} className={style.icon_color} strokeWidth={2.4} />
                                         </div>
                                         <div className="absolute top-4 right-4 flex gap-1 group-hover:translate-x-1 transition-transform">
                                             <div className={`w-1 h-1 rounded-full ${style.icon_color} opacity-20`} />
                                             <div className={`w-1 h-1 rounded-full ${style.icon_color} opacity-10`} />
                                         </div>
                                     </div>
-                                    <span className="mt-2 text-[9px] sm:text-[10px] font-black text-slate-900 border-b-2 border-transparent group-hover:border-orange-500 group-hover:text-orange-600 transition-all uppercase tracking-widest px-1 text-center leading-tight">
+                                    <span className="mt-3 text-[9px] sm:text-[10px] font-black text-slate-900 border-b-2 border-transparent group-hover:border-orange-500 group-hover:text-orange-600 transition-all uppercase tracking-widest px-1 text-center leading-tight">
                                         {catName.split(' & ').map((part, idx) => (
                                             <React.Fragment key={part + idx}>
                                                 {part}
@@ -97,98 +211,112 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                 </section>
 
                 {/* ─── Featured Grid ─── */}
-                <section id="deals-grid" className="py-12 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between mb-8">
+                {featuredHomepageDeals.length >= 2 && (
+                    <section className="py-12 bg-white border-y border-slate-100">
+                        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                                <div>
+                                    <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-orange-600 ring-1 ring-orange-100">
+                                        <Zap size={12} fill="currentColor" />
+                                        Editor Picks
+                                    </span>
+                                    <h2 className="text-3xl font-black leading-none tracking-tight text-slate-950 md:text-5xl">
+                                        Featured Deals
+                                    </h2>
+                                    <p className="mt-3 max-w-2xl text-sm font-semibold leading-relaxed text-slate-500 md:text-base">
+                                        High-discount, store-linked deals picked from the same live product feed shown across DealSphere.
+                                    </p>
+                                </div>
+                                <Link
+                                    to="/deals"
+                                    className="inline-flex w-fit items-center gap-2 rounded-2xl border border-slate-200 bg-slate-950 px-5 py-3 text-[11px] font-black uppercase tracking-widest text-white transition-all hover:-translate-y-1 hover:bg-orange-500 hover:shadow-xl hover:shadow-orange-500/20"
+                                >
+                                    Explore More
+                                    <ArrowRight size={14} strokeWidth={3} />
+                                </Link>
+                            </div>
+
+                            <div className="grid gap-5 md:grid-cols-3">
+                                {featuredHomepageDeals.map((deal, index) => (
+                                    <FeaturedDealCard key={getDealKey(deal) || index} deal={deal} index={index} />
+                                ))}
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                <section id="deals-grid" className="py-14 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between mb-9">
                         <div className="flex items-center gap-4">
                             <div className="w-1.5 h-10 rounded-full bg-blue-500" />
                             <div>
                                 <p className="text-blue-500 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Explore</p>
-                                <h2 className="text-3xl font-black text-slate-900 tracking-tight leading-none">All Live Deals</h2>
+                                <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-none">Live Deals Worth Clicking</h2>
+                                <p className="mt-3 max-w-2xl text-sm md:text-base font-semibold text-slate-500">
+                                    Compare store, price, MRP and discount before jumping to the source product page.
+                                </p>
                             </div>
                         </div>
+                        {homepageDeals.length > 0 && (
+                            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-500 shadow-sm">
+                                {homepageDeals.length} featured now
+                            </div>
+                        )}
                     </div>
-                    <DealsGrid deals={deals.slice(0, 12)} wishlist={wishlist} toggleWishlist={toggleWishlist} />
+                    {dealsError && (
+                        <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm font-semibold text-rose-700">
+                            {dealsError}
+                        </div>
+                    )}
+                    {dealsLoading ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
+                            {Array.from({ length: 10 }).map((_, index) => (
+                                <div key={index} className="h-[360px] rounded-[2.2rem] border border-slate-100 bg-white p-5 animate-pulse">
+                                    <div className="h-44 rounded-2xl bg-slate-100 mb-5" />
+                                    <div className="h-4 rounded bg-slate-100 mb-3" />
+                                    <div className="h-4 rounded bg-slate-100 w-4/5 mb-6" />
+                                    <div className="h-6 rounded bg-slate-100 w-2/5 mb-2" />
+                                    <div className="h-12 rounded-2xl bg-slate-100 mt-8" />
+                                </div>
+                            ))}
+                        </div>
+                    ) : mainGridDeals.length > 0 ? (
+                        <DealsGrid deals={mainGridDeals} wishlist={wishlist} toggleWishlist={toggleWishlist} />
+                    ) : (
+                        <div className="rounded-[2.5rem] border border-dashed border-slate-200 bg-white px-8 py-20 text-center">
+                            <Package size={28} className="mx-auto mb-4 text-slate-300" />
+                            <h3 className="text-2xl font-black text-slate-900">No live deals available right now</h3>
+                            <p className="text-slate-500 font-medium mt-3">We couldn’t find any active deals to show on the homepage yet.</p>
+                        </div>
+                    )}
                 </section>
 
                 {/* ─── Recently Viewed ─── */}
                 {recentlyViewed && recentlyViewed.length > 0 && (
-                    <section className="py-12 bg-white border-y border-slate-100 overflow-hidden">
+                    <section className="py-14 md:py-16 bg-white border-y border-slate-100 overflow-hidden">
                         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-                            <div className="flex items-center justify-between mb-8">
+                            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between mb-9">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
-                                        <Clock size={24} />
+                                    <div className="w-14 h-14 rounded-[1.35rem] bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
+                                        <Clock size={26} />
                                     </div>
                                     <div>
                                         <p className="text-indigo-600 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Your Activity</p>
-                                        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Recently Viewed</h2>
+                                        <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Recently Viewed Products</h2>
+                                        <p className="mt-2 text-sm font-semibold text-slate-500">Pick up where you left off. Your viewed deals stay only in this browser.</p>
                                     </div>
                                 </div>
-                                <div className="h-px flex-1 bg-slate-100 mx-8 hidden md:block" />
+                                <button
+                                    onClick={clearRecentlyViewed}
+                                    className="w-fit rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 transition-all hover:border-slate-300 hover:bg-slate-900 hover:text-white"
+                                >
+                                    Clear history
+                                </button>
                             </div>
                             <DealsGrid deals={recentlyViewed.slice(0, 5)} wishlist={wishlist} toggleWishlist={toggleWishlist} />
                         </div>
                     </section>
                 )}
-
-                {/* ─── Partner Stores Banner ─── */}
-                <section className="py-12 px-4 sm:px-6 lg:px-8">
-                    <div className="max-w-[1600px] mx-auto bg-slate-900 rounded-[3rem] md:rounded-[4rem] overflow-hidden relative shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)]">
-                        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-orange-500/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
-                        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/10 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/3" />
-                        <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(circle, white 0.4px, transparent 0.4px)', backgroundSize: '32px 32px' }} />
-
-                        <div className="relative z-10 flex flex-col lg:flex-row items-center gap-12 md:gap-16 p-8 md:p-20 lg:p-24">
-                            <div className="flex-[1.2] text-white text-center lg:text-left space-y-6 md:space-y-10">
-                                <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl px-5 py-2.5 text-[10px] font-black text-white/60 uppercase tracking-[0.2em]">
-                                    <Store size={14} className="text-orange-400" /> Partner Ecosystem
-                                </div>
-                                <h2 className="text-3xl md:text-5xl lg:text-7xl font-black tracking-tighter leading-[1.1] lg:leading-[0.95]">
-                                    Shop From The <br />
-                                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-200">World's Best.</span>
-                                </h2>
-                                <p className="text-white/40 text-base md:text-lg lg:text-xl font-medium max-w-lg mx-auto lg:mx-0 leading-relaxed">
-                                    We aggregate live prices and exclusive discount codes from India's most trusted marketplaces in real-time.
-                                </p>
-                                <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-6">
-                                    <button onClick={() => navigate('/stores')} className="h-14 md:h-16 px-8 md:px-10 rounded-2xl bg-orange-500 text-white font-black text-xs md:text-sm uppercase tracking-widest hover:bg-orange-400 transition-all shadow-2xl shadow-orange-500/20 active:scale-95 group flex items-center gap-3">
-                                        View All Stores <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-                                    </button>
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex -space-x-3">
-                                            {[1, 2, 3, 4].map(i => (
-                                                <div key={i} className="w-8 h-8 md:w-10 md:h-10 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center overflow-hidden">
-                                                    <img src={`https://i.pravatar.cc/100?img=${i + 10}`} alt="" />
-                                                </div>
-                                            ))}
-                                            <div className="w-8 h-8 md:w-10 md:h-10 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center text-[9px] md:text-[10px] font-black text-white">
-                                                +2k
-                                            </div>
-                                        </div>
-                                        <span className="text-white/30 text-[10px] md:text-xs font-bold italic underline underline-offset-4 decoration-white/10">Active shoppers</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex-1 grid grid-cols-3 gap-4 md:gap-6 w-full max-w-md mx-auto">
-                                {STORES.map((s) => (
-                                    <motion.div
-                                        key={s.id}
-                                        whileHover={{ y: -10, scale: 1.05 }}
-                                        className="aspect-square bg-white/5 backdrop-blur-md border border-white/10 rounded-full flex flex-col items-center justify-center gap-2 md:gap-4 p-4 md:p-6 cursor-pointer hover:bg-white/10 transition-all group relative overflow-hidden shadow-xl"
-                                        onClick={() => navigate('/deals?category=' + s.id)}
-                                    >
-                                        <div className="absolute inset-0 bg-orange-500/0 group-hover:bg-orange-500/5 transition-colors" />
-                                        <div className="w-10 h-10 md:w-16 md:h-16 rounded-full bg-white flex items-center justify-center p-2.5 md:p-3 shadow-2xl group-hover:rotate-6 transition-transform relative z-10">
-                                            <img src={s.logo} alt={s.name} loading="lazy" className="w-full h-full object-contain" />
-                                        </div>
-                                        <span className="text-white/40 text-[7px] md:text-[10px] font-black uppercase tracking-widest group-hover:text-white transition-colors relative z-10">{s.name}</span>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </section>
 
                 {/* ─── Why DealSphere ─── */}
                 <section className="py-24 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-100 mt-6">

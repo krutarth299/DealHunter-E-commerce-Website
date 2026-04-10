@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Helmet } from 'react-helmet-async';
 import {
     LayoutDashboard, Package, PlusCircle, Search, Trash2,
     TrendingUp, LogOut, Shield, ExternalLink, Edit3, Image as ImageIcon,
     Zap, DollarSign, Flame, Menu, X, CheckCircle, AlertCircle, Pencil, Activity,
     TrendingDown, Sparkles, Smartphone, Shirt, Gamepad2, Plane, Utensils, ShoppingBag, Layers,
-    ChevronLeft, ChevronRight, Home as HomeIcon, ShoppingCart
+    ChevronLeft, ChevronRight, Home as HomeIcon, ShoppingCart, BadgePercent
 } from 'lucide-react';
 import { useNavigate, Link, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { optimizeImageUrl } from '../utils/imageOptimizer';
+import { buildAffiliateUrl, sanitizeOriginalUrl } from '../utils/affiliateLinks';
+import { normalizeDealForUi, normalizeDealsForUi } from '../utils/dealUi';
+import { SITE_NAME } from '../config/brand';
+import AdminCouponManager from '../components/admin/AdminCouponManager';
 
 const CATEGORY_MAP = {
     'Electronics': Smartphone,
@@ -24,6 +29,57 @@ const CATEGORY_MAP = {
     'Multi-category': Layers
 };
 const DEFAULT_CAT_ICON = Layers;
+const DEFAULT_DEAL_FORM = {
+    title: '',
+    store: '',
+    price: '',
+    originalPrice: '',
+    discount: '',
+    image: '',
+    images: [],
+    videos: [],
+    link: '',
+    affiliateOverrideLink: '',
+    affiliateLink: '',
+    category: '',
+    description: '',
+    extractionWarning: '',
+    featured: false,
+    isExpired: false
+};
+
+const DEFAULT_COUPON_FORM = {
+    title: '',
+    description: '',
+    code: '',
+    offerType: 'coupon',
+    store: '',
+    category: 'Multi-category',
+    affiliateUrl: '',
+    landingUrl: '',
+    cashbackValue: '',
+    discountValue: '',
+    expiryDate: '',
+    isVerified: true,
+    verifiedAt: '',
+    isFeatured: false,
+    isTrending: false,
+    status: 'active',
+    terms: '',
+    successRate: '',
+    usageCount: ''
+};
+
+const COUPON_OFFER_TYPES = [
+    { value: 'coupon', label: 'Coupon Code' },
+    { value: 'deal', label: 'Instant Deal' },
+    { value: 'cashback', label: 'Cashback' },
+    { value: 'bank', label: 'Bank Offer' },
+    { value: 'app', label: 'App Only' },
+    { value: 'new-user', label: 'New User' },
+    { value: 'wallet', label: 'Wallet / UPI' },
+    { value: 'sale', label: 'Sale Offer' }
+];
 
 /* ───────────────────────────────── helpers ── */
 const token = () => 'anonymous'; // Auth system removed
@@ -72,52 +128,316 @@ const sanitizeUrl = (u = '') => {
 
 const isLikelyHttpUrl = (u = '') => /^https?:\/\//i.test(sanitizeUrl(u));
 
+const getAffiliateStoreSlug = (store = '') =>
+    String(store || 'store')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'store';
+
+const createPendingAffiliateSetting = (store = '') => ({
+    store: String(store || '').trim(),
+    storeSlug: getAffiliateStoreSlug(store),
+    enabled: false,
+    paramKey: '',
+    paramValue: '',
+    urlPattern: '',
+    notes: '',
+    discoveredFromDeals: true,
+    pendingSetup: true
+});
+
+const normalizeAffiliateSetting = (setting = {}) => {
+    const store = String(setting.store || setting.storeName || '').trim();
+    const paramKey = String(setting.paramKey || setting.parameterKey || '').trim();
+    const paramValue = String(setting.paramValue || setting.parameterValue || '').trim();
+
+    return {
+        ...createPendingAffiliateSetting(store),
+        ...setting,
+        store,
+        storeSlug: String(setting.storeSlug || getAffiliateStoreSlug(store)).trim().toLowerCase(),
+        enabled: Boolean(setting.enabled),
+        paramKey,
+        paramValue,
+        urlPattern: String(setting.urlPattern || '').trim(),
+        notes: String(setting.notes || '').trim(),
+        pendingSetup: !setting.enabled || !paramKey || !paramValue
+    };
+};
+
+const mergeAffiliateSettings = (settings = [], storeNames = []) => {
+    const bySlug = new Map();
+
+    storeNames
+        .map((store) => String(store || '').trim())
+        .filter(Boolean)
+        .forEach((store) => {
+            const pending = createPendingAffiliateSetting(store);
+            bySlug.set(pending.storeSlug, pending);
+        });
+
+    (Array.isArray(settings) ? settings : [])
+        .map(normalizeAffiliateSetting)
+        .filter((setting) => setting.store)
+        .forEach((setting) => bySlug.set(setting.storeSlug, {
+            ...(bySlug.get(setting.storeSlug) || {}),
+            ...setting
+        }));
+
+    return [...bySlug.values()].sort((a, b) => a.store.localeCompare(b.store));
+};
+
+const normalizeCouponForAdmin = (coupon = {}) => ({
+    ...DEFAULT_COUPON_FORM,
+    ...coupon,
+    _id: coupon._id || coupon.id,
+    id: coupon.id || coupon._id,
+    store: String(coupon.store || '').trim(),
+    code: String(coupon.code || '').trim().toUpperCase(),
+    expiryDate: coupon.expiryDate ? String(coupon.expiryDate).slice(0, 10) : '',
+    verifiedAt: coupon.verifiedAt ? String(coupon.verifiedAt).slice(0, 16) : '',
+    successRate: coupon.successRate ? String(coupon.successRate) : '',
+    usageCount: coupon.usageCount ? String(coupon.usageCount) : '',
+    autoFetched: Boolean(coupon.autoFetched),
+    sourceType: coupon.sourceType || 'manual',
+    sourceUrl: coupon.sourceUrl || '',
+    fetchedAt: coupon.fetchedAt || '',
+    lastSeenAt: coupon.lastSeenAt || '',
+    lastFetchStatus: coupon.lastFetchStatus || '',
+    lastFetchError: coupon.lastFetchError || '',
+    scanBatchId: coupon.scanBatchId || '',
+    reviewStatus: coupon.reviewStatus || 'approved'
+});
+
+const fetchJson = async (url, options = {}) => {
+    const response = await fetch(url, options);
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(data?.message || `Request failed (${response.status})`);
+    }
+
+    return data;
+};
+
+const formatMoney = (value) => {
+    const normalized = normalizeNumberLike(value);
+    if (!normalized) return '—';
+    return `₹${Number(normalized).toLocaleString('en-IN')}`;
+};
+
+const formatDealDate = (value) => {
+    if (!value) return '—';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '—';
+    return parsed.toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+    });
+};
+
+const getDealDisplayPrice = (deal) => formatMoney(deal?.dealPrice || deal?.price);
+const getDealDisplayMrp = (deal) => {
+    const mrp = Number(normalizeNumberLike(deal?.mrp || deal?.originalPrice) || 0);
+    if (!mrp) return '—';
+    return formatMoney(mrp);
+};
+const getDealDisplayDiscount = (deal) => {
+    const discount = Number(normalizeNumberLike(deal?.discountPercent || deal?.discount) || 0);
+    return discount > 0 ? `${discount}% OFF` : '0% OFF';
+};
+
+const getDealId = (deal) => String(deal?._id || deal?.id || '');
+
+const getNumericDealPrice = (deal) =>
+    Number(normalizeNumberLike(deal?.dealPrice || deal?.price) || 0);
+
+const getNumericMrp = (deal) =>
+    Number(normalizeNumberLike(deal?.mrp || deal?.originalPrice) || 0);
+
+const getNumericDiscount = (deal) =>
+    Number(normalizeNumberLike(deal?.discountPercent || deal?.discount) || 0);
+
+const getDealViews = (deal) =>
+    Number(deal?.views || deal?.clicks || deal?.viewCount || 0) || 0;
+
+const getDealTimestamp = (deal) => {
+    const time = new Date(deal?.createdAt || deal?.updatedAt || 0).getTime();
+    return Number.isFinite(time) ? time : 0;
+};
+
+const normalizeComparableTitle = (value = '') =>
+    String(value)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\b(?:with|for|and|the|combo|offer|sale|new)\b/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+const normalizeComparableUrl = (value = '') => {
+    try {
+        const url = new URL(sanitizeUrl(value));
+        [
+            'tag', 'ascsubtag', 'affid', 'affExtParam', 'utm_source', 'utm_medium',
+            'utm_campaign', 'utm_term', 'utm_content', 'ref', 'ref_', 'pf_rd_p',
+            'pf_rd_r'
+        ].forEach((param) => url.searchParams.delete(param));
+        url.hash = '';
+        return `${url.origin}${url.pathname}`.replace(/\/$/, '').toLowerCase();
+    } catch {
+        return String(value || '').split('?')[0].replace(/\/$/, '').toLowerCase();
+    }
+};
+
+const getDealDuplicateKey = (deal) => {
+    const urlKey = normalizeComparableUrl(deal?.canonicalProductUrl || deal?.productUrl || deal?.link || '');
+    if (urlKey) return `url:${urlKey}`;
+
+    const titleKey = normalizeComparableTitle(deal?.normalizedTitle || deal?.title || '');
+    const storeKey = String(deal?.storeName || deal?.store || '').toLowerCase().trim();
+    return titleKey && storeKey ? `title:${storeKey}:${titleKey}` : getDealId(deal);
+};
+
+const findDuplicateGroups = (deals = []) => {
+    const groups = new Map();
+    deals.forEach((deal) => {
+        const key = getDealDuplicateKey(deal);
+        if (!key) return;
+        const group = groups.get(key) || [];
+        group.push(deal);
+        groups.set(key, group);
+    });
+    return [...groups.values()].filter((group) => group.length > 1);
+};
+
+const buildAdminInsights = (deals = [], stores = []) => {
+    const activeDeals = deals.filter((deal) => !deal.isExpired);
+    const discountValues = activeDeals.map(getNumericDiscount).filter((discount) => discount > 0);
+    const avgDiscount = discountValues.length
+        ? Math.round(discountValues.reduce((sum, discount) => sum + discount, 0) / discountValues.length)
+        : 0;
+
+    const topStore = [...stores]
+        .sort((a, b) => Number(b.count || b.dealsCount || 0) - Number(a.count || a.dealsCount || 0))[0];
+    const topClickedDeals = [...activeDeals]
+        .sort((a, b) => getDealViews(b) - getDealViews(a) || getDealTimestamp(b) - getDealTimestamp(a))
+        .slice(0, 5);
+    const topDiscountDeals = [...activeDeals]
+        .sort((a, b) => getNumericDiscount(b) - getNumericDiscount(a) || getDealTimestamp(b) - getDealTimestamp(a))
+        .slice(0, 5);
+    const incompleteDeals = activeDeals.filter((deal) =>
+        !deal.title || !deal.image || !getNumericDealPrice(deal) || !deal.store || !deal.category
+    );
+    const duplicateGroups = findDuplicateGroups(deals);
+
+    return {
+        avgDiscount,
+        topStore,
+        topClickedDeals,
+        topDiscountDeals,
+        incompleteDeals,
+        duplicateGroups,
+        duplicateCount: duplicateGroups.reduce((sum, group) => sum + Math.max(0, group.length - 1), 0)
+    };
+};
+
+const loadAdminSnapshot = async ({ adminApiBase }) => {
+    const headers = { 'auth-token': token() };
+    const [dealsData, statsData, categoriesData, storesData] = await Promise.all([
+        fetchJson(`${adminApiBase}/admin/deals`, { headers }),
+        fetchJson(`${adminApiBase}/admin/deals/stats`, { headers }),
+        fetchJson(`${adminApiBase}/admin/deals/categories`, { headers }),
+        fetchJson(`${adminApiBase}/stores`, { headers })
+    ]);
+
+    return {
+        deals: normalizeDealsForUi(dealsData),
+        stats: statsData,
+        categories: Array.isArray(categoriesData) ? categoriesData.filter(Boolean) : [],
+        stores: Array.isArray(storesData) ? storesData : []
+    };
+};
+
 /* ───────────────────────────────── components ── */
 
-const PriceHistoryChart = () => (
-    <div className="bg-white rounded-2xl border border-slate-100 p-6">
-        <div className="flex items-center justify-between mb-4">
-            <h4 className="font-black text-slate-800 text-sm flex items-center gap-2">
-                <TrendingDown size={16} className="text-green-500" /> Price History (30 Days)
-            </h4>
-            <span className="text-[10px] font-black bg-green-100 text-green-700 px-2 py-0.5 rounded-full uppercase tracking-wider">Lowest Now</span>
-        </div>
-        <div className="h-20 w-full relative group">
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
-                <defs>
-                    <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.2"></stop>
-                        <stop offset="100%" stopColor="#10b981" stopOpacity="0"></stop>
-                    </linearGradient>
-                </defs>
-                <path d="M 0 100 L 0,80 10,75 20,85 30,60 40,65 50,40 60,45 70,30 80,35 90,20 100,25 L 100 100 Z" fill="url(#chartGradient)"></path>
-                <polyline fill="none" stroke="#10b981" strokeWidth="2" points="0,80 10,75 20,85 30,60 40,65 50,40 60,45 70,30 80,35 90,20 100,25" vectorEffect="non-scaling-stroke"></polyline>
-            </svg>
-        </div>
-        <div className="flex justify-between mt-3 text-[9px] font-black text-slate-400">
-            <span>30 DAYS AGO</span>
-            <span>TODAY</span>
-        </div>
-    </div>
-);
-
-const PriceComparison = ({ price }) => {
-    const p = Number(price) || 0;
-    const comps = [
-        { name: 'Myntra', price: p ? `₹${(p * 0.95).toFixed(0)}` : '17995', status: 'LOWEST', color: 'orange' },
-        { name: 'Flipkart', price: p ? `₹${(p * 1.12).toFixed(0)}` : '₹69,999', status: 'Higher', color: 'slate' },
-        { name: 'Amazon', price: p ? `₹${(p * 1.08).toFixed(0)}` : '₹68,490', status: 'Higher', color: 'slate' },
+const DealAutomationChecklist = ({ form }) => {
+    const price = Number(normalizeNumberLike(form.price) || 0);
+    const mrp = Number(normalizeNumberLike(form.originalPrice) || 0);
+    const imageCount = [form.image, ...(Array.isArray(form.images) ? form.images : [])].filter(Boolean).length;
+    const finalUrl = sanitizeUrl(form.affiliateOverrideLink || form.affiliateLink || form.link);
+    const checks = [
+        { label: 'Original product URL is valid', ok: isLikelyHttpUrl(form.link) },
+        { label: 'Final outbound / affiliate URL is ready', ok: isLikelyHttpUrl(finalUrl) },
+        { label: 'Title, store and category are mapped', ok: Boolean(form.title && form.store && form.category) },
+        { label: 'Deal price is greater than zero', ok: price > 0 },
+        { label: 'MRP is blank or not lower than deal price', ok: !mrp || mrp >= price },
+        { label: `${imageCount || 'No'} product image${imageCount === 1 ? '' : 's'} selected`, ok: imageCount > 0 }
     ];
 
     return (
         <div className="bg-white rounded-2xl border border-slate-100 p-6">
-            <h4 className="font-black text-slate-800 text-sm mb-4">Compare Prices</h4>
+            <h4 className="font-black text-slate-800 text-sm mb-4 flex items-center gap-2">
+                <Shield size={16} className="text-emerald-500" /> Publish Readiness
+            </h4>
             <div className="space-y-3">
-                {comps.map((c, i) => (
-                    <div key={i} className={`flex items-center justify-between p-2.5 rounded-xl border ${c.status === 'LOWEST' ? 'bg-orange-50 border-orange-100' : 'px-2.5 py-1 border-transparent'}`}>
-                        <span className={`text-xs font-black uppercase tracking-wider ${c.status === 'LOWEST' ? 'text-orange-700' : 'text-slate-500'}`}>{c.name}</span>
-                        <span className={`text-sm font-black ${c.status === 'LOWEST' ? 'text-orange-600' : 'text-slate-400'}`}>{c.price}</span>
-                        <span className={`text-[10px] font-black uppercase tracking-wider ${c.status === 'LOWEST' ? 'text-orange-500' : 'text-slate-300'}`}>{c.status}</span>
+                {checks.map((check) => (
+                    <div key={check.label} className="flex items-start gap-3">
+                        <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${check.ok ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                            {check.ok ? <CheckCircle size={12} /> : <AlertCircle size={12} />}
+                        </span>
+                        <span className={`text-xs font-bold leading-relaxed ${check.ok ? 'text-slate-700' : 'text-amber-700'}`}>
+                            {check.label}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const DuplicateCandidatesPanel = ({ candidates = [], onEdit }) => {
+    if (!candidates.length) {
+        return (
+            <div className="bg-emerald-50 rounded-2xl border border-emerald-100 p-5">
+                <div className="flex items-center gap-3">
+                    <CheckCircle size={18} className="text-emerald-600" />
+                    <div>
+                        <h4 className="text-sm font-black text-emerald-900">No obvious duplicate found</h4>
+                        <p className="text-xs font-semibold text-emerald-700 mt-1">The admin UI did not find a matching URL/title in the loaded deals.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="bg-amber-50 rounded-2xl border border-amber-200 p-5">
+            <div className="flex items-start gap-3 mb-4">
+                <AlertCircle size={18} className="text-amber-700 mt-0.5" />
+                <div>
+                    <h4 className="text-sm font-black text-amber-900">Possible duplicate</h4>
+                    <p className="text-xs font-semibold text-amber-700 mt-1">Review existing products before publishing a second card.</p>
+                </div>
+            </div>
+            <div className="space-y-3">
+                {candidates.slice(0, 3).map((deal) => (
+                    <div key={getDealId(deal)} className="flex items-center gap-3 rounded-2xl bg-white/80 p-3 border border-amber-100">
+                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-white">
+                            {deal.image && <img src={optimizeImageUrl(deal.image)} alt="" className="h-full w-full object-contain" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-black text-slate-900">{deal.title}</p>
+                            <p className="text-[10px] font-bold text-slate-500">{deal.store} · {getDealDisplayPrice(deal)}</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => onEdit?.(deal)}
+                            className="rounded-xl bg-amber-100 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-amber-800 hover:bg-amber-200"
+                        >
+                            Edit
+                        </button>
                     </div>
                 ))}
             </div>
@@ -133,6 +453,14 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
     const activeTab = routerLocation.pathname.split('/').pop() || 'dashboard';
 
     const [searchQuery, setSearchQuery] = useState('');
+    const [storeFilter, setStoreFilter] = useState('All');
+    const [categoryFilter, setCategoryFilter] = useState('All');
+    const [discountFilter, setDiscountFilter] = useState('All');
+    const [dateFilter, setDateFilter] = useState('All');
+    const [sortMode, setSortMode] = useState('newest');
+    const [duplicateOnly, setDuplicateOnly] = useState(false);
+    const [selectedDealIds, setSelectedDealIds] = useState([]);
+    const [quickEditDeal, setQuickEditDeal] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [editMode, setEditMode] = useState(false);
@@ -140,60 +468,276 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
     const [autoPopulated, setAutoPopulated] = useState(new Set());
     const [fetchStatus, setFetchStatus] = useState({ type: '', msg: '' });
     const [dashboardStats, setDashboardStats] = useState(null);
-    const [categories, setCategories] = useState(['Electronics', 'Fashion', 'Gaming', 'Grocery', 'Travel', 'Food', 'Beauty', 'Home & Living', 'Multi-category']);
-
+    const [categories, setCategories] = useState([]);
+    const [stores, setStores] = useState([]);
+    const [affiliateSettings, setAffiliateSettings] = useState([]);
+    const [isSavingAffiliateSettings, setIsSavingAffiliateSettings] = useState(false);
+    const [coupons, setCoupons] = useState([]);
+    const [couponForm, setCouponForm] = useState(DEFAULT_COUPON_FORM);
+    const [editingCouponId, setEditingCouponId] = useState(null);
+    const [couponSearch, setCouponSearch] = useState('');
+    const [couponTypeFilter, setCouponTypeFilter] = useState('all');
+    const [isSavingCoupon, setIsSavingCoupon] = useState(false);
+    const [couponsLoading, setCouponsLoading] = useState(false);
+    const [couponScanStatus, setCouponScanStatus] = useState(null);
+    const [isScanningCoupons, setIsScanningCoupons] = useState(false);
     const [isStatsLoading, setIsStatsLoading] = useState(true);
+    const [isRefreshingData, setIsRefreshingData] = useState(false);
+    const [adminError, setAdminError] = useState('');
+    const adminApiBase = apiBase ? apiBase.replace('/user', '') : '';
+    const adminDeals = useMemo(() => normalizeDealsForUi(deals), [deals]);
+    const liveAffiliateStoreNames = useMemo(() => {
+        const fromStoresApi = stores.map((store) => store.store || store.name).filter(Boolean);
+        const fromDeals = adminDeals.map((deal) => deal.storeName || deal.store).filter(Boolean);
+        return [...new Set([...fromStoresApi, ...fromDeals])].sort((a, b) => a.localeCompare(b));
+    }, [adminDeals, stores]);
+    const couponStoreOptions = useMemo(() => (
+        [...new Set([
+            ...liveAffiliateStoreNames,
+            ...coupons.map((coupon) => coupon.store).filter(Boolean),
+            couponForm.store
+        ].filter(Boolean))].sort((a, b) => a.localeCompare(b))
+    ), [couponForm.store, coupons, liveAffiliateStoreNames]);
+    const filteredCoupons = useMemo(() => {
+        const query = couponSearch.trim().toLowerCase();
+        return coupons.filter((coupon) => {
+            const haystack = `${coupon.title || ''} ${coupon.store || ''} ${coupon.category || ''} ${coupon.code || ''}`.toLowerCase();
+            return (!query || haystack.includes(query))
+                && (couponTypeFilter === 'all' || coupon.offerType === couponTypeFilter);
+        }).sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+    }, [couponSearch, couponTypeFilter, coupons]);
+    const adminInsights = useMemo(() => buildAdminInsights(adminDeals, stores), [adminDeals, stores]);
+    const duplicateIdSet = useMemo(() => new Set(
+        adminInsights.duplicateGroups.flatMap((group) => group.map(getDealId))
+    ), [adminInsights.duplicateGroups]);
+    const storeFilterOptions = useMemo(() =>
+        ['All', ...new Set(adminDeals.map((deal) => deal.store || deal.storeName).filter(Boolean))].sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : a.localeCompare(b))
+    , [adminDeals]);
+    const categoryFilterOptions = useMemo(() =>
+        ['All', ...new Set(adminDeals.map((deal) => deal.category).filter(Boolean))].sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : a.localeCompare(b))
+    , [adminDeals]);
+    const filteredDeals = useMemo(() => {
+        const now = Date.now();
+        const oneDay = 24 * 60 * 60 * 1000;
+        const query = searchQuery.toLowerCase();
+
+        const visible = adminDeals.filter(d => {
+            if (!d) return false;
+            const searchOk = !query
+                || (d.title?.toLowerCase().includes(query) ?? false)
+                || (d.store?.toLowerCase().includes(query) ?? false)
+                || (d.category?.toLowerCase().includes(query) ?? false);
+            const storeOk = storeFilter === 'All' || (d.store || d.storeName) === storeFilter;
+            const categoryOk = categoryFilter === 'All' || d.category === categoryFilter;
+            const discount = getNumericDiscount(d);
+            const discountOk = discountFilter === 'All'
+                || (discountFilter === '50+' && discount >= 50)
+                || (discountFilter === '25+' && discount >= 25)
+                || (discountFilter === '1-24' && discount > 0 && discount < 25)
+                || (discountFilter === '0' && discount === 0);
+            const age = now - getDealTimestamp(d);
+            const dateOk = dateFilter === 'All'
+                || (dateFilter === '24h' && age <= oneDay)
+                || (dateFilter === '7d' && age <= oneDay * 7)
+                || (dateFilter === '30d' && age <= oneDay * 30);
+            const duplicateOk = !duplicateOnly || duplicateIdSet.has(getDealId(d));
+
+            return searchOk && storeOk && categoryOk && discountOk && dateOk && duplicateOk;
+        });
+
+        return [...visible].sort((a, b) => {
+            if (sortMode === 'price-low') return getNumericDealPrice(a) - getNumericDealPrice(b);
+            if (sortMode === 'price-high') return getNumericDealPrice(b) - getNumericDealPrice(a);
+            if (sortMode === 'discount') return getNumericDiscount(b) - getNumericDiscount(a);
+            if (sortMode === 'clicked') return getDealViews(b) - getDealViews(a);
+            return getDealTimestamp(b) - getDealTimestamp(a);
+        });
+    }, [adminDeals, searchQuery, storeFilter, categoryFilter, discountFilter, dateFilter, duplicateOnly, duplicateIdSet, sortMode]);
+    const selectedDeals = useMemo(() =>
+        selectedDealIds.map((id) => adminDeals.find((deal) => getDealId(deal) === id)).filter(Boolean)
+    , [adminDeals, selectedDealIds]);
+    const duplicateCandidatesForForm = useMemo(() => {
+        const candidateKey = getDealDuplicateKey({
+            ...dealForm,
+            productUrl: dealForm.link,
+            storeName: dealForm.store
+        });
+        const candidateTitle = normalizeComparableTitle(dealForm.title);
+        if ((!candidateKey || candidateKey === getDealId({})) && !candidateTitle) return [];
+
+        return adminDeals.filter((deal) => {
+            if (editId && getDealId(deal) === String(editId)) return false;
+            if (candidateKey && getDealDuplicateKey(deal) === candidateKey) return true;
+            return candidateTitle && normalizeComparableTitle(deal.title) === candidateTitle && (deal.store || '') === dealForm.store;
+        }).slice(0, 5);
+    }, [adminDeals, dealForm, editId]);
+    const formCategories = useMemo(() => {
+        const merged = [...categories, dealForm.category].filter(Boolean);
+        return [...new Set(merged)].sort((a, b) => a.localeCompare(b));
+    }, [categories, dealForm.category]);
+    const affiliatePreviewUrl = buildAffiliateUrl({
+        url: dealForm.link,
+        store: dealForm.store,
+        settings: affiliateSettings,
+        manualOverride: dealForm.affiliateOverrideLink
+    });
+
+    const refreshAffiliateSettings = useCallback(async (storeNames = []) => {
+        if (!isAdmin || !adminApiBase) return [];
+
+        const response = await fetch(`${adminApiBase}/admin/affiliate-settings`, {
+            headers: { 'auth-token': token() }
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.message || 'Failed to load affiliate settings');
+        }
+
+        const data = await response.json();
+        const mergedSettings = mergeAffiliateSettings(data, storeNames);
+        setAffiliateSettings(mergedSettings);
+        return mergedSettings;
+    }, [adminApiBase, isAdmin]);
+
+    const refreshCoupons = useCallback(async () => {
+        if (!isAdmin || !adminApiBase) return [];
+
+        setCouponsLoading(true);
+        try {
+            const [response, statusResponse] = await Promise.all([
+                fetch(`${adminApiBase}/admin/coupons?status=all`, {
+                    headers: { 'auth-token': token() }
+                }),
+                fetch(`${adminApiBase}/admin/coupons/scan/status`, {
+                    headers: { 'auth-token': token() }
+                }).catch(() => null)
+            ]);
+            if (statusResponse?.ok) {
+                setCouponScanStatus(await statusResponse.json().catch(() => null));
+            }
+
+            const data = await response.json().catch(() => []);
+            if (!response.ok) {
+                throw new Error(data?.message || 'Failed to load coupons');
+            }
+            const normalizedCoupons = (Array.isArray(data) ? data : []).map(normalizeCouponForAdmin);
+            setCoupons(normalizedCoupons);
+            return normalizedCoupons;
+        } finally {
+            setCouponsLoading(false);
+        }
+    }, [adminApiBase, isAdmin]);
+
+    const handleCouponScan = useCallback(async () => {
+        if (!isAdmin || !adminApiBase) return;
+
+        setIsScanningCoupons(true);
+        try {
+            const response = await fetch(`${adminApiBase}/admin/coupons/scan`, {
+                method: 'POST',
+                headers: { 'auth-token': token() }
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data?.message || 'Coupon scan failed');
+            }
+            setCouponScanStatus(data.status || null);
+            await refreshCoupons();
+            const summary = data.summary || {};
+            showToast?.(`Coupon scan completed: ${summary.created || 0} created, ${summary.updated || 0} updated.`, 'success');
+        } catch (error) {
+            showToast?.(error.message || 'Coupon scan failed', 'error');
+        } finally {
+            setIsScanningCoupons(false);
+        }
+    }, [adminApiBase, isAdmin, refreshCoupons, showToast]);
+
+    const refreshAdminData = useCallback(async ({ silent = false } = {}) => {
+        if (!isAdmin || !adminApiBase) return;
+
+        if (!silent) {
+            setIsStatsLoading(true);
+        }
+        setIsRefreshingData(true);
+        setAdminError('');
+
+        try {
+            const snapshot = await loadAdminSnapshot({ adminApiBase });
+            setDeals(snapshot.deals);
+            setDashboardStats(snapshot.stats);
+            setCategories(snapshot.categories);
+            setStores(snapshot.stores);
+            const snapshotStoreNames = [
+                ...snapshot.stores.map((store) => store.store || store.name).filter(Boolean),
+                ...snapshot.deals.map((deal) => deal.storeName || deal.store).filter(Boolean)
+            ];
+            await refreshAffiliateSettings(snapshotStoreNames).catch((error) => {
+                console.warn('Affiliate settings refresh warning:', error);
+            });
+            await refreshCoupons().catch((error) => {
+                console.warn('Coupons refresh warning:', error);
+            });
+        } catch (error) {
+            console.error('Admin snapshot error:', error);
+            setAdminError(error.message || 'Failed to load admin data.');
+        } finally {
+            setIsStatsLoading(false);
+            setIsRefreshingData(false);
+        }
+    }, [adminApiBase, isAdmin, refreshAffiliateSettings, refreshCoupons, setDeals]);
 
     /* ── auth guard ── (Centrally managed by App.jsx Route) */
 
     /* ── stats ── */
     useEffect(() => {
-        if (!isAdmin || !apiBase) return;
-        setIsStatsLoading(true);
+        if (!isAdmin || !adminApiBase) return;
+        refreshAdminData();
+    }, [isAdmin, adminApiBase, refreshAdminData]);
 
-        const fetchStats = async () => {
-            try {
-                const r = await fetch(`${apiBase}/deals/stats`, { headers: { 'auth-token': token() } });
-                if (r.ok) {
-                    const data = await r.json();
-                    setDashboardStats(data);
-                }
-            } catch (err) {
-                console.error("Stats fetch error:", err);
-            } finally {
-                setIsStatsLoading(false);
-            }
-        };
+    useEffect(() => {
+        if (!isAdmin || !adminApiBase || activeTab !== 'affiliate-tags') return undefined;
 
-        const fetchCategories = async () => {
-            try {
-                const r = await fetch(`${apiBase}/deals/categories`);
-                if (r.ok) {
-                    const data = await r.json();
-                    if (data && data.length > 0) {
-                        const merged = [...new Set([...data, 'Electronics', 'Fashion', 'Gaming', 'Grocery', 'Travel', 'Food', 'Beauty', 'Home & Living', 'Multi-category'])];
-                        setCategories(merged.sort());
-                    }
-                }
-            } catch (err) {
-                console.error("Categories fetch error:", err);
-            }
-        };
+        const intervalId = window.setInterval(() => {
+            refreshAdminData({ silent: true });
+        }, 30000);
 
-        fetchStats();
-        fetchCategories();
-    }, [isAdmin, deals, apiBase]);
+        return () => window.clearInterval(intervalId);
+    }, [activeTab, adminApiBase, isAdmin, refreshAdminData]);
+
+    useEffect(() => {
+        if (!isAdmin || !adminApiBase) return;
+
+        refreshAffiliateSettings(liveAffiliateStoreNames).catch((error) => {
+            console.error('Affiliate settings fetch error:', error);
+        });
+    }, [isAdmin, adminApiBase, liveAffiliateStoreNames, refreshAffiliateSettings]);
 
     /* ── reset form when switching away from add-deal ── */
     useEffect(() => {
         if (activeTab !== 'add-deal') {
             setEditMode(false);
             setEditId(null);
-            setDealForm({ title: '', store: '', price: '', originalPrice: '', discount: '', image: '', link: '', category: '', description: '', extractionWarning: '', featured: false, isExpired: false });
+            setDealForm(DEFAULT_DEAL_FORM);
             setFetchStatus({ type: '', msg: '' });
             setAutoPopulated(new Set());
         }
     }, [activeTab, setDealForm]);
+
+    useEffect(() => {
+        if (activeTab !== 'coupons') return;
+        refreshCoupons().catch((error) => {
+            showToast?.(error.message || 'Failed to refresh coupons', 'error');
+        });
+
+        const intervalId = window.setInterval(() => {
+            refreshCoupons().catch((error) => {
+                console.warn('Coupons auto-refresh warning:', error);
+            });
+        }, 30000);
+
+        return () => window.clearInterval(intervalId);
+    }, [activeTab, refreshCoupons, showToast]);
 
     /* ── CRUD helpers ── */
     const handleEditClick = (deal) => {
@@ -202,31 +746,78 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
         setDealForm({
             title: deal.title || '', store: deal.store || '', price: deal.price || '',
             originalPrice: deal.originalPrice || '', discount: deal.discount || '',
-            image: deal.image || '', images: deal.images || [], videos: deal.videos || [], link: deal.link || '',
+            image: deal.image || '', images: deal.images || [], videos: deal.videos || [], link: sanitizeOriginalUrl(deal.productUrl || deal.link || ''), affiliateOverrideLink: deal.affiliateOverrideLink || '', affiliateLink: deal.affiliateLink || '',
             category: deal.category || '', description: deal.description || '',
             extractionWarning: deal.extractionWarning || '',
-            featured: deal.featured || false
+            featured: deal.featured || false,
+            isExpired: deal.isExpired || false
         });
         navigate('/admin/add-deal');
     };
 
+    const buildValidatedDealPayload = () => {
+        const price = Number(normalizeNumberLike(dealForm.price) || 0);
+        const originalPrice = Number(normalizeNumberLike(dealForm.originalPrice) || 0);
+        const safeMrp = originalPrice && originalPrice >= price ? originalPrice : originalPrice ? price : '';
+        const computedDiscount = safeMrp && price > 0 && safeMrp > price
+            ? Math.round(((safeMrp - price) / safeMrp) * 100)
+            : Number(normalizeNumberLike(dealForm.discount) || 0);
+        const finalUrl = affiliatePreviewUrl || dealForm.affiliateLink || '';
+        const payload = {
+            ...dealForm,
+            link: sanitizeUrl(dealForm.link),
+            productUrl: sanitizeUrl(dealForm.link),
+            affiliateLink: finalUrl,
+            price: price ? price.toString() : '',
+            dealPrice: price,
+            originalPrice: safeMrp ? safeMrp.toString() : '',
+            mrp: safeMrp || price || 0,
+            discount: computedDiscount ? `${computedDiscount}%` : '',
+            discountPercent: computedDiscount || 0,
+            store: dealForm.store || deriveStoreFromUrl(dealForm.link),
+            storeName: dealForm.store || deriveStoreFromUrl(dealForm.link),
+            rating: Number(dealForm.rating || 0) || 0
+        };
+
+        const validationErrors = [];
+        if (!payload.title?.trim()) validationErrors.push('Title is required.');
+        if (!payload.store?.trim()) validationErrors.push('Store is required.');
+        if (!payload.category?.trim()) validationErrors.push('Category is required.');
+        if (!price) validationErrors.push('Deal price must be greater than 0.');
+        if (!payload.image?.trim()) validationErrors.push('Product image is required.');
+        if (!isLikelyHttpUrl(payload.link)) validationErrors.push('Valid original product URL is required.');
+        if (safeMrp && safeMrp < price) validationErrors.push('MRP cannot be lower than deal price.');
+
+        return { payload, validationErrors };
+    };
+
     const handleUpdateDeal = async (e) => {
         if (e) e.preventDefault();
+        const { payload, validationErrors } = buildValidatedDealPayload();
+        if (validationErrors.length) {
+            showToast?.(validationErrors[0], 'error');
+            return;
+        }
         setIsLoading(true);
         try {
-            const dealsApi = apiBase.replace('/user', '') + `/deals/${editId}`;
+            const dealsApi = `${adminApiBase}/admin/deals/${editId}`;
             const r = await fetch(dealsApi, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'auth-token': token() },
-                body: JSON.stringify(dealForm)
+                body: JSON.stringify(payload)
             });
             if (r.ok) {
-                const updated = await r.json();
-                setDeals(deals.map(d => (d._id === editId || d.id === editId) ? updated : d));
+                await r.json().catch(() => ({}));
+                await refreshAdminData({ silent: true });
                 showToast?.('Deal updated!', 'success');
                 navigate('/admin/dashboard');
-            } else { showToast?.('Update failed', 'error'); }
-        } catch { showToast?.('Server error', 'error'); }
+            } else {
+                const error = await r.json().catch(() => ({}));
+                showToast?.(error.message || 'Update failed', 'error');
+            }
+        } catch (error) {
+            showToast?.(error.message || 'Server error', 'error');
+        }
         finally { setIsLoading(false); }
     };
 
@@ -234,23 +825,321 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
         if (!window.confirm('Delete this deal?')) return;
         setIsLoading(true);
         try {
-            const dealsApi = apiBase.replace('/user', '') + `/deals/${id}`;
+            const dealsApi = `${adminApiBase}/admin/deals/${id}`;
             const r = await fetch(dealsApi, { method: 'DELETE', headers: { 'auth-token': token() } });
             if (r.ok) {
-                setDeals(deals.filter(d => d._id !== id && d.id !== id));
+                await refreshAdminData({ silent: true });
                 showToast?.('Deal deleted!', 'success');
-            } else { showToast?.('Delete failed', 'error'); }
-        } catch { showToast?.('Server error', 'error'); }
+            } else {
+                const error = await r.json().catch(() => ({}));
+                showToast?.(error.message || 'Delete failed', 'error');
+            }
+        } catch (error) {
+            showToast?.(error.message || 'Server error', 'error');
+        }
         finally { setIsLoading(false); }
     };
 
-    const handleLocalAddDeal = async (e) => {
+    const clearSelectedDeals = () => setSelectedDealIds([]);
+
+    const toggleDealSelection = (deal) => {
+        const id = getDealId(deal);
+        if (!id) return;
+        setSelectedDealIds(prev => prev.includes(id) ? prev.filter((selectedId) => selectedId !== id) : [...prev, id]);
+    };
+
+    const toggleVisibleSelection = () => {
+        const visibleIds = filteredDeals.map(getDealId).filter(Boolean);
+        const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedDealIds.includes(id));
+        setSelectedDealIds(prev => allVisibleSelected
+            ? prev.filter((id) => !visibleIds.includes(id))
+            : [...new Set([...prev, ...visibleIds])]
+        );
+    };
+
+    const handleBulkDelete = async () => {
+        if (selectedDealIds.length === 0) return;
+        if (!window.confirm(`Delete ${selectedDealIds.length} selected deal${selectedDealIds.length === 1 ? '' : 's'}?`)) return;
+
         setIsLoading(true);
         try {
-            await handleAddDeal(e);
-            navigate('/admin/dashboard'); // Redirect to dashboard after publish
+            const results = await Promise.allSettled(selectedDealIds.map((id) =>
+                fetch(`${adminApiBase}/admin/deals/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'auth-token': token() }
+                })
+            ));
+            const failed = results.filter((result) => result.status === 'rejected' || !result.value?.ok).length;
+            clearSelectedDeals();
+            await refreshAdminData({ silent: true });
+            showToast?.(failed ? `Bulk delete finished. ${failed} failed.` : 'Selected deals deleted.', failed ? 'warning' : 'success');
+        } catch (error) {
+            showToast?.(error.message || 'Bulk delete failed', 'error');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleBulkFeatured = async (featured) => {
+        if (selectedDeals.length === 0) return;
+
+        setIsLoading(true);
+        try {
+            const results = await Promise.allSettled(selectedDeals.map((deal) =>
+                fetch(`${adminApiBase}/admin/deals/${getDealId(deal)}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'auth-token': token()
+                    },
+                    body: JSON.stringify({ featured })
+                })
+            ));
+            const failed = results.filter((result) => result.status === 'rejected' || !result.value?.ok).length;
+            clearSelectedDeals();
+            await refreshAdminData({ silent: true });
+            showToast?.(failed ? `Bulk update finished. ${failed} failed.` : `Selected deals ${featured ? 'featured' : 'unfeatured'}.`, failed ? 'warning' : 'success');
+        } catch (error) {
+            showToast?.(error.message || 'Bulk update failed', 'error');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleQuickEditSave = async () => {
+        if (!quickEditDeal) return;
+
+        setIsLoading(true);
+        try {
+            const id = getDealId(quickEditDeal);
+            const price = Number(normalizeNumberLike(quickEditDeal.price || quickEditDeal.dealPrice) || 0);
+            const mrp = Number(normalizeNumberLike(quickEditDeal.originalPrice || quickEditDeal.mrp) || 0);
+            const discount = mrp > price && price > 0
+                ? Math.round(((mrp - price) / mrp) * 100)
+                : getNumericDiscount(quickEditDeal);
+            const payload = {
+                ...quickEditDeal,
+                price: price ? price.toString() : quickEditDeal.price,
+                dealPrice: price,
+                originalPrice: mrp ? mrp.toString() : quickEditDeal.originalPrice,
+                mrp: mrp || price,
+                discount: discount ? `${discount}%` : '',
+                discountPercent: discount || 0
+            };
+            const response = await fetch(`${adminApiBase}/admin/deals/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'auth-token': token()
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.message || 'Quick edit failed');
+
+            setQuickEditDeal(null);
+            await refreshAdminData({ silent: true });
+            showToast?.('Quick edit saved.', 'success');
+        } catch (error) {
+            showToast?.(error.message || 'Quick edit failed', 'error');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleLocalAddDeal = async (e) => {
+        const { payload, validationErrors } = buildValidatedDealPayload();
+        if (validationErrors.length) {
+            if (e?.preventDefault) e.preventDefault();
+            showToast?.(validationErrors[0], 'error');
+            return false;
+        }
+        if (duplicateCandidatesForForm.length > 0 && !window.confirm('A similar deal already exists. Publish a new listing anyway?')) {
+            if (e?.preventDefault) e.preventDefault();
+            showToast?.('Publish cancelled. Open the duplicate candidate and update it instead.', 'info');
+            return false;
+        }
+
+        setIsLoading(true);
+        try {
+            const success = await handleAddDeal(e, payload);
+            if (success) {
+                await refreshAdminData({ silent: true });
+                navigate('/admin/dashboard');
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleFeaturedToggle = async (deal) => {
+        const id = deal._id || deal.id;
+        if (!id) return;
+
+        setIsLoading(true);
+        try {
+            const response = await fetch(`${adminApiBase}/admin/deals/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'auth-token': token()
+                },
+                body: JSON.stringify({ featured: !deal.featured })
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to update featured status');
+            }
+
+            await refreshAdminData({ silent: true });
+            showToast?.(`Deal ${deal.featured ? 'removed from' : 'added to'} featured deals.`, 'success');
+        } catch (error) {
+            showToast?.(error.message || 'Failed to update featured status', 'error');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleAffiliateSettingChange = (storeSlug, field, value) => {
+        setAffiliateSettings(prev => prev.map(setting =>
+            setting.storeSlug === storeSlug
+                ? (() => {
+                    const nextSetting = { ...setting, [field]: field === 'enabled' ? Boolean(value) : value };
+                    nextSetting.pendingSetup = !nextSetting.enabled || !String(nextSetting.paramKey || '').trim() || !String(nextSetting.paramValue || '').trim();
+                    return nextSetting;
+                })()
+                : setting
+        ));
+    };
+
+    const getSampleProductUrlForAffiliateSetting = useCallback((setting = {}) => {
+        const settingSlug = setting.storeSlug || getAffiliateStoreSlug(setting.store);
+        const sampleDeal = adminDeals.find((deal) =>
+            getAffiliateStoreSlug(deal.storeName || deal.store) === settingSlug
+            && sanitizeOriginalUrl(deal.productUrl || deal.link)
+        );
+
+        return sanitizeOriginalUrl(
+            sampleDeal?.productUrl
+            || sampleDeal?.link
+            || dealForm.link
+            || ''
+        );
+    }, [adminDeals, dealForm.link]);
+
+    const getAffiliatePreviewForSetting = useCallback((setting = {}) => {
+        const sampleUrl = getSampleProductUrlForAffiliateSetting(setting);
+        if (!sampleUrl) return '';
+
+        return buildAffiliateUrl({
+            url: sampleUrl,
+            store: setting.store,
+            settings: [setting],
+            manualOverride: ''
+        });
+    }, [getSampleProductUrlForAffiliateSetting]);
+
+    const handleSaveAffiliateSettings = async () => {
+        if (!adminApiBase) return;
+
+        setIsSavingAffiliateSettings(true);
+        try {
+            const response = await fetch(`${adminApiBase}/admin/affiliate-settings`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'auth-token': token()
+                },
+                body: JSON.stringify({ settings: affiliateSettings })
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to save affiliate settings');
+            }
+
+            setAffiliateSettings(mergeAffiliateSettings(data.settings, liveAffiliateStoreNames));
+            await refreshAdminData({ silent: true });
+
+            showToast?.(`Affiliate settings saved. Reapplied to ${data.reapply?.updated || 0} deals.`, 'success');
+        } catch (error) {
+            showToast?.(error.message || 'Failed to save affiliate settings', 'error');
+        } finally {
+            setIsSavingAffiliateSettings(false);
+        }
+    };
+
+    const resetCouponForm = () => {
+        setCouponForm(DEFAULT_COUPON_FORM);
+        setEditingCouponId(null);
+    };
+
+    const handleCouponFormChange = (field, value) => {
+        setCouponForm(prev => ({
+            ...prev,
+            [field]: value,
+            ...(field === 'landingUrl' && !prev.store && deriveStoreFromUrl(value)
+                ? { store: deriveStoreFromUrl(value) }
+                : {})
+        }));
+    };
+
+    const handleCouponSubmit = async (event) => {
+        event?.preventDefault?.();
+        if (!adminApiBase) return;
+
+        setIsSavingCoupon(true);
+        try {
+            const endpoint = editingCouponId
+                ? `${adminApiBase}/admin/coupons/${editingCouponId}`
+                : `${adminApiBase}/admin/coupons`;
+            const response = await fetch(endpoint, {
+                method: editingCouponId ? 'PUT' : 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'auth-token': token()
+                },
+                body: JSON.stringify(couponForm)
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to save coupon');
+            }
+            showToast?.(editingCouponId ? 'Coupon updated successfully.' : 'Coupon created successfully.', 'success');
+            resetCouponForm();
+            await refreshCoupons();
+        } catch (error) {
+            showToast?.(error.message || 'Failed to save coupon', 'error');
+        } finally {
+            setIsSavingCoupon(false);
+        }
+    };
+
+    const handleEditCoupon = (coupon) => {
+        const normalized = normalizeCouponForAdmin(coupon);
+        setCouponForm(normalized);
+        setEditingCouponId(normalized._id || normalized.id);
+    };
+
+    const handleDeleteCoupon = async (couponId) => {
+        if (!adminApiBase || !couponId) return;
+        if (!window.confirm('Delete this coupon?')) return;
+
+        try {
+            const response = await fetch(`${adminApiBase}/admin/coupons/${couponId}`, {
+                method: 'DELETE',
+                headers: { 'auth-token': token() }
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to delete coupon');
+            }
+            showToast?.('Coupon deleted.', 'success');
+            if (editingCouponId === couponId) resetCouponForm();
+            await refreshCoupons();
+        } catch (error) {
+            showToast?.(error.message || 'Failed to delete coupon', 'error');
         }
     };
 
@@ -326,23 +1215,21 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
 
     const clearAuto = (field) => setAutoPopulated(prev => { const n = new Set(prev); n.delete(field); return n; });
 
-    const filteredDeals = deals.filter(d => d && (
-        (d.title?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-        (d.store?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-        (d.category?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
-    ));
-
     /* ── stat cards ── */
     const STATS = [
-        { label: 'Total Deals', value: dashboardStats?.totalDeals ?? deals.length, icon: Package, color: 'bg-orange-500', light: 'bg-orange-50', textColor: 'text-orange-600', trend: '+12%' },
-        { label: 'Active Stores', value: dashboardStats ? Object.keys(dashboardStats.storeStats ?? {}).length : '—', icon: Activity, color: 'bg-blue-500', light: 'bg-blue-50', textColor: 'text-blue-600', trend: '+5%' },
-        { label: 'Categories', value: dashboardStats ? Object.keys(dashboardStats.categoryStats ?? {}).length : '—', icon: TrendingUp, color: 'bg-emerald-500', light: 'bg-emerald-50', textColor: 'text-emerald-600', trend: '+3' },
-        { label: 'Click Rate', value: '8.4%', icon: Zap, color: 'bg-amber-500', light: 'bg-amber-50', textColor: 'text-amber-600', trend: '+2.1%' },
+        { label: 'Total Deals', value: dashboardStats?.totalDeals ?? adminDeals.length, icon: Package, color: 'bg-orange-500', light: 'bg-orange-50', textColor: 'text-orange-600' },
+        { label: 'Active Stores', value: dashboardStats?.totalStores ?? stores.length, icon: Activity, color: 'bg-blue-500', light: 'bg-blue-50', textColor: 'text-blue-600' },
+        { label: 'Categories', value: dashboardStats?.totalCategories ?? categories.length, icon: TrendingUp, color: 'bg-emerald-500', light: 'bg-emerald-50', textColor: 'text-emerald-600' },
+        { label: 'Featured Deals', value: dashboardStats?.featuredDeals ?? adminDeals.filter((deal) => deal.featured).length, icon: Flame, color: 'bg-amber-500', light: 'bg-amber-50', textColor: 'text-amber-600' },
+        { label: 'Avg Discount', value: `${adminInsights.avgDiscount}%`, icon: TrendingDown, color: 'bg-rose-500', light: 'bg-rose-50', textColor: 'text-rose-600' },
     ];
 
     const NAV = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'manage-deals', label: 'Manage Deals', icon: Package },
         { id: 'add-deal', label: 'Add Deal', icon: PlusCircle },
+        { id: 'coupons', label: 'Coupons', icon: BadgePercent },
+        { id: 'affiliate-tags', label: 'Affiliate Tags', icon: ExternalLink },
     ];
 
     /* ────────── label helper for auto-filled fields ────────── */
@@ -358,6 +1245,11 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
     /* ─── render ─── */
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans">
+            <Helmet>
+                <title>Admin Panel | {SITE_NAME}</title>
+                <meta name="robots" content="noindex,nofollow" />
+                <meta name="application-name" content={SITE_NAME} />
+            </Helmet>
 
             {/* Mobile overlay */}
             {isSidebarOpen && (
@@ -408,7 +1300,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                 {item.label}
                                 {item.id === 'manage-deals' && (
                                     <span className={`ml-auto text-[10px] font-black px-2 py-0.5 rounded-full ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                        {deals.length}
+                                        {adminDeals.length}
                                     </span>
                                 )}
                             </button>
@@ -445,6 +1337,24 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                             <input type="text" placeholder="Search deals..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                                 className="bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-sm font-medium text-slate-700 focus:outline-none focus:border-orange-400 w-52 transition-all" />
                         </div>
+                        <button
+                            type="button"
+                            onClick={() => refreshAdminData()}
+                            disabled={isRefreshingData}
+                            className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-2 rounded-xl text-sm font-bold transition-all disabled:opacity-60"
+                        >
+                            {isRefreshingData ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" />
+                                    <span className="hidden sm:inline">Refreshing</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Activity size={16} />
+                                    <span className="hidden sm:inline">Refresh</span>
+                                </>
+                            )}
+                        </button>
                         <button onClick={() => { navigate('/admin/add-deal'); setEditMode(false); }}
                             className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-orange-200 transition-all active:scale-95">
                             <PlusCircle size={16} />
@@ -454,13 +1364,28 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                 </header>
 
                 <div className="flex-1 p-6">
+                    {adminError && (
+                        <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-2">
+                                <AlertCircle size={16} />
+                                <span>{adminError}</span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => refreshAdminData()}
+                                className="text-xs font-black uppercase tracking-wider text-rose-700 hover:text-rose-900"
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    )}
                     <AnimatePresence mode="wait">
                         {/* ═══════════ DASHBOARD ═══════════ */}
                         {activeTab === 'dashboard' && (
                             <motion.div key="dashboard" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
 
                                 {/* Stat Cards */}
-                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                                     {STATS.map((s, i) => (
                                         <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
                                             className="bg-white/80 backdrop-blur-2xl rounded-3xl border border-white/60 shadow-2xl shadow-slate-200/50 p-6 transition-all hover:shadow-orange-100/50 hover:bg-white/90 hover:shadow-md hover:-translate-y-0.5">
@@ -478,12 +1403,64 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                     <div className="text-2xl font-black text-slate-900">{s.value}</div>
                                                     <div className="flex items-center justify-between mt-1">
                                                         <div className="text-xs font-bold text-slate-400">{s.label}</div>
-                                                        <div className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">{s.trend}</div>
+                                                        <div className="text-[10px] font-black text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">Live</div>
                                                     </div>
                                                 </>
                                             )}
                                         </motion.div>
                                     ))}
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                                    {[
+                                        {
+                                            label: 'Top Store',
+                                            value: adminInsights.topStore?.store || adminInsights.topStore?.name || 'No store yet',
+                                            detail: adminInsights.topStore ? `${adminInsights.topStore.count || adminInsights.topStore.dealsCount || 0} live deals` : 'Stores appear after deals publish',
+                                            icon: ShoppingCart,
+                                            tone: 'blue'
+                                        },
+                                        {
+                                            label: 'Most Clicked',
+                                            value: adminInsights.topClickedDeals[0]?.title || 'No click data yet',
+                                            detail: adminInsights.topClickedDeals[0] ? `${getDealViews(adminInsights.topClickedDeals[0]).toLocaleString('en-IN')} tracked views` : 'Views update when product pages are opened',
+                                            icon: Activity,
+                                            tone: 'emerald'
+                                        },
+                                        {
+                                            label: 'Best Discount',
+                                            value: adminInsights.topDiscountDeals[0]?.title || 'No discounts yet',
+                                            detail: adminInsights.topDiscountDeals[0] ? `${getNumericDiscount(adminInsights.topDiscountDeals[0])}% OFF · ${adminInsights.topDiscountDeals[0].store}` : 'Add MRP + price to calculate',
+                                            icon: Flame,
+                                            tone: 'orange'
+                                        },
+                                        {
+                                            label: 'Data Health',
+                                            value: adminInsights.incompleteDeals.length ? `${adminInsights.incompleteDeals.length} need review` : 'Catalog clean',
+                                            detail: `${adminInsights.duplicateCount} possible duplicate${adminInsights.duplicateCount === 1 ? '' : 's'} detected`,
+                                            icon: Shield,
+                                            tone: adminInsights.incompleteDeals.length || adminInsights.duplicateCount ? 'amber' : 'emerald'
+                                        }
+                                    ].map(({ label, value, detail, icon: Icon, tone }) => {
+                                        const toneCls = {
+                                            blue: 'bg-blue-50 text-blue-600 border-blue-100',
+                                            emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+                                            orange: 'bg-orange-50 text-orange-600 border-orange-100',
+                                            amber: 'bg-amber-50 text-amber-700 border-amber-100'
+                                        }[tone];
+                                        return (
+                                            <div key={label} className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+                                                <div className="mb-4 flex items-center justify-between gap-3">
+                                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{label}</span>
+                                                    <span className={`flex h-10 w-10 items-center justify-center rounded-2xl border ${toneCls}`}>
+                                                        <Icon size={18} />
+                                                    </span>
+                                                </div>
+                                                <p className="line-clamp-2 min-h-[2.5rem] text-sm font-black leading-snug text-slate-900">{value}</p>
+                                                <p className="mt-3 text-xs font-semibold leading-relaxed text-slate-500">{detail}</p>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
 
                                 {/* Category chart + recent deals */}
@@ -538,7 +1515,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                             )}
                                         </div>
                                         <div className="space-y-3 overflow-y-auto max-h-[300px] pr-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                                            {(searchQuery ? filteredDeals : (dashboardStats?.recentDeals ?? deals.slice(0, 6)).slice(0, 8)).map((deal, i) => (
+                                            {(searchQuery ? filteredDeals : (dashboardStats?.recentDeals ?? adminDeals.slice(0, 8))).slice(0, 8).map((deal, i) => (
                                                 <div key={i} className="flex items-center gap-3 group">
                                                     <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
                                                         {deal.image ? <img src={optimizeImageUrl(deal.image)} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-orange-100" />}
@@ -556,7 +1533,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-3">
-                                                        <div className="text-xs font-black text-orange-600">₹{deal.price}</div>
+                                                        <div className="text-xs font-black text-orange-600">{getDealDisplayPrice(deal)}</div>
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); handleDeleteDeal(deal._id || deal.id); }}
                                                             className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-md transition-all opacity-0 group-hover:opacity-100"
@@ -566,6 +1543,11 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                     </div>
                                                 </div>
                                             ))}
+                                            {!searchQuery && (!dashboardStats?.recentDeals?.length && !adminDeals.length) && (
+                                                <div className="text-center py-8 text-sm text-slate-400 font-medium">
+                                                    No deals found yet. Add your first live deal to populate the dashboard.
+                                                </div>
+                                            )}
                                             {searchQuery && filteredDeals.length === 0 && (
                                                 <div className="text-center py-8 text-sm text-slate-400 font-medium">
                                                     No deals match "{searchQuery}"
@@ -576,11 +1558,11 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                 </div>
 
                                 {/* Store breakdown table */}
-                                {dashboardStats?.storeStats && (
+                                {stores.length > 0 && (
                                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                                         <h3 className="text-base font-black text-slate-900 mb-4">Deals by Store</h3>
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                            {Object.entries(dashboardStats.storeStats).slice(0, 8).map(([store, count]) => (
+                                            {stores.slice(0, 8).map(({ store, count }) => (
                                                 <div key={store}
                                                     onClick={() => setSearchQuery(store)}
                                                     className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-orange-50 hover:border-orange-200 transition-all group">
@@ -601,6 +1583,316 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
 
 
                         {/* ═══════════ ADD / EDIT DEAL ═══════════ */}
+                        {activeTab === 'manage-deals' && (
+                            <motion.div
+                                key="manage-deals"
+                                initial={{ opacity: 0, y: 16 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                                className="space-y-6"
+                            >
+                                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+                                        <div>
+                                            <h2 className="text-2xl font-black text-slate-900">All Deals</h2>
+                                            <p className="text-sm text-slate-500 font-medium">
+                                                Live database data with instant refresh after every admin action.
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-3 text-sm font-semibold text-slate-500">
+                                            <span className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">{adminDeals.length} total</span>
+                                            <span className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">{filteredDeals.length} visible</span>
+                                            <span className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">{adminDeals.filter((deal) => deal.featured).length} featured</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="mb-6 rounded-3xl border border-slate-100 bg-slate-50/80 p-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+                                            <select className={inputCls} value={storeFilter} onChange={(event) => setStoreFilter(event.target.value)}>
+                                                {storeFilterOptions.map((store) => <option key={store} value={store}>{store === 'All' ? 'All stores' : store}</option>)}
+                                            </select>
+                                            <select className={inputCls} value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+                                                {categoryFilterOptions.map((category) => <option key={category} value={category}>{category === 'All' ? 'All categories' : category}</option>)}
+                                            </select>
+                                            <select className={inputCls} value={discountFilter} onChange={(event) => setDiscountFilter(event.target.value)}>
+                                                <option value="All">All discounts</option>
+                                                <option value="50+">50%+ off</option>
+                                                <option value="25+">25%+ off</option>
+                                                <option value="1-24">1-24% off</option>
+                                                <option value="0">No discount</option>
+                                            </select>
+                                            <select className={inputCls} value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                                                <option value="All">All dates</option>
+                                                <option value="24h">Last 24 hours</option>
+                                                <option value="7d">Last 7 days</option>
+                                                <option value="30d">Last 30 days</option>
+                                            </select>
+                                            <select className={inputCls} value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
+                                                <option value="newest">Sort: newest</option>
+                                                <option value="price-low">Price: low to high</option>
+                                                <option value="price-high">Price: high to low</option>
+                                                <option value="discount">Best discount</option>
+                                                <option value="clicked">Most clicked</option>
+                                            </select>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDuplicateOnly(value => !value)}
+                                                className={`rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest transition-all ${duplicateOnly ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' : 'bg-white text-slate-600 border border-slate-200 hover:bg-amber-50 hover:text-amber-700'}`}
+                                            >
+                                                Duplicates {adminInsights.duplicateCount ? `(${adminInsights.duplicateCount})` : ''}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {selectedDealIds.length > 0 && (
+                                        <div className="mb-6 flex flex-col gap-3 rounded-3xl border border-blue-100 bg-blue-50 p-4 md:flex-row md:items-center md:justify-between">
+                                            <div>
+                                                <p className="text-sm font-black text-blue-950">{selectedDealIds.length} deal{selectedDealIds.length === 1 ? '' : 's'} selected</p>
+                                                <p className="text-xs font-semibold text-blue-700">Bulk actions use the same live admin API as individual edits.</p>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <button type="button" onClick={() => handleBulkFeatured(true)} disabled={isLoading} className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black uppercase tracking-widest text-white disabled:opacity-50">
+                                                    Feature
+                                                </button>
+                                                <button type="button" onClick={() => handleBulkFeatured(false)} disabled={isLoading} className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black uppercase tracking-widest text-white disabled:opacity-50">
+                                                    Unfeature
+                                                </button>
+                                                <button type="button" onClick={handleBulkDelete} disabled={isLoading} className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-black uppercase tracking-widest text-white disabled:opacity-50">
+                                                    Delete
+                                                </button>
+                                                <button type="button" onClick={clearSelectedDeals} className="rounded-xl bg-white px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-600">
+                                                    Clear
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {!adminDeals.length ? (
+                                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
+                                            <Package size={28} className="mx-auto mb-3 text-slate-300" />
+                                            <h3 className="text-lg font-black text-slate-800">No deals available</h3>
+                                            <p className="text-sm text-slate-500 mt-2">Publish a deal to see it appear here with live pricing, categories, and store details.</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="hidden xl:block overflow-hidden rounded-2xl border border-slate-200">
+                                                <div className="overflow-x-auto">
+                                                    <table className="min-w-full divide-y divide-slate-200">
+                                                        <thead className="bg-slate-50">
+                                                            <tr>
+                                                                <th className="px-4 py-3 text-left">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={filteredDeals.length > 0 && filteredDeals.every((deal) => selectedDealIds.includes(getDealId(deal)))}
+                                                                        onChange={toggleVisibleSelection}
+                                                                        className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
+                                                                        aria-label="Select visible deals"
+                                                                    />
+                                                                </th>
+                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Deal</th>
+                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Store</th>
+                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Category</th>
+                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Deal Price</th>
+                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">MRP</th>
+                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Discount</th>
+                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Featured</th>
+                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Created</th>
+                                                                <th className="px-4 py-3 text-right text-[11px] font-black uppercase tracking-wider text-slate-500">Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100 bg-white">
+                                                            {filteredDeals.map((deal) => (
+                                                                <tr key={deal._id || deal.id} className="hover:bg-slate-50 transition-colors">
+                                                                    <td className="px-4 py-4 align-top">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={selectedDealIds.includes(getDealId(deal))}
+                                                                            onChange={() => toggleDealSelection(deal)}
+                                                                            className="mt-5 h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
+                                                                            aria-label={`Select ${deal.title || 'deal'}`}
+                                                                        />
+                                                                    </td>
+                                                                    <td className="px-4 py-4">
+                                                                        <div className="flex items-center gap-3 min-w-[280px]">
+                                                                            <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0">
+                                                                                {deal.image ? (
+                                                                                    <img src={optimizeImageUrl(deal.image)} alt={deal.title} className="w-full h-full object-cover" />
+                                                                                ) : (
+                                                                                    <div className="w-full h-full bg-slate-100" />
+                                                                                )}
+                                                                            </div>
+                                                                            <div className="min-w-0">
+                                                                                <div className="flex items-start gap-2">
+                                                                                    <div className="text-sm font-black text-slate-900 line-clamp-2">{deal.title || 'Untitled deal'}</div>
+                                                                                    {duplicateIdSet.has(getDealId(deal)) && (
+                                                                                        <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-800">Dup?</span>
+                                                                                    )}
+                                                                                </div>
+                                                                                <div className="text-xs text-slate-500 mt-1 truncate max-w-[280px]">{sanitizeOriginalUrl(deal.productUrl || deal.link || '') || 'No product URL'}</div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-4 text-sm font-bold text-slate-700">{deal.store || 'Online Store'}</td>
+                                                                    <td className="px-4 py-4 text-sm text-slate-600">{deal.category || 'Other'}</td>
+                                                                    <td className="px-4 py-4 text-sm font-black text-slate-900">{getDealDisplayPrice(deal)}</td>
+                                                                    <td className="px-4 py-4 text-sm text-slate-500">{getDealDisplayMrp(deal)}</td>
+                                                                    <td className="px-4 py-4">
+                                                                        <span className="inline-flex px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-black">
+                                                                            {getDealDisplayDiscount(deal)}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-4 py-4">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleFeaturedToggle(deal)}
+                                                                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-black transition-colors ${deal.featured ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                        >
+                                                                            {deal.featured ? 'Featured' : 'Not featured'}
+                                                                        </button>
+                                                                    </td>
+                                                                    <td className="px-4 py-4 text-sm text-slate-500">{formatDealDate(deal.createdAt)}</td>
+                                                                    <td className="px-4 py-4">
+                                                                        <div className="flex items-center justify-end gap-2">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setQuickEditDeal({
+                                                                                    ...deal,
+                                                                                    price: normalizeNumberLike(deal.dealPrice || deal.price),
+                                                                                    originalPrice: normalizeNumberLike(deal.mrp || deal.originalPrice),
+                                                                                    discount: normalizeNumberLike(deal.discountPercent || deal.discount)
+                                                                                })}
+                                                                                className="inline-flex items-center gap-1 rounded-xl border border-blue-200 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50"
+                                                                            >
+                                                                                <Edit3 size={13} />
+                                                                                Quick
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleEditClick(deal)}
+                                                                                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                                                                            >
+                                                                                <Pencil size={13} />
+                                                                                Edit
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleDeleteDeal(deal._id || deal.id)}
+                                                                                className="inline-flex items-center gap-1 rounded-xl border border-rose-200 px-3 py-2 text-xs font-black text-rose-600 hover:bg-rose-50"
+                                                                            >
+                                                                                <Trash2 size={13} />
+                                                                                Delete
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+
+                                            <div className="xl:hidden space-y-4">
+                                                {filteredDeals.map((deal) => (
+                                                    <div key={deal._id || deal.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                                                        <div className="mb-3 flex items-center justify-between gap-3">
+                                                            <label className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedDealIds.includes(getDealId(deal))}
+                                                                    onChange={() => toggleDealSelection(deal)}
+                                                                    className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
+                                                                />
+                                                                Select
+                                                            </label>
+                                                            {duplicateIdSet.has(getDealId(deal)) && (
+                                                                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-800">Duplicate?</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex gap-4">
+                                                            <div className="w-20 h-20 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0">
+                                                                {deal.image ? (
+                                                                    <img src={optimizeImageUrl(deal.image)} alt={deal.title} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <div className="w-full h-full bg-slate-100" />
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div>
+                                                                        <h3 className="text-sm font-black text-slate-900 line-clamp-2">{deal.title || 'Untitled deal'}</h3>
+                                                                        <p className="text-xs text-slate-500 mt-1">{deal.store || 'Online Store'} · {deal.category || 'Other'}</p>
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleFeaturedToggle(deal)}
+                                                                        className={`rounded-full px-2.5 py-1 text-[11px] font-black ${deal.featured ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}
+                                                                    >
+                                                                        {deal.featured ? 'Featured' : 'Standard'}
+                                                                    </button>
+                                                                </div>
+                                                                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                                                                    <div>
+                                                                        <div className="text-slate-400 font-semibold">Deal</div>
+                                                                        <div className="text-slate-900 font-black">{getDealDisplayPrice(deal)}</div>
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="text-slate-400 font-semibold">MRP</div>
+                                                                        <div className="text-slate-700 font-bold">{getDealDisplayMrp(deal)}</div>
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="text-slate-400 font-semibold">Discount</div>
+                                                                        <div className="text-emerald-700 font-black">{getDealDisplayDiscount(deal)}</div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="mt-3 text-xs text-slate-400">Created {formatDealDate(deal.createdAt)}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="mt-4 flex items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setQuickEditDeal({
+                                                                    ...deal,
+                                                                    price: normalizeNumberLike(deal.dealPrice || deal.price),
+                                                                    originalPrice: normalizeNumberLike(deal.mrp || deal.originalPrice),
+                                                                    discount: normalizeNumberLike(deal.discountPercent || deal.discount)
+                                                                })}
+                                                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 px-3 py-2 text-sm font-black text-blue-700 hover:bg-blue-50"
+                                                            >
+                                                                <Edit3 size={14} />
+                                                                Quick
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleEditClick(deal)}
+                                                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+                                                            >
+                                                                <Pencil size={14} />
+                                                                Edit
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteDeal(deal._id || deal.id)}
+                                                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm font-black text-rose-600 hover:bg-rose-50"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {filteredDeals.length === 0 && (
+                                                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm font-semibold text-slate-500">
+                                                    No deals matched the current search / filter settings.
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            </motion.div>
+                        )}
+
                         {activeTab === 'add-deal' && (
                             <motion.div key="add-deal" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                                 className="max-w-5xl mx-auto relative z-10">
@@ -619,7 +1911,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                         <p className="text-sm text-slate-500 font-semibold pl-14">{editMode ? 'Update an existing deal' : 'Paste a product URL to automatically extract details'}</p>
                                     </div>
                                     {editMode && (
-                                        <button onClick={() => { setEditMode(false); setDealForm({ title: '', store: '', price: '', originalPrice: '', discount: '', image: '', link: '', category: '', description: '', featured: false, isExpired: false }); }}
+                                        <button onClick={() => { setEditMode(false); setDealForm(DEFAULT_DEAL_FORM); }}
                                             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-700 border border-red-200 transition-all active:scale-95 shadow-sm">
                                             <X size={14} /> Cancel Edit
                                         </button>
@@ -719,7 +2011,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                 required
                             >
                                 <option value="">Select Category</option>
-                                {categories.map(cat => (
+                                {formCategories.map(cat => (
                                     <option key={cat} value={cat}>{cat}</option>
                                 ))}
                             </select>
@@ -781,6 +2073,38 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                 <span className="text-xs font-black text-slate-500 uppercase tracking-wider">Media & Link</span>
                                             </div>
                                             <div className="space-y-4">
+                                                <div>
+                                                    <label className="text-xs font-black text-slate-600 uppercase tracking-wide mb-1.5 block">Product URL *</label>
+                                                    <input
+                                                        type="url"
+                                                        className={inputCls}
+                                                        placeholder="https://www.amazon.in/dp/..."
+                                                        value={dealForm.link}
+                                                        onChange={e => { setDealForm({ ...dealForm, link: e.target.value }); clearAuto('link'); }}
+                                                        required
+                                                    />
+                                                    <p className="mt-2 text-[11px] text-slate-500 font-medium">This stays as the original product URL used for extraction and canonical storage.</p>
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-xs font-black text-slate-600 uppercase tracking-wide mb-1.5 block">Affiliate URL Override</label>
+                                                    <input
+                                                        type="url"
+                                                        className={inputCls}
+                                                        placeholder="Optional manual affiliate URL"
+                                                        value={dealForm.affiliateOverrideLink || ''}
+                                                        onChange={e => setDealForm({ ...dealForm, affiliateOverrideLink: e.target.value })}
+                                                    />
+                                                    <p className="mt-2 text-[11px] text-slate-500 font-medium">Leave blank to auto-build the affiliate link from the selected store rule.</p>
+                                                </div>
+
+                                                {affiliatePreviewUrl && (
+                                                    <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                                                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Final Affiliate URL Preview</p>
+                                                        <p className="text-xs font-medium text-blue-900 break-all">{affiliatePreviewUrl}</p>
+                                                    </div>
+                                                )}
+
                                                 <div>
                                                     <div className="flex items-center justify-between mb-1.5">
                                                         <label className="text-xs font-black text-slate-600 uppercase tracking-wide">Image URL *</label>
@@ -899,7 +2223,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                             </button>
                                             {editMode && (
                                                 <button type="button"
-                                                    onClick={() => { setEditMode(false); setDealForm({ title: '', store: '', price: '', originalPrice: '', discount: '', image: '', link: '', category: '', description: '', featured: false, isExpired: false }); }}
+                                                    onClick={() => { setEditMode(false); setDealForm(DEFAULT_DEAL_FORM); }}
                                                     className="px-6 py-4 rounded-2xl text-sm font-black text-red-500 bg-red-50 border border-red-200 hover:bg-red-100 transition-all">
                                                     Cancel
                                                 </button>
@@ -969,14 +2293,382 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                             {/* Scanner Enrichment Sections */}
                                             {dealForm.link && !isLoading && (
                                                 <div className="mt-6 space-y-4">
-                                                    <PriceHistoryChart />
-                                                    <PriceComparison price={dealForm.price} />
+                                                    <DealAutomationChecklist form={{ ...dealForm, affiliateLink: affiliatePreviewUrl }} />
+                                                    <DuplicateCandidatesPanel candidates={duplicateCandidatesForForm} onEdit={handleEditClick} />
                                                 </div>
                                             )}
                                         </div>
                                     </div>
                                 </div>
                             </motion.div>
+                        )}
+
+                        {activeTab === 'coupons' && (
+                            <motion.div
+                                key="coupons"
+                                initial={{ opacity: 0, y: 16 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                                className="relative z-10"
+                            >
+                                <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                                    <div>
+                                        <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-orange-50 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-orange-600">
+                                            <BadgePercent size={14} />
+                                            Coupons + offers
+                                        </div>
+                                        <h2 className="text-4xl font-black tracking-tight text-slate-950">Coupon Management</h2>
+                                        <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-500">
+                                            Create verified coupon codes, instant deals, cashback, bank offers and store promotions that appear on public coupon pages.
+                                        </p>
+                                    </div>
+                                    <Link
+                                        to="/coupons"
+                                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-4 text-xs font-black uppercase tracking-widest text-white shadow-lg active:scale-95"
+                                    >
+                                        <ExternalLink size={15} />
+                                        View Coupons Page
+                                    </Link>
+                                </div>
+
+                                <AdminCouponManager
+                                    coupons={coupons}
+                                    filteredCoupons={filteredCoupons}
+                                    couponForm={couponForm}
+                                    couponSearch={couponSearch}
+                                    couponTypeFilter={couponTypeFilter}
+                                    couponStoreOptions={couponStoreOptions}
+                                    offerTypes={COUPON_OFFER_TYPES}
+                                    inputCls={inputCls}
+                                    isSavingCoupon={isSavingCoupon}
+                                    couponsLoading={couponsLoading}
+                                    isScanningCoupons={isScanningCoupons}
+                                    couponScanStatus={couponScanStatus}
+                                    editingCouponId={editingCouponId}
+                                    onSearchChange={setCouponSearch}
+                                    onTypeFilterChange={setCouponTypeFilter}
+                                    onFormChange={handleCouponFormChange}
+                                    onSubmit={handleCouponSubmit}
+                                    onReset={resetCouponForm}
+                                    onEdit={handleEditCoupon}
+                                    onDelete={handleDeleteCoupon}
+                                    onRefresh={refreshCoupons}
+                                    onScan={handleCouponScan}
+                                    showToast={showToast}
+                                />
+                            </motion.div>
+                        )}
+
+                        {activeTab === 'affiliate-tags' && (
+                            <motion.div
+                                key="affiliate-tags"
+                                initial={{ opacity: 0, y: 16 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                                className="max-w-5xl mx-auto relative z-10"
+                            >
+                                <div className="flex items-center justify-between mb-8">
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-1">
+                                            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 text-white">
+                                                <ExternalLink size={20} />
+                                            </div>
+                                            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Affiliate Tags</h2>
+                                        </div>
+                                        <p className="text-sm text-slate-500 font-semibold pl-14">Manage store-wise affiliate parameters and auto-apply them to Buy Now links.</p>
+                                        <p className="text-xs text-slate-400 font-bold pl-14 mt-2">
+                                            {affiliateSettings.length} synced store{affiliateSettings.length === 1 ? '' : 's'} · new stores appear here automatically.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveAffiliateSettings}
+                                        disabled={isSavingAffiliateSettings}
+                                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-5 py-3 rounded-xl text-sm font-black shadow-md shadow-blue-200 transition-all active:scale-95"
+                                    >
+                                        {isSavingAffiliateSettings ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                                Saving...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle size={16} />
+                                                Save Settings
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+
+                                <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 mb-6">
+                                    {affiliateSettings.length === 0 ? (
+                                        <div className="rounded-[2rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
+                                            <ExternalLink size={28} className="mx-auto mb-4 text-slate-300" />
+                                            <h3 className="text-xl font-black text-slate-900">No live stores found yet</h3>
+                                            <p className="mt-2 text-sm font-semibold text-slate-500">
+                                                Add or fetch deals first. Stores with real products will sync into Affiliate Tags automatically.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                    <div className="grid gap-5">
+                                        {affiliateSettings.map((setting) => (
+                                            <div key={setting.storeSlug || setting.store} className="rounded-[2rem] border border-slate-200 bg-slate-50 p-5">
+                                                <div className="mb-5 flex flex-col gap-4 border-b border-slate-200/70 pb-5 lg:flex-row lg:items-center lg:justify-between">
+                                                    <div className="min-w-0">
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Store</label>
+                                                        <div className="flex min-h-12 items-center gap-3 rounded-xl bg-white px-4 py-3 text-sm font-black text-slate-900 border border-slate-200">
+                                                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                                                                {setting.store?.charAt(0) || 'S'}
+                                                            </span>
+                                                            <div className="min-w-0">
+                                                                <p className="truncate">{setting.store}</p>
+                                                                <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400">{setting.storeSlug}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        <span className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${setting.enabled && !setting.pendingSetup ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>
+                                                            {setting.enabled && !setting.pendingSetup ? 'Configured' : 'Pending setup'}
+                                                        </span>
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Enabled</label>
+                                                        <label className="h-12 flex items-center justify-between px-4 rounded-xl bg-white border border-slate-200 cursor-pointer relative">
+                                                            <span className="text-sm font-bold text-slate-700">{setting.enabled ? 'On' : 'Off'}</span>
+                                                            <input
+                                                                type="checkbox"
+                                                                className="sr-only peer"
+                                                                checked={Boolean(setting.enabled)}
+                                                                onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'enabled', e.target.checked)}
+                                                            />
+                                                            <div className="w-9 h-5 bg-slate-200 rounded-full peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[16px] after:right-[34px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                                                        </label>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-end">
+
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Parameter Key</label>
+                                                        <input
+                                                            type="text"
+                                                            className={inputCls}
+                                                            placeholder="tag"
+                                                            value={setting.paramKey}
+                                                            onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'paramKey', e.target.value)}
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Parameter Value</label>
+                                                        <input
+                                                            type="text"
+                                                            className={inputCls}
+                                                            placeholder="mytag-21"
+                                                            value={setting.paramValue}
+                                                            onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'paramValue', e.target.value)}
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Optional URL Pattern</label>
+                                                        <input
+                                                            type="text"
+                                                            className={inputCls}
+                                                            placeholder="amazon.in or /dp/"
+                                                            value={setting.urlPattern || ''}
+                                                            onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'urlPattern', e.target.value)}
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Admin Notes</label>
+                                                        <input
+                                                            type="text"
+                                                            className={inputCls}
+                                                            placeholder="Program ID, approval notes, payout rules..."
+                                                            value={setting.notes || ''}
+                                                            onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'notes', e.target.value)}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-5 grid gap-4 rounded-[1.5rem] border border-slate-200 bg-white p-4 lg:grid-cols-[1fr_auto] lg:items-center">
+                                                    <div className="min-w-0 space-y-3">
+                                                        <div>
+                                                            <p className="mb-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Sample original URL</p>
+                                                            <p className="break-all text-xs font-semibold text-slate-600">{getSampleProductUrlForAffiliateSetting(setting) || 'No product URL sample available for this store yet.'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="mb-1 text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">Current final Buy Now URL</p>
+                                                            <p className="break-all text-xs font-black text-slate-900">{getAffiliatePreviewForSetting(setting) || 'Enable rule + add key/value to generate a preview.'}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-3 lg:flex-col">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const preview = getAffiliatePreviewForSetting(setting);
+                                                                if (!preview) {
+                                                                    showToast?.('No preview URL available for this store yet.', 'info');
+                                                                    return;
+                                                                }
+                                                                window.open(preview, '_blank', 'noopener,noreferrer');
+                                                            }}
+                                                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg active:scale-95"
+                                                        >
+                                                            <ExternalLink size={14} />
+                                                            Test
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const preview = getAffiliatePreviewForSetting(setting);
+                                                                if (!preview) return;
+                                                                navigator.clipboard.writeText(preview);
+                                                                showToast?.(`${setting.store} preview copied.`, 'success');
+                                                            }}
+                                                            disabled={!getAffiliatePreviewForSetting(setting)}
+                                                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-700 disabled:opacity-50"
+                                                        >
+                                                            Copy
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    )}
+                                </div>
+
+                                <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <ExternalLink size={16} className="text-blue-600" />
+                                        <h3 className="text-lg font-black text-slate-900">Live Link Preview</h3>
+                                    </div>
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Original Product URL</label>
+                                            <div className="min-h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 break-all">
+                                                {dealForm.link || 'Go to Add Deal and paste a product URL to preview the final affiliate link.'}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Final Affiliate URL</label>
+                                            <div className="min-h-12 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 break-all">
+                                                {affiliatePreviewUrl || 'No valid product URL available yet.'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p className="mt-4 text-sm text-slate-500 font-medium">Saving settings re-applies updated affiliate parameters to existing deals too.</p>
+                                    <div className="mt-5 flex flex-wrap gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (!affiliatePreviewUrl) {
+                                                    showToast?.('Paste a product URL in Add Deal first.', 'info');
+                                                    return;
+                                                }
+                                                window.open(affiliatePreviewUrl, '_blank', 'noopener,noreferrer');
+                                            }}
+                                            className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-slate-200 active:scale-95"
+                                        >
+                                            <ExternalLink size={14} />
+                                            Test Final Link
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (!affiliatePreviewUrl) return;
+                                                navigator.clipboard.writeText(affiliatePreviewUrl);
+                                                showToast?.('Affiliate preview copied.', 'success');
+                                            }}
+                                            disabled={!affiliatePreviewUrl}
+                                            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-700 disabled:opacity-50"
+                                        >
+                                            <ExternalLink size={14} />
+                                            Copy Preview
+                                        </button>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {quickEditDeal && (
+                            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+                                <motion.button
+                                    type="button"
+                                    aria-label="Close quick edit"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="absolute inset-0"
+                                    onClick={() => setQuickEditDeal(null)}
+                                />
+                                <motion.div
+                                    initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 20, scale: 0.96 }}
+                                    className="relative z-10 w-full max-w-3xl rounded-[2rem] bg-white p-6 shadow-2xl"
+                                >
+                                    <div className="mb-6 flex items-start justify-between gap-4">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">Quick Edit</p>
+                                            <h3 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Update deal without leaving the table</h3>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setQuickEditDeal(null)}
+                                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 hover:bg-slate-900 hover:text-white"
+                                        >
+                                            <X size={18} />
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-6">
+                                        <div>
+                                            <div className="flex h-44 items-center justify-center overflow-hidden rounded-3xl border border-slate-100 bg-slate-50 p-5">
+                                                {quickEditDeal.image ? (
+                                                    <img src={optimizeImageUrl(quickEditDeal.image)} alt="" className="h-full w-full object-contain" />
+                                                ) : (
+                                                    <ImageIcon size={36} className="text-slate-300" />
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <input className={inputCls} value={quickEditDeal.title || ''} onChange={(event) => setQuickEditDeal(prev => ({ ...prev, title: event.target.value }))} placeholder="Deal title" />
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <input className={inputCls} value={quickEditDeal.store || ''} onChange={(event) => setQuickEditDeal(prev => ({ ...prev, store: event.target.value, storeName: event.target.value }))} placeholder="Store" />
+                                                <input className={inputCls} value={quickEditDeal.category || ''} onChange={(event) => setQuickEditDeal(prev => ({ ...prev, category: event.target.value }))} placeholder="Category" />
+                                                <input type="number" className={inputCls} value={quickEditDeal.price || ''} onChange={(event) => setQuickEditDeal(prev => ({ ...prev, price: event.target.value, dealPrice: Number(event.target.value) || 0 }))} placeholder="Deal price" />
+                                                <input type="number" className={inputCls} value={quickEditDeal.originalPrice || ''} onChange={(event) => setQuickEditDeal(prev => ({ ...prev, originalPrice: event.target.value, mrp: Number(event.target.value) || 0 }))} placeholder="MRP" />
+                                            </div>
+                                            <input className={inputCls} value={quickEditDeal.image || ''} onChange={(event) => setQuickEditDeal(prev => ({ ...prev, image: event.target.value }))} placeholder="Image URL" />
+                                            <div className="flex flex-col gap-3 sm:flex-row">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleQuickEditSave}
+                                                    disabled={isLoading}
+                                                    className="flex-1 rounded-2xl bg-slate-950 px-6 py-4 text-sm font-black uppercase tracking-widest text-white disabled:opacity-50"
+                                                >
+                                                    Save Quick Edit
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setQuickEditDeal(null);
+                                                        handleEditClick(quickEditDeal);
+                                                    }}
+                                                    className="rounded-2xl border border-slate-200 px-6 py-4 text-sm font-black uppercase tracking-widest text-slate-700 hover:bg-slate-50"
+                                                >
+                                                    Full Edit
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </div>
                         )}
                     </AnimatePresence>
                 </div>

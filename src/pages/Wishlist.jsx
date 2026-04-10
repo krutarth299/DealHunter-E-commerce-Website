@@ -24,7 +24,12 @@ const Wishlist = ({ user, wishlist, wishlistCount, toggleWishlist, clearWishlist
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans overflow-x-hidden no-scrollbar">
-            <SEO title="My Wishlist" description="View and manage your saved deals and discounts." />
+            <SEO
+                title="My Wishlist"
+                description="View and manage your saved DealSphere deals and discounts."
+                canonical="/wishlist"
+                noindex
+            />
             <Navbar
                 user={user}
                 onSearch={onSearch}

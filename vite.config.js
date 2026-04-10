@@ -56,7 +56,13 @@ function reactSSRPlugin() {
 
                     const { render } = await server.ssrLoadModule('/src/entry-server.jsx');
                     const { html, helmet } = await render(url, preloadedDeals, preloadedCategories);
-                    const helmetTags = helmet ? `${helmet.title?.toString() || ''}${helmet.meta?.toString() || ''}${helmet.link?.toString() || ''}` : '';
+                    const helmetTags = helmet ? [
+                        helmet.title?.toString() || '',
+                        helmet.meta?.toString() || '',
+                        helmet.link?.toString() || '',
+                        helmet.script?.toString() || ''
+                    ].join('') : '';
+                    const hasHeadOutlet = /<!--\s*ssr-head\s*-->/i.test(template);
 
                     const ssrDataScript = `
                     <script id="__SSR_DATA__">
@@ -66,10 +72,14 @@ function reactSSRPlugin() {
 
                     // Aggressive replacements using Broad Regex and function-based injection to avoid $ expansion issues
                     let finalHtml = template
+                        .replace(/<!--\s*ssr-head\s*-->/gi, () => helmetTags)
                         .replace(/<!--\s*ssr-outlet\s*-->/gi, () => html)
                         .replace(/<!--\s*ssr-data\s*-->/gi, () => ssrDataScript)
-                        .replace(/<\/head>/i, () => `${helmetTags}</head>`)
                         .replace(/<div\s+id=["']root["']\s*>/gi, () => '<div id="root" data-ssr-status="active">');
+
+                    if (!hasHeadOutlet) {
+                        finalHtml = finalHtml.replace(/<\/head>/i, () => `${helmetTags}</head>`);
+                    }
 
                     console.log(`[SSR ENGINE] Success: ${url} (Yield: ${html.length} chars)`);
                     
@@ -105,7 +115,21 @@ export default defineConfig({
         }
     },
     ssr: {
-        noExternal: true
+        // React's JSX runtime is a CommonJS shim in node_modules/react/*.js.
+        // Keep React external during dev SSR so Vite does not evaluate
+        // `module.exports` inside its ESM module runner.
+        external: [
+            'react',
+            'react-dom',
+            'react-dom/server',
+            'react/jsx-runtime',
+            'react/jsx-dev-runtime'
+        ],
+        noExternal: [
+            'framer-motion',
+            'lucide-react',
+            'react-helmet-async'
+        ]
     },
     build: {
         target: 'es2015'

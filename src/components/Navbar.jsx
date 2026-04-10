@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Search, Menu, X, Heart, Flame, Bell, Zap, Tag, ArrowRight, ShieldCheck, ShoppingCart, Sparkles, Globe } from 'lucide-react';
+import { Search, Menu, X, Heart, Flame, Bell, Zap, Tag, ArrowRight, ShieldCheck, BadgePercent } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useWishlistAnimation } from '../context/wishlistAnimationContextDefinition';
-import { AuthContext } from '../context/AuthContext';
+import { AuthContext } from '../context/authContextDefinition';
 import { motion, AnimatePresence } from 'framer-motion';
 import { optimizeImageUrl, getMainProductImage } from '../utils/imageOptimizer';
+import { getCardTitle } from '../utils/productTitles';
+import { formatPriceDisplay, parsePriceNumber } from '../utils/dealUi';
 
 const Navbar = ({ onSearch, wishlistCount = 0 }) => {
     const { wishlistRef, arrivalEffect } = useWishlistAnimation();
@@ -20,7 +22,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
 
     const isActive = (path) => routeLocation.pathname === path;
 
-    const fetchNotifications = () => {
+    const fetchNotifications = React.useCallback(() => {
         if (!apiBase) return;
         fetch(apiBase.replace('/user', '') + '/deals')
             .then(res => res.json())
@@ -40,11 +42,11 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                 }
             })
             .catch(err => console.error("Failed to fetch notifications:", err));
-    };
+    }, [apiBase]);
 
     useEffect(() => {
         fetchNotifications();
-    }, [apiBase]);
+    }, [fetchNotifications]);
 
     // Listen for new deals added in current session
     useEffect(() => {
@@ -54,7 +56,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
         };
         window.addEventListener('newDealAdded', handleNewDeal);
         return () => window.removeEventListener('newDealAdded', handleNewDeal);
-    }, [apiBase]);
+    }, [fetchNotifications]);
 
     useEffect(() => {
         let ticking = false;
@@ -86,6 +88,28 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
         e.preventDefault();
         if (onSearch) onSearch(searchVal);
         navigate(`/deals?search=${encodeURIComponent(searchVal)}`);
+    };
+
+    const searchSuggestions = React.useMemo(() => {
+        const query = searchVal.trim().toLowerCase();
+        if (query.length < 2) return [];
+
+        return latestDeals
+            .filter((deal) => {
+                const haystack = `${deal.title || ''} ${deal.store || deal.storeName || ''} ${deal.category || ''}`.toLowerCase();
+                return haystack.includes(query);
+            })
+            .slice(0, 4);
+    }, [latestDeals, searchVal]);
+
+    const closeSearch = () => {
+        setIsOpen(false);
+        setSearchVal('');
+    };
+
+    const getDealPriceLabel = (deal) => {
+        const value = parsePriceNumber(deal.dealPrice || deal.price || deal.pricing?.dealPrice || deal.pricing?.price);
+        return value ? formatPriceDisplay(value) : '';
     };
 
     return (
@@ -147,6 +171,52 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                     placeholder="Search 10,000+ verified deals..."
                                     className="w-full bg-slate-100/30 border border-slate-200/60 rounded-2xl py-3.5 pl-12 pr-6 text-sm font-semibold focus:outline-none focus:bg-white focus:border-orange-500/50 focus:ring-[6px] focus:ring-orange-500/5 transition-all"
                                 />
+                                <AnimatePresence>
+                                    {searchVal.trim().length >= 2 && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                                            className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-50 overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white/98 shadow-2xl shadow-slate-900/12 backdrop-blur-xl"
+                                        >
+                                            {searchSuggestions.length > 0 ? searchSuggestions.map((deal) => {
+                                                const productPath = `/product/${deal._id || deal.id}`;
+                                                return (
+                                                    <Link
+                                                        key={deal._id || deal.id || deal.title}
+                                                        to={productPath}
+                                                        onClick={() => {
+                                                            closeSearch();
+                                                        }}
+                                                        className="flex items-center gap-4 border-b border-slate-50 p-3 transition-colors hover:bg-orange-50/60"
+                                                    >
+                                                        <div className="h-14 w-14 shrink-0 rounded-2xl bg-slate-50 p-2">
+                                                            <img src={getMainProductImage(deal)} alt="" className="h-full w-full object-contain" />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="line-clamp-1 text-xs font-black text-slate-900">{getCardTitle(deal.displayTitle || deal.title)}</p>
+                                                            <div className="mt-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                                <span>{deal.store || deal.storeName || 'Store'}</span>
+                                                                {getDealPriceLabel(deal) && <span className="text-orange-600">{getDealPriceLabel(deal)}</span>}
+                                                            </div>
+                                                        </div>
+                                                        <ArrowRight size={16} className="text-slate-300" />
+                                                    </Link>
+                                                );
+                                            }) : (
+                                                <div className="px-5 py-4 text-xs font-bold text-slate-500">Press Enter to search all live deals for “{searchVal.trim()}”.</div>
+                                            )}
+                                            <Link
+                                                to={`/deals?search=${encodeURIComponent(searchVal)}`}
+                                                onClick={closeSearch}
+                                                className="flex items-center justify-between bg-slate-950 px-5 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white transition-colors hover:bg-orange-500"
+                                            >
+                                                Search all deals
+                                                <ArrowRight size={15} />
+                                            </Link>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </form>
 
                             {/* Right Actions */}
@@ -189,7 +259,14 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                                 </div>
                                                 <div className="max-h-[350px] overflow-y-auto no-scrollbar py-2">
                                                     {latestDeals.length > 0 ? latestDeals.map((deal, idx) => (
-                                                        <Link key={idx} to={`/product/${deal._id || deal.id}`} onClick={() => setIsNotificationsOpen(false)} className="flex gap-4 p-4 hover:bg-slate-50 transition-colors group/notif">
+                                                        <Link
+                                                            key={idx}
+                                                            to={`/product/${deal._id || deal.id}`}
+                                                            onClick={() => {
+                                                                setIsNotificationsOpen(false);
+                                                            }}
+                                                            className="flex gap-4 p-4 hover:bg-slate-50 transition-colors group/notif"
+                                                        >
                                                             <div className="w-12 h-12 bg-white rounded-xl border border-slate-100 p-1 flex-shrink-0">
                                                                 <img src={getMainProductImage(deal)} alt="" className="w-full h-full object-contain" />
                                                             </div>
@@ -236,13 +313,14 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                         </div>
 
                         {/* Secondary Desktop Navigation Row */}
-                        <AnimatePresence>
+                        <AnimatePresence initial={false}>
                             {!scrolled && (
-                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="hidden md:block overflow-hidden">
+                                <motion.div initial={false} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="hidden md:block overflow-hidden">
                                     <div className="max-w-7xl mx-auto border-t border-slate-100/50 py-2 mt-4 flex items-center gap-1">
                                         {[
                                             { to: '/', label: '🔥 Hot Deals' },
                                             { to: '/deals', label: 'All Deals' },
+                                            { to: '/coupons', label: 'Coupons' },
                                             { to: '/stores', label: 'Stores' },
                                             { to: '/blog', label: 'Blog' },
                                         ].map(link => (
@@ -268,9 +346,32 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                             <input type="text" value={searchVal} onChange={e => { setSearchVal(e.target.value); if (onSearch) onSearch(e.target.value); }} placeholder="Search for deals..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-5 pr-12 text-sm font-bold focus:outline-none" />
                                             <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"><Search size={20} /></button>
                                         </form>
+                                        {searchVal.trim().length >= 2 && searchSuggestions.length > 0 && (
+                                            <div className="-mt-4 mb-4 space-y-2 rounded-[1.5rem] bg-slate-50 p-3">
+                                                {searchSuggestions.slice(0, 3).map((deal) => (
+                                                    <Link
+                                                        key={deal._id || deal.id || deal.title}
+                                                        to={`/product/${deal._id || deal.id}`}
+                                                        onClick={() => {
+                                                            closeSearch();
+                                                        }}
+                                                        className="flex items-center gap-3 rounded-2xl bg-white p-2 shadow-sm"
+                                                    >
+                                                        <div className="h-11 w-11 shrink-0 rounded-xl bg-slate-50 p-1.5">
+                                                            <img src={getMainProductImage(deal)} alt="" className="h-full w-full object-contain" />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="line-clamp-1 text-[11px] font-black text-slate-900">{getCardTitle(deal.displayTitle || deal.title)}</p>
+                                                            <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-orange-600">{getDealPriceLabel(deal) || deal.store || 'Live deal'}</p>
+                                                        </div>
+                                                    </Link>
+                                                ))}
+                                            </div>
+                                        )}
                                         {[
                                             { to: '/', label: '🔥 Hot Deals' },
                                             { to: '/deals', label: 'All Deals' },
+                                            { to: '/coupons', label: 'Coupons & Codes' },
                                             { to: '/stores', label: 'Stores' },
                                             { to: '/blog', label: '✍️ Shopping Blog' },
                                         ].map(link => (
@@ -289,15 +390,19 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
             {/* Mobile Bottom Float Navigation */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-center px-4 pb-6 pointer-events-none">
                 <div className="w-full max-w-md h-16 bg-slate-900/90 backdrop-blur-2xl rounded-3xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between px-2 pointer-events-auto">
-                    <Link to="/" className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-all ${isActive('/') ? 'text-white scale-110' : 'text-slate-500'}`}>
+                    <Link to="/" className={`flex flex-col items-center justify-center flex-1 h-[3.25rem] rounded-2xl gap-1 transition-all ${isActive('/') ? 'bg-white/10 text-white shadow-inner' : 'text-slate-500 active:bg-white/5'}`}>
                         <Flame size={20} className={isActive('/') ? 'fill-orange-500 text-orange-500' : ''} />
                         <span className="text-[9px] font-black uppercase tracking-tighter">Home</span>
                     </Link>
-                    <Link to="/deals" className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-all ${isActive('/deals') ? 'text-white scale-110' : 'text-slate-500'}`}>
+                    <Link to="/deals" className={`flex flex-col items-center justify-center flex-1 h-[3.25rem] rounded-2xl gap-1 transition-all ${isActive('/deals') ? 'bg-white/10 text-white shadow-inner' : 'text-slate-500 active:bg-white/5'}`}>
                         <Tag size={20} className={isActive('/deals') ? 'fill-blue-500 text-blue-500' : ''} />
                         <span className="text-[9px] font-black uppercase tracking-tighter">Deals</span>
                     </Link>
-                    <Link to="/wishlist" className={`relative flex flex-col items-center justify-center flex-1 h-full gap-1 transition-all ${isActive('/wishlist') ? 'text-white scale-110' : 'text-slate-500'}`}>
+                    <Link to="/coupons" className={`flex flex-col items-center justify-center flex-1 h-[3.25rem] rounded-2xl gap-1 transition-all ${isActive('/coupons') ? 'bg-white/10 text-white shadow-inner' : 'text-slate-500 active:bg-white/5'}`}>
+                        <BadgePercent size={20} className={isActive('/coupons') ? 'fill-orange-500 text-orange-500' : ''} />
+                        <span className="text-[9px] font-black uppercase tracking-tighter">Codes</span>
+                    </Link>
+                    <Link to="/wishlist" className={`relative flex flex-col items-center justify-center flex-1 h-[3.25rem] rounded-2xl gap-1 transition-all ${isActive('/wishlist') ? 'bg-white/10 text-white shadow-inner' : 'text-slate-500 active:bg-white/5'}`}>
                         <Heart size={20} className={isActive('/wishlist') ? 'fill-red-500 text-red-500' : ''} />
                         <span className="text-[9px] font-black uppercase tracking-tighter">Saved</span>
                         {wishlistCount > 0 && <span className="absolute top-2 right-4 w-4 h-4 bg-orange-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-slate-900">{wishlistCount}</span>}

@@ -35,7 +35,7 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.node,
-      sourceType: 'commonjs',
+      sourceType: 'module',
     },
     rules: {
       'no-unused-vars': 'off',

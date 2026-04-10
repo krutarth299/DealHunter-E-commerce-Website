@@ -1,30 +1,285 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
+import { useLocation } from 'react-router-dom';
+import {
+    makePageTitle,
+    SITE_DESCRIPTION,
+    SITE_LOCALE,
+    SITE_NAME,
+    SITE_ORIGIN,
+    SITE_SOCIAL_IMAGE,
+    SITE_THEME_COLOR,
+    SITE_TITLE,
+    SITE_TWITTER_HANDLE
+} from '../config/brand';
 
-const SEO = ({ title, description, keywords, name, type, image }) => {
-    const defaultTitle = "DealSphere - Smart Deals Around the World";
-    const defaultDescription = "Smart deals around the world. Discover the best offers, coupons, and cashback across 100+ top stores.";
-    const defaultKeywords = "deals, coupons, offers, shopping, cashback, discounts, online shopping, Indian deals";
+const cleanPathname = (pathname = '/') => {
+    const clean = `/${String(pathname).split('#')[0].split('?')[0].replace(/^\/+/, '')}`;
+    return clean === '/index.html' || clean === '/home' ? '/' : clean.replace(/\/+$/, '') || '/';
+};
+
+const toAbsoluteUrl = (value = '') => {
+    const rawValue = String(value || '').trim();
+    if (!rawValue) return '';
+    if (/^https?:\/\//i.test(rawValue)) return rawValue;
+    return `${SITE_ORIGIN}${rawValue.startsWith('/') ? rawValue : `/${rawValue}`}`;
+};
+
+const resolveCanonicalPath = (pathname = '/', search = '') => {
+    const path = cleanPathname(pathname);
+    if (path !== '/deals') return path;
+
+    const params = new URLSearchParams(search);
+    const canonicalParams = new URLSearchParams();
+    const category = params.get('category');
+    const store = params.get('store');
+
+    if (category) canonicalParams.set('category', category);
+    if (store && !category) canonicalParams.set('store', store);
+
+    const query = canonicalParams.toString();
+    return query ? `${path}?${query}` : path;
+};
+
+const parsePrice = (value) => {
+    const price = Number(String(value ?? '').replace(/[^0-9.]/g, ''));
+    return Number.isFinite(price) && price > 0 ? price : 0;
+};
+
+const cleanMetaDescription = (value) => {
+    const description = String(value || SITE_DESCRIPTION).replace(/\s+/g, ' ').trim();
+    if (description.length <= 165) return description;
+    return `${description.slice(0, 162).replace(/\s+\S*$/, '')}...`;
+};
+
+const getProductImages = (product = {}, fallbackImage = '') => {
+    const images = [
+        fallbackImage,
+        product.image,
+        product.mainImage,
+        ...(Array.isArray(product.images) ? product.images : [])
+    ].filter(Boolean).map(toAbsoluteUrl);
+
+    return [...new Set(images)];
+};
+
+const createDefaultSchema = ({ title, description, canonicalUrl, imageUrl }) => ([
+    {
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: SITE_NAME,
+        url: SITE_ORIGIN,
+        logo: toAbsoluteUrl('/logo.png'),
+        image: imageUrl
+    },
+    {
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: SITE_NAME,
+        alternateName: SITE_TITLE,
+        url: SITE_ORIGIN,
+        description,
+        publisher: {
+            '@type': 'Organization',
+            name: SITE_NAME,
+            logo: {
+                '@type': 'ImageObject',
+                url: toAbsoluteUrl('/logo.png')
+            }
+        }
+    },
+    {
+        '@context': 'https://schema.org',
+        '@type': 'WebPage',
+        name: title,
+        description,
+        url: canonicalUrl,
+        isPartOf: {
+            '@type': 'WebSite',
+            name: SITE_NAME,
+            url: SITE_ORIGIN
+        }
+    }
+]);
+
+const createBreadcrumbSchema = (breadcrumbs = []) => {
+    const items = breadcrumbs
+        .filter((item) => item?.name && item?.url)
+        .map((item, index) => ({
+            '@type': 'ListItem',
+            position: index + 1,
+            name: item.name,
+            item: toAbsoluteUrl(item.url)
+        }));
+
+    if (items.length < 2) return null;
+
+    return {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: items
+    };
+};
+
+const createProductSchema = ({ product, canonicalUrl, image, description, title }) => {
+    if (!product || !title) return null;
+
+    const dealPrice = parsePrice(product.dealPrice || product.price);
+    const mrp = parsePrice(product.mrp || product.originalPrice);
+    const productUrl = toAbsoluteUrl(product.productUrl || product.link || product.affiliateLink || canonicalUrl);
+    const images = getProductImages(product, image);
+    const storeName = product.storeName || product.store || SITE_NAME;
+    const productSchema = {
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        name: title,
+        description,
+        image: images.length > 0 ? images : [toAbsoluteUrl(SITE_SOCIAL_IMAGE)],
+        url: canonicalUrl,
+        category: product.category || undefined,
+        sku: product.sourceProductId || product.productId || product.asin || product._id || product.id || undefined,
+        brand: {
+            '@type': 'Brand',
+            name: product.brand || storeName
+        },
+        offers: dealPrice ? {
+            '@type': 'Offer',
+            url: productUrl,
+            priceCurrency: product.currency || 'INR',
+            price: dealPrice,
+            highPrice: mrp && mrp >= dealPrice ? mrp : undefined,
+            availability: product.isExpired ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
+            seller: {
+                '@type': 'Organization',
+                name: storeName
+            }
+        } : undefined
+    };
+
+    const rating = Number(product.rating || product.aggregateRating || 0);
+    const reviewCount = Number(product.reviewCount || product.reviewsCount || 0);
+    if (rating > 0 && reviewCount > 0) {
+        productSchema.aggregateRating = {
+            '@type': 'AggregateRating',
+            ratingValue: Math.min(5, Math.max(1, rating)),
+            reviewCount
+        };
+    }
+
+    return productSchema;
+};
+
+const createItemListSchema = ({ items = [], canonicalUrl }) => {
+    const listItems = items
+        .filter(Boolean)
+        .slice(0, 24)
+        .map((item, index) => {
+            const id = item._id || item.id;
+            const url = item.url || item.pageUrl || (id ? `/product/${id}` : '');
+            return {
+                '@type': 'ListItem',
+                position: index + 1,
+                url: toAbsoluteUrl(url),
+                name: item.displayTitle || item.title || item.name
+            };
+        })
+        .filter((item) => item.name && item.url);
+
+    if (listItems.length === 0) return null;
+
+    return {
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        url: canonicalUrl,
+        itemListElement: listItems
+    };
+};
+
+const asSchemaArray = (value) => {
+    if (!value) return [];
+    return Array.isArray(value) ? value.filter(Boolean) : [value];
+};
+
+const SEO = ({
+    title,
+    description,
+    name,
+    type,
+    image,
+    canonical,
+    robots = 'index, follow',
+    noindex = false,
+    product,
+    itemList,
+    breadcrumbs,
+    structuredData
+}) => {
+    const location = useLocation();
+    const finalTitle = makePageTitle(title);
+    const finalDescription = cleanMetaDescription(description);
+    const canonicalPath = canonical || resolveCanonicalPath(location.pathname, location.search);
+    const canonicalUrl = toAbsoluteUrl(canonicalPath);
+    const finalImage = toAbsoluteUrl(image || SITE_SOCIAL_IMAGE);
+    const robotsContent = noindex ? 'noindex, nofollow, noarchive' : robots;
+    const productSchema = createProductSchema({
+        product,
+        canonicalUrl,
+        image,
+        title: product?.displayTitle || product?.title || title,
+        description: product?.description || finalDescription
+    });
+    const itemListSchema = createItemListSchema({ items: itemList, canonicalUrl });
+    const breadcrumbSchema = createBreadcrumbSchema(breadcrumbs);
+    const schemas = [
+        ...createDefaultSchema({
+            title: finalTitle,
+            description: finalDescription,
+            canonicalUrl,
+            imageUrl: finalImage
+        }),
+        productSchema,
+        itemListSchema,
+        breadcrumbSchema,
+        ...asSchemaArray(structuredData)
+    ].filter(Boolean);
+    const schemaJson = JSON.stringify(schemas.length === 1 ? schemas[0] : { '@context': 'https://schema.org', '@graph': schemas });
 
     return (
-        <Helmet>
-            {/* Standard metadata tags */}
-            <title>{title ? `${title} | DealSphere` : defaultTitle}</title>
-            <meta name='description' content={description || defaultDescription} />
-            <meta name='keywords' content={keywords || defaultKeywords} />
+        <Helmet
+            htmlAttributes={{ lang: 'en-IN' }}
+            script={[{
+                type: 'application/ld+json',
+                innerHTML: schemaJson
+            }]}
+        >
+            <title>{finalTitle || SITE_TITLE}</title>
+            <meta name="description" content={finalDescription} />
+            <meta name="robots" content={robotsContent} />
+            <meta name="theme-color" content={SITE_THEME_COLOR} />
+            <meta name="application-name" content={SITE_NAME} />
+            <meta name="author" content={SITE_NAME} />
+            <link rel="canonical" href={canonicalUrl} />
 
-            {/* Facebook / Open Graph tags */}
             <meta property="og:type" content={type || "website"} />
-            <meta property="og:title" content={title ? `${title} | DealSphere` : defaultTitle} />
-            <meta property="og:description" content={description || defaultDescription} />
-            {image && <meta property="og:image" content={image} />}
+            <meta property="og:site_name" content={SITE_NAME} />
+            <meta property="og:locale" content={SITE_LOCALE} />
+            <meta property="og:url" content={canonicalUrl} />
+            <meta property="og:title" content={finalTitle} />
+            <meta property="og:description" content={finalDescription} />
+            <meta property="og:image" content={finalImage} />
+            <meta property="og:image:secure_url" content={finalImage} />
+            <meta property="og:image:width" content="1200" />
+            <meta property="og:image:height" content="630" />
+            <meta property="og:image:alt" content={`${SITE_NAME} - verified online deals`} />
 
-            {/* Twitter tags */}
-            <meta name="twitter:creator" content={name || "DealSphere"} />
+            <meta name="twitter:creator" content={name || SITE_NAME} />
+            {SITE_TWITTER_HANDLE && <meta name="twitter:site" content={SITE_TWITTER_HANDLE} />}
             <meta name="twitter:card" content="summary_large_image" />
-            <meta name="twitter:title" content={title ? `${title} | DealSphere` : defaultTitle} />
-            <meta name="twitter:description" content={description || defaultDescription} />
-            {image && <meta name="twitter:image" content={image} />}
+            <meta name="twitter:url" content={canonicalUrl} />
+            <meta name="twitter:title" content={finalTitle} />
+            <meta name="twitter:description" content={finalDescription} />
+            <meta name="twitter:image" content={finalImage} />
+
         </Helmet>
     );
 }

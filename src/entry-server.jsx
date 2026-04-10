@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { renderToString } from 'react-dom/server';
-import { StaticRouter } from 'react-router-dom/server';
+import { StaticRouter } from 'react-router';
 import { HelmetProvider } from 'react-helmet-async';
 import { App, AppContent } from './App';
 import ErrorBoundary from './ErrorBoundary';
@@ -33,7 +33,8 @@ export async function render(url, preloadedDeals = [], preloadedCategories = [])
       helmet: {
         title: helmet?.title,
         meta: helmet?.meta,
-        link: helmet?.link
+        link: helmet?.link,
+        script: helmet?.script
       }
     };
   } catch (error) {

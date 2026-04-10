@@ -8,6 +8,18 @@ import { createServer } from 'http';
 import { Server } from "socket.io";
 import mongoose from 'mongoose';
 import Deal from './models/Deal.js';
+import Coupon from './models/Coupon.js';
+import { deals as mockDeals } from './mockStore.js';
+import { normalizeDealForResponse, repairStoredDeals } from './utils/deal-normalizer.js';
+import { groupDealsIntoListings } from './utils/product-identity.js';
+import AffiliateSetting from './models/AffiliateSetting.js';
+import {
+    applyAffiliateSettingsToDeal,
+    getAffiliateSettings,
+    reapplyAffiliateSettingsToDeals,
+    syncAffiliateSettingsWithStores
+} from './utils/affiliate-links.js';
+import { startCouponScheduler } from './services/couponDiscovery.js';
 
 // ESM Re-implementation of __dirname and __filename for Windows
 const __filename = fileURLToPath(import.meta.url);
@@ -51,6 +63,17 @@ const connectDB = async () => {
             serverSelectionTimeoutMS: 5000 // 5 second timeout
         });
         app.locals.isMockMode = false;
+        await repairStoredDeals(Deal);
+        await syncAffiliateSettingsWithStores(AffiliateSetting, Deal, false, app.locals);
+        const affiliateSettings = await getAffiliateSettings(AffiliateSetting, false, app.locals);
+        await reapplyAffiliateSettingsToDeals(Deal, affiliateSettings);
+        startCouponScheduler({
+            app,
+            CouponModel: Coupon,
+            DealModel: Deal,
+            AffiliateSettingModel: AffiliateSetting,
+            io
+        });
         console.log('DATABASE: CONNECTED SUCCESSFULLY');
     } catch (err) {
         app.locals.isMockMode = true;
@@ -64,9 +87,17 @@ connectDB();
 
 import dealsRouter from './routes/deals.js';
 import blogRouter from './routes/blog.js';
+import adminRouter from './routes/admin.js';
+import storesRouter from './routes/stores.js';
+import couponsRouter from './routes/coupons.js';
 
 app.use('/api/deals', dealsRouter);
+app.use('/api/admin/deals', dealsRouter);
 app.use('/api/blog', blogRouter);
+app.use('/api/coupons', couponsRouter);
+app.use('/api/admin/coupons', couponsRouter);
+app.use('/api/admin', adminRouter);
+app.use('/api/stores', storesRouter);
 
 // ==================== [PRODUCTION SSR ENGINE] ====================
 app.use(express.static(path.join(__dirname, '../dist/client'), { index: false }));
@@ -88,12 +119,36 @@ app.get('*', async (req, res, next) => {
         let preloadedCategories = [];
         
         try {
-            const [d, c] = await Promise.all([
-                Deal.find().sort({ createdAt: -1 }).limit(20).lean(),
-                Deal.distinct('category').lean()
-            ]);
-            preloadedDeals = (d || []).map(item => ({...item, _id: item._id.toString()}));
+            const affiliateSettings = await getAffiliateSettings(AffiliateSetting, app.locals.isMockMode, app.locals);
+            const productIdMatch = req.path.match(/^\/product\/([^/?#]+)/);
+            const [d, c] = app.locals.isMockMode
+                ? [
+                    [...mockDeals].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 20),
+                    [...new Set(mockDeals.map((deal) => deal.category).filter(Boolean))]
+                ]
+                : await Promise.all([
+                    Deal.find().sort({ createdAt: -1 }).limit(20).lean(),
+                    Deal.distinct('category')
+                ]);
+            if (productIdMatch && !app.locals.isMockMode) {
+                const productId = productIdMatch[1];
+                const alreadyPreloaded = (d || []).some((deal) => String(deal._id || deal.id) === productId);
+                if (!alreadyPreloaded && mongoose.Types.ObjectId.isValid(productId)) {
+                    const requestedDeal = await Deal.findById(productId).lean();
+                    if (requestedDeal) {
+                        d.unshift(requestedDeal);
+                    }
+                }
+            }
+            const normalizedPreloadDeals = (d || []).map(item => {
+                const normalizedDeal = normalizeDealForResponse(
+                    applyAffiliateSettingsToDeal({ deal: item, settings: affiliateSettings })
+                );
+                return { ...normalizedDeal, _id: item._id.toString() };
+            }).filter((deal) => Boolean(deal?.title) && Boolean(deal?.productUrl || deal?.link || deal?._id));
+            preloadedDeals = groupDealsIntoListings(normalizedPreloadDeals).slice(0, 20);
             preloadedCategories = (c || []).filter(Boolean);
+            console.log(`[SSR_DEALS] source=${app.locals.isMockMode ? 'mock' : 'mongodb'} preloaded=${preloadedDeals.length} categories=${preloadedCategories.length}`);
         } catch(e) {
             console.error('[Production SSR] DB Error:', e.message);
         }
@@ -104,19 +159,29 @@ app.get('*', async (req, res, next) => {
         </script>`;
 
         const serverEntryPath = path.resolve(__dirname, '../dist/server/entry-server.js');
-        if (fs.existsSync(serverEntryPath)) {
-            const { render } = await import('file://' + serverEntryPath.replace(/\\/g, '/'));
-            const { html, helmet } = await render(req.originalUrl, preloadedDeals, preloadedCategories);
-            
-            const helmetTags = helmet ? `${helmet.title?.toString() || ''}${helmet.meta?.toString() || ''}` : '';
+        if (!fs.existsSync(serverEntryPath)) {
+            console.error('[Production SSR] Missing server bundle at:', serverEntryPath);
+            return res.status(500).send('Production SSR bundle missing. Run npm run build so dist/server/entry-server.js is generated.');
+        }
+        const { render } = await import('file://' + serverEntryPath.replace(/\\/g, '/'));
+        const { html, helmet } = await render(req.originalUrl, preloadedDeals, preloadedCategories);
 
-            template = template
-                .replace(/<!--\s*ssr-outlet\s*-->/gi, () => html)
-                .replace(/<!--\s*ssr-data\s*-->/gi, () => ssrDataScript)
-                .replace(/<\/head>/i, () => `${helmetTags}</head>`)
-                .replace(/<div\s+id=["']root["']\s*>/gi, () => '<div id="root" data-ssr-status="active">');
-        } else {
-             template = template.replace(`<!--ssr-data-->`, ssrDataScript);
+        const helmetTags = helmet ? [
+            helmet.title?.toString() || '',
+            helmet.meta?.toString() || '',
+            helmet.link?.toString() || '',
+            helmet.script?.toString() || ''
+        ].join('') : '';
+        const hasHeadOutlet = /<!--\s*ssr-head\s*-->/i.test(template);
+
+        template = template
+            .replace(/<!--\s*ssr-head\s*-->/gi, () => helmetTags)
+            .replace(/<!--\s*ssr-outlet\s*-->/gi, () => html)
+            .replace(/<!--\s*ssr-data\s*-->/gi, () => ssrDataScript)
+            .replace(/<div\s+id=["']root["']\s*>/gi, () => '<div id="root" data-ssr-status="active">');
+
+        if (!hasHeadOutlet) {
+            template = template.replace(/<\/head>/i, () => `${helmetTags}</head>`);
         }
 
         res.setHeader('Content-Type', 'text/html');
@@ -152,6 +217,7 @@ server.listen(PORT, () => {
     console.log(`Server running on port ${PORT} (${mode})`);
     console.log(`Socket.io: ACTIVE`);
     console.log(`Extraction Engine: ACTIVE`);
+    console.log(`Coupon Discovery Engine: ${app.locals.isMockMode ? 'WAITING FOR DATABASE' : 'ACTIVE'}`);
     if (app.locals.isMockMode) {
         console.log('NOTICE: Data is being stored in memory only.');
     } else {

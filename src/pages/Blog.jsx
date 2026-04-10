@@ -48,8 +48,18 @@ const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen }) => {
     return (
         <div className="min-h-screen flex flex-col bg-slate-50 selection:bg-orange-100">
             <SEO
-                title="Blog — Deal Tips & Shopping Guides"
-                description="Expert shopping guides, deal analysis, and money-saving tips from the DealSphere team."
+                title="Shopping Tips, Deal Guides & Coupon Advice"
+                description="Read DealSphere shopping guides, deal analysis, coupon tips and price-drop strategies to save more on online shopping."
+                canonical="/blog"
+                itemList={BLOG_POSTS.map((post) => ({
+                    name: post.title,
+                    title: post.title,
+                    pageUrl: `/blog/${post.slug}`
+                }))}
+                breadcrumbs={[
+                    { name: 'Home', url: '/' },
+                    { name: 'Blog', url: '/blog' }
+                ]}
             />
             <Navbar user={user} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist ? wishlist.length : 0} wishlist={wishlist} />
 

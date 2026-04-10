@@ -7,6 +7,7 @@ import Footer from '../components/Footer';
 import SEO from '../components/SEO';
 import { BLOG_POSTS } from '../data/blogData';
 import { optimizeImageUrl } from '../utils/imageOptimizer';
+import { SITE_ORIGIN } from '../config/brand';
 
 const renderBlock = (block, index) => {
     switch (block.type) {
@@ -88,9 +89,13 @@ const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOp
             }
         };
         if (slug) fetchComments();
-    }, [slug]);
+    }, [apiBase, slug]);
+
+    const post = useMemo(() => BLOG_POSTS.find(p => p.slug === slug), [slug]);
 
     useEffect(() => {
+        if (!post?.content) return undefined;
+
         const handleScroll = () => {
             const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
             const progress = (window.scrollY / totalHeight) * 100;
@@ -110,9 +115,7 @@ const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOp
         };
         window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
-    }, [slug]);
-
-    const post = useMemo(() => BLOG_POSTS.find(p => p.slug === slug), [slug]);
+    }, [post?.content]);
     const headings = useMemo(() =>
         post?.content.filter(b => b.type === 'heading').map(b => ({
             text: b.text,
@@ -177,10 +180,44 @@ const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOp
             if (showToast) showToast('Connection error', 'error');
         }
     };
+    const postUrl = `${SITE_ORIGIN}/blog/${post.slug}`;
+    const postDate = new Date(post.date);
+    const postDateIso = Number.isFinite(postDate.getTime()) ? postDate.toISOString() : undefined;
 
     return (
         <div className="min-h-screen flex flex-col bg-white selection:bg-orange-500 selection:text-white font-sans scroll-smooth">
-            <SEO title={post.title} description={post.excerpt} image={post.image} />
+            <SEO
+                title={post.title}
+                description={post.excerpt}
+                canonical={`/blog/${post.slug}`}
+                type="article"
+                structuredData={{
+                    '@context': 'https://schema.org',
+                    '@type': 'Article',
+                    headline: post.title,
+                    description: post.excerpt,
+                    image: post.image,
+                    author: {
+                        '@type': 'Person',
+                        name: post.author
+                    },
+                    publisher: {
+                        '@type': 'Organization',
+                        name: 'DealSphere',
+                        logo: {
+                            '@type': 'ImageObject',
+                            url: `${SITE_ORIGIN}/logo.png`
+                        }
+                    },
+                    datePublished: postDateIso,
+                    mainEntityOfPage: postUrl
+                }}
+                breadcrumbs={[
+                    { name: 'Home', url: '/' },
+                    { name: 'Blog', url: '/blog' },
+                    { name: post.title, url: `/blog/${post.slug}` }
+                ]}
+            />
 
             {/* Minimalist Progress Hook */}
             <div className="fixed top-0 left-0 right-0 h-1 bg-slate-50 z-[100]">

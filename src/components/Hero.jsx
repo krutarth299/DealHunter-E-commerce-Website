@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, TrendingDown, Zap, ShieldCheck, Clock, ExternalLink, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import { optimizeImageUrl, getMainProductImage } from '../utils/imageOptimizer';
+import { ArrowRight, TrendingDown, Zap, ShieldCheck, Clock, ExternalLink, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { getMainProductImage, NO_PRODUCT_IMAGE } from '../utils/imageOptimizer';
+import { getDisplayTitle } from '../utils/productTitles';
+import useHasHydrated from '../hooks/useHasHydrated';
 
 /* ─── helpers ─────────────────────────────────────── */
 const formatPrice = (p) => {
@@ -70,9 +72,41 @@ const FALLBACK_SLIDES = [
 ];
 
 /* ─── Component ───────────────────────────────────── */
+const HeroStickyContent = ({ slide, label }) => (
+    <>
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/10 p-1.5 ring-1 ring-white/10">
+            {slide.image ? (
+                <img src={slide.image} alt="" className="h-full w-full object-contain" />
+            ) : (
+                <ShoppingBag size={22} className="text-orange-300" />
+            )}
+        </div>
+        <div className="min-w-0 flex-1">
+            <p className="truncate text-[9px] font-black uppercase tracking-[0.2em] text-white/45">
+                {slide.store || 'DealSphere'}
+            </p>
+            <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-xl font-black leading-none tracking-tight text-white">
+                    {slide.price || 'Live Deal'}
+                </span>
+                {slide.discountNum && (
+                    <span className="rounded-lg bg-emerald-400/15 px-2 py-0.5 text-[9px] font-black text-emerald-200">
+                        {slide.discountNum}% OFF
+                    </span>
+                )}
+            </div>
+        </div>
+        <div className="flex h-12 shrink-0 items-center gap-2 rounded-2xl bg-white px-4 text-[10px] font-black uppercase tracking-widest text-slate-950 shadow-lg">
+            {label}
+            <ArrowRight size={14} strokeWidth={3} />
+        </div>
+    </>
+);
+
 const Hero = ({ deals = [] }) => {
     const [current, setCurrent] = useState(0);
-    const navigate = useNavigate();
+    const hasHydrated = useHasHydrated();
+    const shouldRunEntryAnimation = hasHydrated || current > 0;
 
     /* Pick the top deals with images to feature in the slider.
        Prioritise deals that have an image, a price, and a good discount. */
@@ -92,12 +126,13 @@ const Hero = ({ deals = [] }) => {
 
     const slides = featuredDeals
         ? featuredDeals.map(deal => ({
-            badge: getDiscountNum(deal.discount) >= 50 ? '🔥 Hot Deal' : '⚡ Featured Deal',
-            title: deal.title,
+            badge: getDiscountNum(deal.discount) >= 50 ? 'Hot Deal' : 'Best Pick',
+            title: getDisplayTitle(deal.displayTitle || deal.title),
+            rawTitle: deal.originalTitle || deal.rawTitle || deal.title,
             sub: `Available at ${deal.store || 'Top Stores'} · Verified price drop`,
-            cta: 'Grab This Deal',
-            href: deal.link || '/deals',
-            isExternal: !!deal.link,
+            cta: 'Grab Deal',
+            href: (deal.id || deal._id) ? `/product/${deal.id || deal._id}` : '/deals',
+            isExternal: false,
             bg: getBg(deal.category),
             image: getMainProductImage(deal),
             emoji: null,
@@ -125,6 +160,8 @@ const Hero = ({ deals = [] }) => {
     const prevSlide = () => setCurrent(p => (p - 1 + slides.length) % slides.length);
 
     const slide = slides[current] || slides[0];
+    const showMobileStickyCta = Boolean(slide && (slide.price || slide.href));
+    const mobileCtaLabel = slide?.price ? 'Grab Deal' : slide?.cta || 'Grab Deal';
 
     return (
         <section 
@@ -133,11 +170,11 @@ const Hero = ({ deals = [] }) => {
             onMouseLeave={() => setIsPaused(false)}
         >
             {/* ── Main Slide Banner ── */}
-            <div className="relative overflow-hidden h-[500px] sm:h-[550px] md:h-[520px] lg:h-[580px]">
+            <div className="relative overflow-hidden min-h-[500px] sm:min-h-[620px] md:min-h-[560px] lg:min-h-[620px]">
                 <AnimatePresence>
                     <motion.div
                         key={current}
-                        initial={{ opacity: 0 }}
+                        initial={shouldRunEntryAnimation ? { opacity: 0 } : false}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.8, ease: [0.32, 0.72, 0, 1] }}
@@ -158,15 +195,16 @@ const Hero = ({ deals = [] }) => {
                         {/* Grid noise fallback */}
                         <div className="absolute inset-0 opacity-[0.1] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] mix-blend-overlay" />
 
-                        <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-12 pt-20 pb-12 sm:pt-20 md:pt-24 md:pb-20 lg:pt-28 flex flex-col md:flex-row items-center justify-between gap-4 md:gap-16 relative z-10 w-full h-full">
+                        <div className="max-w-7xl mx-auto px-5 sm:px-10 lg:px-12 pt-10 pb-16 sm:pt-20 md:pt-20 md:pb-20 lg:pt-24 flex flex-col md:flex-row items-center justify-center md:justify-between gap-5 sm:gap-8 md:gap-12 lg:gap-16 relative z-10 w-full min-h-[500px] sm:min-h-[620px] md:min-h-[560px] lg:min-h-[620px]">
                             {/* ── Text side ── */}
-                            <div className="flex-[1.2] text-white space-y-3 md:space-y-6 text-center md:text-left">
+                            <div className="w-full flex-[1.35] text-white space-y-3.5 md:space-y-5 lg:space-y-6 text-center md:text-left md:min-w-0">
                                 <motion.div
-                                    initial={{ x: -20, opacity: 0 }}
+                                    initial={shouldRunEntryAnimation ? { x: -20, opacity: 0 } : false}
                                     animate={{ x: 0, opacity: 1 }}
                                     className="flex items-center gap-2 justify-center md:justify-start"
                                 >
-                                    <span className="bg-white/10 backdrop-blur-lg text-white text-[8px] md:text-[9px] font-black px-2.5 py-1.5 rounded-lg uppercase tracking-[0.2em] border border-white/20 shadow-xl">
+                                    <span className="bg-white/12 backdrop-blur-lg text-white text-[8px] md:text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-[0.2em] border border-white/20 shadow-xl inline-flex items-center gap-1.5">
+                                        <Zap size={12} fill="currentColor" />
                                         {slide.badge}
                                     </span>
                                     <div className="flex items-center gap-1.5 bg-emerald-500/20 px-2 py-1 rounded-md border border-emerald-500/30">
@@ -176,19 +214,32 @@ const Hero = ({ deals = [] }) => {
                                 </motion.div>
 
                                 <motion.h1
-                                    initial={{ y: 20, opacity: 0 }}
+                                    initial={shouldRunEntryAnimation ? { y: 20, opacity: 0 } : false}
                                     animate={{ y: 0, opacity: 1 }}
                                     transition={{ delay: 0.1 }}
-                                    className="text-lg sm:text-xl md:text-3xl lg:text-5xl font-[1000] leading-[1.1] tracking-tight py-1 line-clamp-2 md:line-clamp-3"
+                                    title={slide.rawTitle || slide.title}
+                                    className="line-clamp-2 mx-auto md:mx-0 w-full max-w-[24ch] text-[clamp(1.75rem,7.4vw,3.25rem)] md:text-[clamp(2.6rem,4.9vw,4.9rem)] font-[1000] leading-[1.16] tracking-[-0.055em] py-1 text-balance"
                                 >
                                     {slide.title}
                                 </motion.h1>
 
+                                {slide.store && (
+                                    <motion.div
+                                        initial={shouldRunEntryAnimation ? { y: 10, opacity: 0 } : false}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        transition={{ delay: 0.15 }}
+                                        className="mx-auto flex w-fit items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-white ring-1 ring-white/15 md:hidden"
+                                    >
+                                        <span className="text-[8px] font-black uppercase tracking-[0.22em] text-white/50">Marketplace</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest">{slide.store}</span>
+                                    </motion.div>
+                                )}
+
                                 <motion.p
-                                    initial={{ y: 20, opacity: 0 }}
+                                    initial={shouldRunEntryAnimation ? { y: 20, opacity: 0 } : false}
                                     animate={{ y: 0, opacity: 1 }}
                                     transition={{ delay: 0.2 }}
-                                    className="text-white/60 text-xs md:text-base max-w-lg mx-auto md:mx-0 font-medium leading-relaxed"
+                                    className="line-clamp-2 text-white/75 text-xs sm:text-sm md:text-base max-w-xl mx-auto md:mx-0 font-semibold leading-relaxed"
                                 >
                                     {slide.sub}
                                 </motion.p>
@@ -196,15 +247,15 @@ const Hero = ({ deals = [] }) => {
                                 {/* Price Row */}
                                 {(slide.price || slide.discount) && (
                                     <motion.div
-                                        initial={{ y: 20, opacity: 0 }}
+                                        initial={shouldRunEntryAnimation ? { y: 20, opacity: 0 } : false}
                                         animate={{ y: 0, opacity: 1 }}
                                         transition={{ delay: 0.3 }}
                                         className="flex flex-wrap items-center gap-4 justify-center md:justify-start"
                                     >
                                         <div className="flex flex-col">
-                                            <span className="text-white/40 text-[7px] md:text-[8px] font-black uppercase tracking-widest mb-1">Live Valuation</span>
+                                            <span className="text-white/45 text-[7px] md:text-[8px] font-black uppercase tracking-widest mb-1">Deal Price</span>
                                             <div className="flex items-baseline gap-2">
-                                                <span className="text-2xl md:text-4xl font-black text-white tracking-tighter">{slide.price}</span>
+                                                <span className="text-3xl md:text-4xl font-black text-white tracking-tighter">{slide.price}</span>
                                                 {slide.mrp && (
                                                     <span className="text-sm md:text-lg font-bold text-white/30 line-through decoration-white/40">{slide.mrp}</span>
                                                 )}
@@ -212,7 +263,7 @@ const Hero = ({ deals = [] }) => {
                                         </div>
                                         
                                         {slide.discountNum && (
-                                            <div className="bg-yellow-400 rotate-3 px-2 py-1 rounded-xl shadow-lg shadow-yellow-500/20">
+                                            <div className="bg-yellow-400 rotate-3 px-3 py-1.5 rounded-xl shadow-lg shadow-yellow-500/20">
                                                 <span className="text-yellow-900 font-black text-lg md:text-xl tracking-tighter">
                                                     -{slide.discountNum}%
                                                 </span>
@@ -222,21 +273,34 @@ const Hero = ({ deals = [] }) => {
                                 )}
 
                                 <motion.div
-                                    initial={{ y: 30, opacity: 0 }}
+                                    initial={shouldRunEntryAnimation ? { y: 30, opacity: 0 } : false}
                                     animate={{ y: 0, opacity: 1 }}
                                     transition={{ delay: 0.4 }}
                                     className="flex flex-wrap gap-2.5 items-center justify-center md:justify-start pt-0 md:pt-1"
                                 >
-                                    <Link
-                                        to={slide.href}
-                                        className="h-11 px-6 md:h-13 md:px-8 bg-white rounded-xl text-slate-900 font-black text-[9px] md:text-xs uppercase tracking-[0.15em] flex items-center gap-2 hover:translate-y-[-2px] active:translate-y-[0] transition-all shadow-xl shadow-black/10 group overflow-hidden relative"
-                                    >
-                                        <div className="absolute inset-0 bg-slate-900 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
-                                        <span className="relative z-10 group-hover:text-white transition-colors">Access Deal</span>
-                                        <ArrowRight size={13} className="relative z-10 group-hover:text-white transition-colors group-hover:translate-x-1" />
-                                    </Link>
+                                    {slide.isExternal ? (
+                                        <a
+                                            href={slide.href}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="h-12 px-7 md:h-14 md:px-9 bg-white rounded-2xl text-slate-950 font-black text-[10px] md:text-xs uppercase tracking-[0.16em] flex items-center gap-2.5 hover:translate-y-[-3px] active:translate-y-[0] transition-all shadow-2xl shadow-black/20 group/cta overflow-hidden relative no-underline"
+                                        >
+                                            <div className="absolute inset-0 bg-slate-950 translate-y-full group-hover/cta:translate-y-0 transition-transform duration-500" />
+                                            <span className="relative z-10 group-hover/cta:text-white transition-colors">{slide.cta}</span>
+                                            <ExternalLink size={14} className="relative z-10 group-hover/cta:text-white transition-colors group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5" />
+                                        </a>
+                                    ) : (
+                                        <Link
+                                            to={slide.href}
+                                            className="h-12 px-7 md:h-14 md:px-9 bg-white rounded-2xl text-slate-950 font-black text-[10px] md:text-xs uppercase tracking-[0.16em] flex items-center gap-2.5 hover:translate-y-[-3px] active:translate-y-[0] transition-all shadow-2xl shadow-black/20 group/cta overflow-hidden relative"
+                                        >
+                                            <div className="absolute inset-0 bg-slate-950 translate-y-full group-hover/cta:translate-y-0 transition-transform duration-500" />
+                                            <span className="relative z-10 group-hover/cta:text-white transition-colors">{slide.cta}</span>
+                                            <ArrowRight size={14} className="relative z-10 group-hover/cta:text-white transition-colors group-hover/cta:translate-x-1" />
+                                        </Link>
+                                    )}
                                     
-                                    <div className="h-11 md:h-13 px-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl hidden sm:flex items-center gap-2.5">
+                                    <div className="h-11 md:h-14 px-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl hidden sm:flex items-center gap-2.5">
                                         <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center">
                                             <ShieldCheck size={13} className="text-white opacity-60" />
                                         </div>
@@ -250,10 +314,10 @@ const Hero = ({ deals = [] }) => {
 
                             {/* ── Visual side ── */}
                             <motion.div
-                                initial={{ x: 50, opacity: 0 }}
+                                initial={shouldRunEntryAnimation ? { x: 50, opacity: 0 } : false}
                                 animate={{ x: 0, opacity: 1 }}
                                 transition={{ delay: 0.3, duration: 0.8 }}
-                                className="flex-1 w-full md:w-auto flex justify-center mt-2 md:mt-0 relative"
+                                className="flex-[0.95] w-full md:w-auto flex justify-center mt-0 relative md:min-w-0"
                             >
                                 {/* Decorative elements */}
                                 <div className="absolute -inset-8 bg-white/20 blur-[80px] rounded-full opacity-30 animate-pulse" />
@@ -267,14 +331,14 @@ const Hero = ({ deals = [] }) => {
                                         transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
                                         className="relative group"
                                     >
-                                        <div className="relative w-32 h-32 xs:w-40 xs:h-40 sm:w-52 sm:h-52 md:w-64 md:h-64 lg:w-[380px] lg:h-[380px] rounded-[2rem] md:rounded-[3rem] bg-gradient-to-br from-white/20 to-white/5 border border-white/30 backdrop-blur-2xl flex items-center justify-center p-4 md:p-10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4)]">
+                                        <div className="relative w-44 h-44 xs:w-52 xs:h-52 sm:w-72 sm:h-72 md:w-72 md:h-72 lg:w-[380px] lg:h-[380px] xl:w-[420px] xl:h-[420px] rounded-[2rem] md:rounded-[3rem] bg-gradient-to-br from-white/25 to-white/5 border border-white/30 backdrop-blur-2xl flex items-center justify-center p-5 sm:p-7 md:p-10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4)]">
                                             <img
                                                 src={slide.image}
                                                 alt={slide.title}
                                                 className="w-full h-full object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] transform group-hover:scale-110 transition-transform duration-700"
                                                 onError={(e) => { 
                                                     e.target.onerror = null; 
-                                                    e.target.src = "https://placehold.co/400x400/f8fafc/94a3b8.png?text=No+Image"; 
+                                                    e.target.src = NO_PRODUCT_IMAGE;
                                                 }}
                                             />
                                         </div>
@@ -375,17 +439,39 @@ const Hero = ({ deals = [] }) => {
             </div>
 
             {/* ── Trust Strip ── */}
+            {showMobileStickyCta && (
+                <div className="fixed inset-x-0 bottom-[6.1rem] z-40 px-4 md:hidden pointer-events-none">
+                    {slide.isExternal ? (
+                        <a
+                            href={slide.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="pointer-events-auto mx-auto flex h-[4.35rem] max-w-md items-center gap-3 rounded-[1.75rem] border border-white/10 bg-slate-950 px-3.5 text-white shadow-[0_24px_60px_-22px_rgba(2,6,23,0.95)] no-underline transition-transform active:scale-[0.98]"
+                        >
+                            <HeroStickyContent slide={slide} label={mobileCtaLabel} />
+                        </a>
+                    ) : (
+                        <Link
+                            to={slide.href}
+                            className="pointer-events-auto mx-auto flex h-[4.35rem] max-w-md items-center gap-3 rounded-[1.75rem] border border-white/10 bg-slate-950 px-3.5 text-white shadow-[0_24px_60px_-22px_rgba(2,6,23,0.95)] transition-transform active:scale-[0.98]"
+                        >
+                            <HeroStickyContent slide={slide} label={mobileCtaLabel} />
+                        </Link>
+                    )}
+                </div>
+            )}
+
             <div className="border-b border-slate-100 bg-white">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-center md:justify-between gap-6 text-sm font-semibold text-slate-500">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 grid grid-cols-2 md:flex md:flex-wrap items-center justify-center md:justify-between gap-3 md:gap-6 text-sm font-semibold text-slate-500">
                     {[
                         { icon: ShieldCheck, label: '100% Verified Deals', color: 'text-emerald-500' },
                         { icon: Zap, label: 'Real-time Price Sync', color: 'text-orange-500' },
                         { icon: TrendingDown, label: 'Best Price Guarantee', color: 'text-blue-500' },
                         { icon: Clock, label: 'Updated Every 5 Min', color: 'text-violet-500' },
                     ].map(({ icon: Icon, label, color }) => (
-                        <div key={label} className="flex items-center gap-2">
-                            <Icon size={16} className={color} />
-                            <span className="text-xs font-bold">{label}</span>
+                        <div key={label} className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2 md:bg-transparent md:px-0 md:py-0">
+                            <Icon size={18} className={color} />
+                            <span className="text-[10px] leading-tight md:text-xs font-bold">{label}</span>
                         </div>
                     ))}
                 </div>

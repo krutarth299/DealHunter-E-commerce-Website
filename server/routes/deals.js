@@ -9,11 +9,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 import Deal from '../models/Deal.js';
+import AffiliateSetting from '../models/AffiliateSetting.js';
 import { deals } from '../mockStore.js';
 import fetch from 'node-fetch';
 import * as cheerioModule from 'cheerio';
 const cheerio = cheerioModule.default || cheerioModule;
 import { sleep, PROFILES, getRandomProfile, injectStealth } from '../scraper-utils.js';
+import { normalizeDealPayload, normalizeDealForResponse } from '../utils/deal-normalizer.js';
+import {
+    applyAffiliateSettingsToDeal,
+    getAffiliateSettings,
+    syncAffiliateSettingsWithStores
+} from '../utils/affiliate-links.js';
+import { normalizeProductImages } from '../utils/product-images.js';
+import { groupDealsIntoListings, mergeVariantOptions } from '../utils/product-identity.js';
 
 // puppeteer-extra with stealth for Meesho/bot-protected sites
 import puppeteerExtra from 'puppeteer-extra';
@@ -22,16 +31,107 @@ puppeteerExtra.use(StealthPlugin());
 const puppeteer = puppeteerExtra;
 const puppeteerStealth = puppeteerExtra;
 
+const loadAffiliateSettings = (req) =>
+    getAffiliateSettings(AffiliateSetting, req.app.locals.isMockMode, req.app.locals);
+
+const syncAffiliateStoreConfigs = (req) =>
+    syncAffiliateSettingsWithStores(AffiliateSetting, Deal, req.app.locals.isMockMode, req.app.locals)
+        .catch((error) => {
+            console.warn('[AFFILIATE_SYNC_WARN]', error.message || error);
+        });
+
+const decorateDealForResponse = (deal, settings) =>
+    normalizeDealForResponse(applyAffiliateSettingsToDeal({ deal, settings }));
+
+const decorateDealsForResponse = (dealsList, settings) =>
+    dealsList.map((deal) => decorateDealForResponse(deal, settings));
+
+const decorateDealListingsForResponse = (dealsList, settings) =>
+    groupDealsIntoListings(decorateDealsForResponse(dealsList, settings));
+
+const buildDuplicateLookupQuery = (deal = {}) => {
+    const or = [];
+    if (deal.duplicateKey) or.push({ duplicateKey: deal.duplicateKey });
+    if (deal.canonicalProductUrl) or.push({ canonicalProductUrl: deal.canonicalProductUrl });
+    if (deal.sourceProductId && deal.storeName) {
+        or.push({ storeName: deal.storeName, sourceProductId: deal.sourceProductId });
+    }
+    if (deal.normalizedTitle && deal.storeName) {
+        or.push({ storeName: deal.storeName, normalizedTitle: deal.normalizedTitle });
+    }
+    return or.length ? { $or: or } : null;
+};
+
+const assignDealFields = (dealDoc, normalizedPayload) => {
+    const allowedUpdates = [
+        'title', 'image', 'images', 'videos', 'price', 'dealPrice', 'originalPrice',
+        'originalTitle', 'rawTitle', 'displayTitle', 'cardTitle',
+        'mrp', 'discount', 'discountPercent', 'rating', 'store', 'storeName',
+        'category', 'link', 'productUrl', 'canonicalProductUrl', 'sourceProductId',
+        'normalizedTitle', 'duplicateKey', 'variantGroupKey', 'variantLabel',
+        'variantType', 'variants', 'affiliateOverrideLink', 'affiliateLink',
+        'description', 'featured', 'isExpired', 'views'
+    ];
+
+    allowedUpdates.forEach((key) => {
+        if (normalizedPayload[key] !== undefined) {
+            dealDoc[key] = normalizedPayload[key];
+        }
+    });
+};
+
+const toSortedCountEntries = (counts = {}) =>
+    Object.entries(counts)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+const buildDashboardStats = (dealsList = []) => {
+    const categoryStats = dealsList.reduce((acc, deal) => {
+        const cat = String(deal.category || '').trim() || 'Other';
+        acc[cat] = (acc[cat] || 0) + 1;
+        return acc;
+    }, {});
+
+    const storeStats = dealsList.reduce((acc, deal) => {
+        const store = String(deal.storeName || deal.store || '').trim() || 'Online Store';
+        acc[store] = (acc[store] || 0) + 1;
+        return acc;
+    }, {});
+
+    const recentDeals = [...dealsList]
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .slice(0, 8);
+
+    return {
+        totalDeals: dealsList.length,
+        totalCategories: Object.keys(categoryStats).length,
+        totalStores: Object.keys(storeStats).length,
+        featuredDeals: dealsList.filter((deal) => Boolean(deal.featured)).length,
+        categoryStats,
+        storeStats,
+        categories: toSortedCountEntries(categoryStats),
+        stores: toSortedCountEntries(storeStats),
+        recentDeals,
+        latestDeals: recentDeals
+    };
+};
+
 // Get all deals
 router.get('/', async (req, res) => {
     try {
+        const affiliateSettings = await loadAffiliateSettings(req);
         // MOCK MODE
         if (req.app.locals.isMockMode) {
-            return res.json(deals.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+            const dealsList = deals.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            const responseDeals = decorateDealListingsForResponse(dealsList, affiliateSettings);
+            console.log(`[DEALS_API] source=mock found=${dealsList.length} returned=${responseDeals.length}`);
+            return res.json(responseDeals);
         }
 
-        const dealsList = await Deal.find().sort({ createdAt: -1 });
-        res.json(dealsList);
+        const dealsList = await Deal.find().sort({ createdAt: -1 }).lean();
+        const responseDeals = decorateDealListingsForResponse(dealsList, affiliateSettings);
+        console.log(`[DEALS_API] source=mongodb found=${dealsList.length} returned=${responseDeals.length}`);
+        res.json(responseDeals);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -42,14 +142,15 @@ router.get('/latest', async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 5;
         let dealsList;
+        const affiliateSettings = await loadAffiliateSettings(req);
         
         if (req.app.locals.isMockMode) {
             dealsList = [...deals].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, limit);
         } else {
-            dealsList = await Deal.find().sort({ createdAt: -1 }).limit(limit);
+            dealsList = await Deal.find().sort({ createdAt: -1 }).limit(limit).lean();
         }
-        
-        res.json(dealsList);
+
+        res.json(decorateDealsForResponse(dealsList, affiliateSettings));
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -59,28 +160,15 @@ router.get('/latest', async (req, res) => {
 router.get('/stats', async (req, res) => {
     try {
         let dealsList;
+        const affiliateSettings = await loadAffiliateSettings(req);
         if (req.app.locals.isMockMode) {
             dealsList = deals;
         } else {
-            dealsList = await Deal.find();
+            dealsList = await Deal.find().lean();
         }
 
-        const stats = {
-            totalDeals: dealsList.length,
-            categoryStats: dealsList.reduce((acc, deal) => {
-                const cat = deal.category || 'Other';
-                acc[cat] = (acc[cat] || 0) + 1;
-                return acc;
-            }, {}),
-            recentDeals: dealsList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5),
-            storeStats: dealsList.reduce((acc, deal) => {
-                const store = deal.store || 'Online';
-                acc[store] = (acc[store] || 0) + 1;
-                return acc;
-            }, {})
-        };
-
-        res.json(stats);
+        const normalizedDeals = decorateDealsForResponse(dealsList, affiliateSettings);
+        res.json(buildDashboardStats(normalizedDeals));
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -106,21 +194,67 @@ router.get('/categories', async (req, res) => {
 router.post('/', async (req, res) => {
     try {
         // MOCK MODE
+        const affiliateSettings = await loadAffiliateSettings(req);
+        const normalizedPayload = normalizeDealPayload(req.body);
+        const finalPayload = applyAffiliateSettingsToDeal({ deal: normalizedPayload, settings: affiliateSettings });
+
+        if (!finalPayload.dealPrice || finalPayload.dealPrice <= 0) {
+            console.warn(`[DEAL_SAVE_INVALID] reason=invalid_deal_price title="${finalPayload.title || ''}" url="${finalPayload.productUrl || finalPayload.link || ''}" rawPrice="${req.body?.dealPrice ?? req.body?.price ?? ''}" rawMrp="${req.body?.mrp ?? req.body?.originalPrice ?? ''}"`);
+            return res.status(400).json({ message: 'Valid deal price is required. Deal not saved.' });
+        }
+
         if (req.app.locals.isMockMode) {
+            const existingIndex = deals.findIndex((deal) => {
+                const normalizedDeal = normalizeDealPayload(deal);
+                return normalizedDeal.duplicateKey && normalizedDeal.duplicateKey === finalPayload.duplicateKey;
+            });
+            if (existingIndex !== -1) {
+                const mergedDeal = normalizeDealPayload({
+                    ...deals[existingIndex],
+                    ...finalPayload,
+                    variants: mergeVariantOptions(deals[existingIndex].variants, finalPayload.variants)
+                });
+                deals[existingIndex] = mergedDeal;
+                const io = req.app.get('socketio');
+                if (io) io.emit('updateDeal', mergedDeal);
+                return res.json(decorateDealForResponse(mergedDeal, affiliateSettings));
+            }
+
             const newDeal = {
                 _id: Date.now().toString(),
-                ...req.body,
+                ...finalPayload,
                 createdAt: new Date()
             };
             deals.push(newDeal);
+            await syncAffiliateStoreConfigs(req);
             const io = req.app.get('socketio');
             if (io) io.emit('newDeal', newDeal);
                         // Cache clearing placeholder
-            return res.status(201).json(newDeal);
+            return res.status(201).json(decorateDealForResponse(newDeal, affiliateSettings));
+        }
+
+        const duplicateQuery = buildDuplicateLookupQuery(finalPayload);
+        const existingDeal = duplicateQuery ? await Deal.findOne(duplicateQuery) : null;
+        if (existingDeal) {
+            const mergedPayload = normalizeDealPayload({
+                ...existingDeal.toObject(),
+                ...finalPayload,
+                createdAt: existingDeal.createdAt,
+                variants: mergeVariantOptions(existingDeal.variants, finalPayload.variants)
+            });
+
+            assignDealFields(existingDeal, mergedPayload);
+            const updatedDeal = await existingDeal.save();
+            await syncAffiliateStoreConfigs(req);
+            const io = req.app.get('socketio');
+            const responseDeal = decorateDealForResponse(updatedDeal, affiliateSettings);
+            if (io) io.emit('updateDeal', responseDeal);
+            console.log(`[DUPLICATE_UPDATED] key="${mergedPayload.duplicateKey}" id="${updatedDeal._id}" title="${mergedPayload.title}"`);
+            return res.json(responseDeal);
         }
 
         // Validate image before saving
-        const finalImage = req.body.image || (req.body.images && req.body.images.length > 0 ? req.body.images[0] : null);
+        const finalImage = finalPayload.image || (finalPayload.images && finalPayload.images.length > 0 ? finalPayload.images[0] : null);
         if (!finalImage || !finalImage.startsWith('http')) {
             return res.status(400).json({ message: 'Valid high-quality product image URL is required. Product not saved.' });
         }
@@ -142,25 +276,45 @@ router.post('/', async (req, res) => {
         }
 
         const deal = new Deal({
-            title: req.body.title,
-            image: req.body.image,
-            images: req.body.images || [],
-            price: req.body.price,
-            originalPrice: req.body.originalPrice,
-            discount: req.body.discount,
-            rating: req.body.rating,
-            store: req.body.store,
-            category: req.body.category,
-            link: req.body.link,
-            description: req.body.description,
-            featured: req.body.featured || false
+            title: finalPayload.title,
+            originalTitle: finalPayload.originalTitle,
+            rawTitle: finalPayload.rawTitle,
+            displayTitle: finalPayload.displayTitle,
+            cardTitle: finalPayload.cardTitle,
+            image: finalPayload.image,
+            images: finalPayload.images || [],
+            price: finalPayload.price,
+            dealPrice: finalPayload.dealPrice,
+            originalPrice: finalPayload.originalPrice,
+            mrp: finalPayload.mrp,
+            discount: finalPayload.discount,
+            discountPercent: finalPayload.discountPercent,
+            rating: finalPayload.rating,
+            store: finalPayload.store,
+            storeName: finalPayload.storeName,
+            canonicalProductUrl: finalPayload.canonicalProductUrl,
+            sourceProductId: finalPayload.sourceProductId,
+            normalizedTitle: finalPayload.normalizedTitle,
+            duplicateKey: finalPayload.duplicateKey,
+            variantGroupKey: finalPayload.variantGroupKey,
+            variantLabel: finalPayload.variantLabel,
+            variantType: finalPayload.variantType,
+            variants: finalPayload.variants || [],
+            category: finalPayload.category,
+            link: finalPayload.link,
+            productUrl: finalPayload.productUrl,
+            affiliateOverrideLink: finalPayload.affiliateOverrideLink,
+            affiliateLink: finalPayload.affiliateLink,
+            description: finalPayload.description,
+            featured: finalPayload.featured || false
         });
 
         const newDeal = await deal.save();
+        await syncAffiliateStoreConfigs(req);
         const io = req.app.get('socketio');
-        if (io) io.emit('newDeal', newDeal);
+        if (io) io.emit('newDeal', decorateDealForResponse(newDeal, affiliateSettings));
                     // Cache clearing placeholder
-        res.status(201).json(newDeal);
+        res.status(201).json(decorateDealForResponse(newDeal, affiliateSettings));
     } catch (err) {
         res.status(400).json({ message: err.message });
     }
@@ -169,16 +323,21 @@ router.post('/', async (req, res) => {
 // Update a deal (Accessible to all)
 router.put('/:id', async (req, res) => {
     try {
+        const affiliateSettings = await loadAffiliateSettings(req);
         // MOCK MODE
         if (req.app.locals.isMockMode) {
             const index = deals.findIndex(d => d._id === req.params.id);
             if (index === -1) return res.status(404).json({ message: 'Cannot find deal' });
 
-            deals[index] = { ...deals[index], ...req.body, updatedAt: new Date() };
+            deals[index] = applyAffiliateSettingsToDeal({
+                deal: normalizeDealPayload({ ...deals[index], ...req.body, updatedAt: new Date() }),
+                settings: affiliateSettings
+            });
+            await syncAffiliateStoreConfigs(req);
             const io = req.app.get('socketio');
             if (io) io.emit('updateDeal', deals[index]);
                         // Cache clearing placeholder
-            return res.json(deals[index]);
+            return res.json(decorateDealForResponse(deals[index], affiliateSettings));
         }
 
         const deal = await Deal.findById(req.params.id);
@@ -186,19 +345,24 @@ router.put('/:id', async (req, res) => {
             return res.status(404).json({ message: 'Cannot find deal' });
         }
 
-        // Update fields if they exist in body
-        const allowedUpdates = ['title', 'image', 'images', 'price', 'originalPrice', 'discount', 'rating', 'store', 'category', 'link', 'description', 'featured', 'isExpired', 'views'];
-        allowedUpdates.forEach(key => {
-            if (req.body[key] !== undefined) {
-                deal[key] = req.body[key];
-            }
+        const normalizedPayload = applyAffiliateSettingsToDeal({
+            deal: normalizeDealPayload({ ...deal.toObject(), ...req.body }),
+            settings: affiliateSettings
         });
 
+        if (!normalizedPayload.dealPrice || normalizedPayload.dealPrice <= 0) {
+            console.warn(`[DEAL_UPDATE_INVALID] reason=invalid_deal_price id="${req.params.id}" title="${normalizedPayload.title || ''}" url="${normalizedPayload.productUrl || normalizedPayload.link || ''}" rawPrice="${req.body?.dealPrice ?? req.body?.price ?? ''}" rawMrp="${req.body?.mrp ?? req.body?.originalPrice ?? ''}"`);
+            return res.status(400).json({ message: 'Valid deal price is required. Deal not updated.' });
+        }
+
+        assignDealFields(deal, normalizedPayload);
+
         const updatedDeal = await deal.save();
+        await syncAffiliateStoreConfigs(req);
         const io = req.app.get('socketio');
-        if (io) io.emit('updateDeal', updatedDeal);
+        if (io) io.emit('updateDeal', decorateDealForResponse(updatedDeal, affiliateSettings));
                     // Cache clearing placeholder
-        res.json(updatedDeal);
+        res.json(decorateDealForResponse(updatedDeal, affiliateSettings));
     } catch (err) {
         res.status(400).json({ message: err.message });
     }
@@ -237,18 +401,19 @@ router.delete('/:id', async (req, res) => {
 // Get a single deal
 router.get('/:id', async (req, res) => {
     try {
+        const affiliateSettings = await loadAffiliateSettings(req);
         // MOCK MODE
         if (req.app.locals.isMockMode) {
             const deal = deals.find(d => d._id === req.params.id);
             if (!deal) return res.status(404).json({ message: 'Cannot find deal' });
-            return res.json(deal);
+            return res.json(decorateDealForResponse(deal, affiliateSettings));
         }
 
         const deal = await Deal.findById(req.params.id);
         if (deal == null) {
             return res.status(404).json({ message: 'Cannot find deal' });
         }
-        res.json(deal);
+        res.json(decorateDealForResponse(deal, affiliateSettings));
     } catch (err) {
         return res.status(500).json({ message: err.message });
     }
@@ -299,7 +464,8 @@ router.post('/:id/reviews', async (req, res) => {
             const total = deal.reviews.reduce((acc, r) => acc + r.rating, 0);
             deal.rating = parseFloat((total / deal.reviews.length).toFixed(1));
 
-            return res.json(deal);
+            const affiliateSettings = await loadAffiliateSettings(req);
+            return res.json(decorateDealForResponse(deal, affiliateSettings));
         }
 
         const deal = await Deal.findById(req.params.id);
@@ -312,7 +478,8 @@ router.post('/:id/reviews', async (req, res) => {
         deal.rating = parseFloat((total / deal.reviews.length).toFixed(1));
 
         const updatedDeal = await deal.save();
-        res.status(201).json(updatedDeal);
+        const affiliateSettings = await loadAffiliateSettings(req);
+        res.status(201).json(decorateDealForResponse(updatedDeal, affiliateSettings));
     } catch (err) {
         res.status(400).json({ message: err.message });
     }
@@ -913,6 +1080,75 @@ router.post('/extract', async (req, res) => {
             return isNaN(n) ? null : n;
         };
 
+        const pickPreferredPriceNumber = (...values) => {
+            for (const value of values.flat()) {
+                const parsed = toNumberSafe(value);
+                if (parsed !== null && parsed > 0) {
+                    return parsed;
+                }
+            }
+            return 0;
+        };
+
+        const pickHighestPriceNumber = (...values) => (
+            values
+                .flat()
+                .map((value) => toNumberSafe(value))
+                .filter((parsed) => parsed !== null && parsed > 0)
+                .sort((a, b) => b - a)[0] || 0
+        );
+
+        const finalizeExtractedPricing = (rawData) => {
+            const rawDealPriceCandidates = [
+                rawData.dealPrice,
+                rawData.currentPrice,
+                rawData.salePrice,
+                rawData.sellingPrice,
+                rawData.price
+            ];
+            const rawMrpCandidates = [
+                rawData.mrp,
+                rawData.originalPrice,
+                rawData.listPrice,
+                rawData.strikePrice,
+                rawData.wasPrice
+            ];
+
+            let dealPrice = pickPreferredPriceNumber(rawDealPriceCandidates);
+            let mrp = pickHighestPriceNumber(rawMrpCandidates);
+
+            if (dealPrice > 0 && mrp > 0 && mrp < dealPrice) {
+                log(`[PRICING_NORMALIZED] action=swapped_price_fields store=${rawData.store || getStoreName(url)} rawDealCandidates=${JSON.stringify(rawDealPriceCandidates)} rawMrpCandidates=${JSON.stringify(rawMrpCandidates)}`);
+                [dealPrice, mrp] = [mrp, dealPrice];
+            }
+
+            if (dealPrice <= 0) {
+                mrp = 0;
+            } else if (mrp <= dealPrice) {
+                mrp = 0;
+            }
+
+            const discountPercent = dealPrice > 0 && mrp > dealPrice
+                ? Math.round(((mrp - dealPrice) / mrp) * 100)
+                : 0;
+
+            log(`[PRICING] store=${rawData.store || getStoreName(url)} rawDealPrice=${JSON.stringify(rawDealPriceCandidates)} rawMrp=${JSON.stringify(rawMrpCandidates)} cleanedDealPrice=${dealPrice || 0} cleanedMrp=${mrp || 0} calculatedDiscount=${discountPercent}`);
+
+            if (dealPrice <= 0) {
+                log(`[PRICING_INVALID] reason=missing_or_invalid_deal_price store=${rawData.store || getStoreName(url)} url=${url}`);
+            }
+
+            return {
+                ...rawData,
+                dealPrice: dealPrice || 0,
+                mrp: mrp || 0,
+                price: dealPrice > 0 ? dealPrice : '',
+                originalPrice: dealPrice > 0 && mrp > dealPrice ? mrp : '',
+                discountPercent,
+                discount: discountPercent > 0 ? `${discountPercent}% OFF` : ''
+            };
+        };
+
         // --- Phase 0: Universal Pre-fill from URL Slug (Fallback for blocked access) ---
         let data = {
             store: getStoreName(url),
@@ -1005,12 +1241,11 @@ router.post('/extract', async (req, res) => {
                 if (asinMatch && asinMatch[1]) {
                     const asin = asinMatch[1];
                     const candidates = [
-                        `https://ws-in.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN=${asin}&Format=_SL600_&ID=AsinImage&ServiceVersion=20070822&WS=1&tag=example-21`,
                         `https://images-na.ssl-images-amazon.com/images/P/${asin}.01.LZZZZZZZ.jpg`
                     ];
                     data.image = candidates[0];
                     data.images = [data.image];
-                    log(`[Extract] Phase 0.26: Amazon Construction Image (ASIN: ${asin})`);
+                    log(`[Extract] Phase 0.26: Amazon product-owned image candidate (ASIN: ${asin})`);
                 }
             } else if (isMyntra) {
                 // Do NOT construct random image URLs for Myntra as their asset CDN relies on random hashes.
@@ -1085,9 +1320,7 @@ router.post('/extract', async (req, res) => {
         // --- Early Exit Optimization ---
         if (data.title && data.price && data.image && isProductTitleValid(data.title)) {
             log(`[Extract] Early Success for ${url}! Skipping main phases.`);
-            if (data.price && data.originalPrice && data.originalPrice > data.price) {
-                data.discount = Math.round(((data.originalPrice - data.price) / data.originalPrice) * 100) + '% OFF';
-            }
+            data = finalizeExtractedPricing(data);
             res.json(data);
             return;
         }
@@ -1351,9 +1584,7 @@ router.post('/extract', async (req, res) => {
             data.store = getStoreName(url);
             data.link = url;
             if (!data.category) 
-            if (!data.discount && data.originalPrice && data.originalPrice > data.price) {
-                data.discount = Math.round(((data.originalPrice - data.price) / data.originalPrice) * 100) + '% OFF';
-            }
+            data = finalizeExtractedPricing(data);
             log(`[Extract] Meesho early-return via API fallback.`);
             fs.appendFileSync(logPath, `[DEBUG] Final JSON: ${JSON.stringify(data)}\n`);
             return res.json(data);
@@ -1715,7 +1946,18 @@ router.post('/extract', async (req, res) => {
 
                 const cheerioImgSelector = isAmazon
                     ? '#main-image-container img, #imgTagWrapperId img, #landingImage, #altImages img, .a-dynamic-image'
-                    : 'img';
+                    : [
+                        '.pdp-image-gallery img',
+                        '.image-grid-container img',
+                        '.image-grid-image',
+                        '.img-alignment img',
+                        '.rilrtl-lazy-img-container img',
+                        '.rilrtl-lazy-img',
+                        'img.pdp-main-image',
+                        '.product-gallery img',
+                        '.product-image img',
+                        '[class*="ProductImage"] img'
+                    ].join(', ');
 
                 $(cheerioImgSelector).each((i, el) => {
                     if (isAmazon) {
@@ -1751,6 +1993,45 @@ router.post('/extract', async (req, res) => {
                 // Ensure data.image reflects the first element of this array
                 if (data.images.length > 0) data.image = data.images[0];
 
+                const variants = [];
+                const addVariant = (variant) => {
+                    const label = cleanTitle(variant.label || variant.title || '');
+                    const variantUrl = variant.url || variant.productUrl || '';
+                    const image = variant.image || '';
+                    if (!label && !variantUrl && !image) return;
+                    const key = `${label}|${variantUrl}|${image}`;
+                    if (variants.some((existing) => `${existing.label}|${existing.url || ''}|${existing.image || ''}` === key)) return;
+                    variants.push({ ...variant, label, productUrl: variantUrl, url: variantUrl });
+                };
+
+                $('#variation_color_name li, #variation_size_name li, #variation_style_name li, #variation_pattern_name li, #variation_configuration li').each((i, el) => {
+                    const $el = $(el);
+                    const label = $el.attr('title') || $el.attr('data-defaultasin') || $el.find('.selection, .a-size-base, .a-button-text').text();
+                    const href = $el.find('a').attr('href') || $el.attr('data-dp-url') || '';
+                    const image = $el.find('img').attr('src') || $el.find('img').attr('data-old-hires') || '';
+                    addVariant({
+                        type: $el.closest('[id^="variation_"]').attr('id')?.replace('variation_', '').replace(/_/g, ' ') || 'Option',
+                        label: String(label || '').replace(/^Click to select\s*/i, ''),
+                        url: href ? new URL(href, url).toString() : '',
+                        image
+                    });
+                });
+
+                $('.size-buttons-size-button, .size-buttons-unified-size, [class*="SizeSelector"] button').each((i, el) => {
+                    addVariant({ type: 'Size', label: $(el).text() });
+                });
+
+                $('.colors-colorButton, .colors-color, [class*="ColorSelector"] button, [class*="color"] img').each((i, el) => {
+                    const $el = $(el);
+                    addVariant({
+                        type: 'Color',
+                        label: $el.attr('title') || $el.attr('alt') || $el.text(),
+                        image: $el.attr('src') || $el.find('img').attr('src') || ''
+                    });
+                });
+
+                data.variants = [...(data.variants || []), ...variants];
+
                 // Video Extraction
                 const videos = [];
                 $('video source').each((i, el) => {
@@ -1769,6 +2050,13 @@ router.post('/extract', async (req, res) => {
                 // PRICE
                 if (!data.price) {
                     let priceCandidates = [];
+                    if (isFlipkart) {
+                        $('._30jeq3, ._16Jk6d, .Nx9bqj, .CxhGGd, [class*="sellingPrice" i], [class*="specialPrice" i]').each((i, el) => {
+                            const val = extractFirstPrice($(el).text());
+                            if (val && val > 0) priceCandidates.push(val);
+                        });
+                    }
+
                     if (isAmazon) {
                         $('#corePrice_desktop .a-price .a-offscreen, #corePrice_mobile .a-price .a-offscreen, #corePriceDisplay_desktop_feature_div .a-price .a-offscreen, .apexPriceToPay .a-offscreen, .priceToPay .a-offscreen').each((i, el) => {
                             const parent = $(el).closest('div, span, td, tr, li');
@@ -1815,6 +2103,11 @@ router.post('/extract', async (req, res) => {
                     if (isAmazon) {
                         const amzMrpEl = $('.a-price.a-text-price[data-a-strike="true"] .a-offscreen, .a-line-through .a-offscreen, #corePriceDisplay_desktop_feature_div .a-text-strike .a-offscreen, .basisPrice .a-offscreen, #listPriceValue').first();
                         const val = extractHighestPrice(amzMrpEl.text());
+                        if (val && val > (data.price || 0)) data.originalPrice = val;
+                    }
+                    if (isFlipkart && !data.originalPrice) {
+                        const fkMrpEl = $('._3I9_wc, ._2p6lqe, .yRaY8j, .A6\\+E6v, [class*="strike" i], [class*="mrp" i], [class*="original" i]').first();
+                        const val = extractHighestPrice(fkMrpEl.text());
                         if (val && val > (data.price || 0)) data.originalPrice = val;
                     }
                     if (!data.originalPrice) {
@@ -2086,9 +2379,11 @@ router.post('/extract', async (req, res) => {
 
                             const price = getValue('.pdp-price') || getValue('.price-value') || getValue('.prod-sp') || 
                                           getValue('#corePrice_desktop .a-offscreen') || getValue('.a-price .a-offscreen') ||
+                                          getValue('._30jeq3') || getValue('._16Jk6d') || getValue('.Nx9bqj') ||
                                           getValue('.product-price') || getValue('.current-price');
                             const mrp = getValue('.strike-off') || getValue('.pdp-mrp') || getValue('.a-text-strike') || 
-                                        getValue('.basisPrice .a-offscreen') || getValue('.old-price') || getValue('.original-price');
+                                        getValue('.basisPrice .a-offscreen') || getValue('._3I9_wc') || getValue('._2p6lqe') ||
+                                        getValue('.yRaY8j') || getValue('.old-price') || getValue('.original-price');
 
                             return { title: titleEl, image: imageEl, images, description: descEl, price, mrp, store: getStore() };
                         }).catch(() => null);
@@ -2182,6 +2477,51 @@ router.post('/extract', async (req, res) => {
                             if (!image) image = getMeta(['og:image', 'twitter:image']) || '';
 
                             const description = (jsonLd.description || getMeta(['og:description', 'description']) || '');
+                            const variants = [];
+                            const addVariant = (variant) => {
+                                const label = String(variant.label || variant.title || '').replace(/\s+/g, ' ').trim();
+                                const productUrl = variant.url ? new URL(variant.url, window.location.href).toString() : '';
+                                const image = variant.image || '';
+                                if (!label && !productUrl && !image) return;
+                                const key = `${label}|${productUrl}|${image}`;
+                                if (variants.some((existing) => existing.key === key)) return;
+                                variants.push({
+                                    key,
+                                    type: variant.type || 'Option',
+                                    label,
+                                    productUrl,
+                                    url: productUrl,
+                                    image
+                                });
+                            };
+
+                            document.querySelectorAll('#variation_color_name li, #variation_size_name li, #variation_style_name li, #variation_pattern_name li, #variation_configuration li').forEach((el) => {
+                                const label = el.getAttribute('title')
+                                    || el.querySelector('.selection, .a-size-base, .a-button-text')?.textContent
+                                    || el.querySelector('img')?.getAttribute('alt')
+                                    || '';
+                                const href = el.querySelector('a')?.getAttribute('href') || el.getAttribute('data-dp-url') || '';
+                                const image = el.querySelector('img')?.src || el.querySelector('img')?.getAttribute('data-old-hires') || '';
+                                addVariant({
+                                    type: el.closest('[id^="variation_"]')?.id?.replace('variation_', '').replace(/_/g, ' ') || 'Option',
+                                    label: label.replace(/^Click to select\s*/i, ''),
+                                    url: href,
+                                    image
+                                });
+                            });
+
+                            document.querySelectorAll('.size-buttons-size-button, .size-buttons-unified-size, [class*="SizeSelector"] button').forEach((el) => {
+                                addVariant({ type: 'Size', label: el.textContent || '' });
+                            });
+
+                            document.querySelectorAll('.colors-colorButton, .colors-color, [class*="ColorSelector"] button, [class*="color"] img').forEach((el) => {
+                                const imageEl = el.tagName === 'IMG' ? el : el.querySelector?.('img');
+                                addVariant({
+                                    type: 'Color',
+                                    label: el.getAttribute('title') || imageEl?.getAttribute('alt') || el.textContent || '',
+                                    image: imageEl?.src || ''
+                                });
+                            });
 
                             let priceStr = '';
                             if (jsonLd.offers) {
@@ -2194,6 +2534,7 @@ router.post('/extract', async (req, res) => {
                                 '#corePrice_desktop .a-price .a-offscreen', '#corePrice_mobile .a-price .a-offscreen',
                                 '#corePriceDisplay_desktop_feature_div .a-price .a-offscreen',
                                 '.apexPriceToPay .a-offscreen', '.priceToPay .a-offscreen',
+                                '._30jeq3', '._16Jk6d', '.Nx9bqj', '.CxhGGd',
                                 '.prod-sp', '.pdp-price', '.price-info', '.product-price', '.a-price-whole'
                             ];
                             
@@ -2222,6 +2563,9 @@ router.post('/extract', async (req, res) => {
                                     '.a-line-through .a-offscreen',
                                     '.basisPrice .a-offscreen',
                                     '#listPriceValue',
+                                    '._3I9_wc',
+                                    '._2p6lqe',
+                                    '.yRaY8j',
                                     '.pdp-mrp', '.original-price', '.strike', '.a-text-strike'
                                 ];
                                 for (const sel of mrpSelectors) {
@@ -2255,7 +2599,18 @@ router.post('/extract', async (req, res) => {
                             const hostIsAmz = window.location.hostname.includes('amazon');
                             const pupImgSelector = hostIsAmz
                                 ? '#main-image-container img, #imgTagWrapperId img, #landingImage, #altImages img, .a-dynamic-image'
-                                : 'img';
+                                : [
+                                    '.pdp-image-gallery img',
+                                    '.image-grid-container img',
+                                    '.image-grid-image',
+                                    '.img-alignment img',
+                                    '.rilrtl-lazy-img-container img',
+                                    '.rilrtl-lazy-img',
+                                    'img.pdp-main-image',
+                                    '.product-gallery img',
+                                    '.product-image img',
+                                    '[class*="ProductImage"] img'
+                                ].join(', ');
                             document.querySelectorAll(pupImgSelector).forEach(el => {
                                 if (hostIsAmz && el.closest) {
                                     const badPupParent = el.closest('#buybox, #similarities_feature_div, #rhf, .a-carousel, #dp-sponsored-links, #sp_detail, #sims-fbt-content, .sims-carousel, #percolate-ui-ilm_div, [data-csa-c-slot-id*="sims"], #anonCarousel1, .similar-items-carousel');
@@ -2267,7 +2622,7 @@ router.post('/extract', async (req, res) => {
                                 }
                             });
 
-                            return { title, image, images: allImgs.slice(0, 10), description, price: priceStr, mrp: mrpStr };
+                            return { title, image, images: allImgs.slice(0, 10), variants: variants.map(({ key, ...variant }) => variant), description, price: priceStr, mrp: mrpStr };
                         });
 
                         if (result) {
@@ -2277,6 +2632,9 @@ router.post('/extract', async (req, res) => {
                                 data.images = result.images;
                             }
                             if (result.description && !data.description) data.description = result.description;
+                            if (Array.isArray(result.variants) && result.variants.length > 0) {
+                                data.variants = [...(data.variants || []), ...result.variants];
+                            }
                             if (result.price) {
                                 const p = parseFloat(String(result.price).replace(/[^\d.]/g, ''));
                                 if (p > 0) data.price = p;
@@ -2434,22 +2792,35 @@ router.post('/extract', async (req, res) => {
         log(`[Extract] Finished for ${url}. Fields: ${Object.keys(data).filter(k => data[k]).join(', ')}`);
         fs.appendFileSync(logPath, `[DEBUG] Final JSON: ${JSON.stringify(data)}\n`);
 
-        if (data.image && junkRegex.test(data.image)) data.image = '';
-        if (data.image) data.image = optimizeImageUrl(data.image);
+        const normalizedProductImages = normalizeProductImages({
+            image: data.image,
+            images: data.images || [],
+            store: data.store,
+            productUrl: url,
+            title: data.title,
+            maxImages: 8,
+            strictStore: false
+        });
+        data.image = normalizedProductImages.image;
+        data.images = normalizedProductImages.images;
+        if (!data.image) {
+            log(`[IMAGE_REJECTED] no trusted product image title="${data.title || ''}" url="${url}"`);
+        } else if (normalizedProductImages.rejected > 0) {
+            log(`[IMAGE_NORMALIZED] trusted=${data.images.length} rejected=${normalizedProductImages.rejected} main="${data.image}"`);
+        }
 
-        if (data.images && data.images.length > 0) {
-            data.images = data.images
-                .filter(img => img && !junkRegex.test(img))
-                .map(img => optimizeImageUrl(img));
+        if (Array.isArray(data.variants)) {
+            data.variants = data.variants
+                .filter((variant) => variant && (variant.label || variant.title || variant.productUrl || variant.url))
+                .slice(0, 20);
+        } else {
+            data.variants = [];
         }
 
         if (!data.price) data.price = '';
         if (!data.image) data.image = '';
         if (!data.title) data.title = '';
-
-        if (data.price && data.originalPrice && data.originalPrice > data.price) {
-            data.discount = Math.round(((data.originalPrice - data.price) / data.originalPrice) * 100) + '% OFF';
-        }
+        data = finalizeExtractedPricing(data);
 
         res.json(data);
     } catch (err) {

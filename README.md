@@ -1,4 +1,4 @@
-# DealOrbit E-commerce Platform
+# DealSphere E-commerce Platform
 
 A high-performance, SEO-optimized affiliate deals platform built with React, Node.js, and Puppeteer SSR.
 

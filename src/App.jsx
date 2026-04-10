@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Home from './pages/Home';
 import Deals from './pages/Deals';
@@ -8,8 +8,11 @@ import Wishlist from './pages/Wishlist';
 import AdminPanel from './pages/AdminPanel';
 import Blog from './pages/Blog';
 import BlogPost from './pages/BlogPost';
+import Coupons from './pages/Coupons';
+import CouponStore from './pages/CouponStore';
 import { INITIAL_DEALS } from './data/initialDeals';
-import { AuthProvider, AuthContext } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
+import { AuthContext } from './context/authContextDefinition';
 import ScrollToTop from './components/ScrollToTop';
 import { motion } from 'framer-motion';
 import { Flame, CheckCircle2, Info, AlertCircle, X, Loader2 } from 'lucide-react';
@@ -17,29 +20,68 @@ import { WishlistAnimationProvider } from './context/WishlistAnimationContext';
 import { RecentlyViewedProvider } from './context/RecentlyViewedContext';
 import Modal from './components/Modal';
 import { io } from 'socket.io-client';
+import { normalizeDealForUi, normalizeDealsForUi } from './utils/dealUi';
 
 // socket initialized inside useEffect to avoid SSR crashes
 let socket;
 
 const API_BASE_URL = 'http://127.0.0.1:5000/api';
 
+const getBrowserStorage = () => {
+  if (typeof window === 'undefined') return null;
+  const storage = window.localStorage;
+  return storage && typeof storage.getItem === 'function' ? storage : null;
+};
+
+const readBrowserStorage = (key) => {
+  try {
+    return getBrowserStorage()?.getItem(key) || null;
+  } catch {
+    return null;
+  }
+};
+
+const writeBrowserStorage = (key, value) => {
+  try {
+    getBrowserStorage()?.setItem(key, value);
+  } catch {
+    // Storage can be unavailable in private mode or during server render.
+  }
+};
+
+const removeBrowserStorage = (key) => {
+  try {
+    getBrowserStorage()?.removeItem(key);
+  } catch {
+    // Storage can be unavailable in private mode or during server render.
+  }
+};
 
 export function AppContent({ preloadedDeals = null, preloadedCategories = null }) {
   const { user, logout, loading, apiBase } = useContext(AuthContext);
+  const hasPreloadedDeals = Array.isArray(preloadedDeals) && preloadedDeals.length > 0;
+  const hasWindowDeals = typeof window !== 'undefined' && Array.isArray(window.__INITIAL_DATA__) && window.__INITIAL_DATA__.length > 0;
+  const hasCachedDeals = Boolean(readBrowserStorage('cached_deals'));
   
   const [deals, setDeals] = useState(() => {
     // 1. High-priority Server Injected Prop (Hydration)
-    if (preloadedDeals && Array.isArray(preloadedDeals) && preloadedDeals.length > 0) return preloadedDeals;
+    if (preloadedDeals && Array.isArray(preloadedDeals) && preloadedDeals.length > 0) return normalizeDealsForUi(preloadedDeals);
     // 2. High-priority Window Global (Dynamic Hydration)
-    if (typeof window !== 'undefined' && window.__INITIAL_DATA__ && Array.isArray(window.__INITIAL_DATA__)) return window.__INITIAL_DATA__;
+    if (typeof window !== 'undefined' && window.__INITIAL_DATA__ && Array.isArray(window.__INITIAL_DATA__)) return normalizeDealsForUi(window.__INITIAL_DATA__);
     
     // 3. Medium-priority Cache
-    const cached = typeof window !== 'undefined' ? localStorage.getItem('cached_deals') : null;
+    const cached = readBrowserStorage('cached_deals');
     if (cached) {
-        try { return JSON.parse(cached); } catch(e) { /* corrupted */ }
+        try { return normalizeDealsForUi(JSON.parse(cached)); } catch(e) { /* corrupted */ }
     }
     // 4. Fallback Static Data
-    return INITIAL_DEALS;
+    return normalizeDealsForUi(INITIAL_DEALS);
+  });
+  const dealsRef = useRef(deals);
+  const [dealsState, setDealsState] = useState({
+    loading: !(hasPreloadedDeals || hasWindowDeals || hasCachedDeals),
+    error: '',
+    source: hasPreloadedDeals ? 'ssr' : hasWindowDeals ? 'window' : hasCachedDeals ? 'cache' : 'fallback'
   });
 
   const [categories, setCategories] = useState(() => {
@@ -73,7 +115,12 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
 
   // Sync Deals & Categories from Server & Handle Real-time Updates
   useEffect(() => {
+    dealsRef.current = deals;
+  }, [deals]);
+
+  useEffect(() => {
     const fetchDeals = async () => {
+      setDealsState(prev => ({ ...prev, loading: true, error: '' }));
       try {
         const baseUrl = apiBase.replace('/user', '');
         const [dealsRes, catsRes] = await Promise.all([
@@ -83,17 +130,31 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
         
         if (dealsRes.ok) {
             const d = await dealsRes.json();
-            if (d.length > 0) {
-                setDeals(d);
-                localStorage.setItem('cached_deals', JSON.stringify(d));
+            const apiDeals = Array.isArray(d) ? d : [];
+            const normalizedDeals = normalizeDealsForUi(apiDeals);
+            console.info(`[DEALS_FRONTEND] source=api fetched=${normalizedDeals.length}`);
+
+            if (normalizedDeals.length > 0 || dealsRef.current.length === 0) {
+                setDeals(normalizedDeals);
+                if (normalizedDeals.length > 0) {
+                  writeBrowserStorage('cached_deals', JSON.stringify(normalizedDeals));
+                } else {
+                  removeBrowserStorage('cached_deals');
+                }
+            } else {
+                console.warn(`[DEALS_FRONTEND] API returned 0 deals; preserving existing=${dealsRef.current.length}`);
             }
+            setDealsState({ loading: false, error: '', source: 'api' });
+        } else {
+            setDealsState(prev => ({ ...prev, loading: false, error: `Failed to load deals (${dealsRes.status})` }));
         }
         if (catsRes.ok) {
             const c = await catsRes.json();
-            if (c.length > 0) setCategories(c);
+            if (Array.isArray(c)) setCategories(c);
         }
       } catch (err) {
         console.error("Failed to sync app data:", err);
+        setDealsState(prev => ({ ...prev, loading: false, error: 'Failed to load live deals.' }));
       }
     };
 
@@ -106,18 +167,20 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
 
     if (socket) {
         socket.on('newDeal', (newDeal) => {
+          const normalizedDeal = normalizeDealForUi(newDeal);
           setDeals(prev => {
-            const next = [newDeal, ...prev.filter(d => (d._id || d.id) !== (newDeal._id || newDeal.id))];
-            localStorage.setItem('cached_deals', JSON.stringify(next));
+            const next = [normalizedDeal, ...prev.filter(d => (d._id || d.id) !== (normalizedDeal._id || normalizedDeal.id))];
+            writeBrowserStorage('cached_deals', JSON.stringify(next));
             return next;
           });
           showToast('New deal just went live! 🔥', 'info');
         });
 
         socket.on('updateDeal', (updatedDeal) => {
+          const normalizedDeal = normalizeDealForUi(updatedDeal);
           setDeals(prev => {
-            const next = prev.map(d => (d._id || d.id) === (updatedDeal._id || updatedDeal.id) ? updatedDeal : d);
-            localStorage.setItem('cached_deals', JSON.stringify(next));
+            const next = prev.map(d => (d._id || d.id) === (normalizedDeal._id || normalizedDeal.id) ? normalizedDeal : d);
+            writeBrowserStorage('cached_deals', JSON.stringify(next));
             return next;
           });
         });
@@ -125,15 +188,26 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
         socket.on('deleteDeal', (dealId) => {
           setDeals(prev => {
             const next = prev.filter(d => (d._id || d.id) !== dealId);
-            localStorage.setItem('cached_deals', JSON.stringify(next));
+            writeBrowserStorage('cached_deals', JSON.stringify(next));
             return next;
           });
         });
+
+        const notifyCouponPages = () => {
+          window.dispatchEvent(new CustomEvent('dealsphere:coupons-changed'));
+        };
+
+        socket.on('newCoupon', notifyCouponPages);
+        socket.on('updateCoupon', notifyCouponPages);
+        socket.on('deleteCoupon', notifyCouponPages);
 
         return () => {
           socket.off('newDeal');
           socket.off('updateDeal');
           socket.off('deleteDeal');
+          socket.off('newCoupon', notifyCouponPages);
+          socket.off('updateCoupon', notifyCouponPages);
+          socket.off('deleteCoupon', notifyCouponPages);
         };
     }
   }, [apiBase]);
@@ -141,7 +215,7 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
   // Add Deal Form State (Shared)
   const [isAddDealOpen, setIsAddDealOpen] = useState(false);
   const [dealForm, setDealForm] = useState({
-    title: '', store: '', price: '', originalPrice: '', discount: '', image: '', images: [], link: '', category: '', featured: false
+    title: '', store: '', price: '', originalPrice: '', discount: '', image: '', images: [], videos: [], link: '', affiliateOverrideLink: '', affiliateLink: '', category: '', description: '', extractionWarning: '', featured: false, isExpired: false
   });
 
   const handleAddDeal = async (e, directData = null) => {
@@ -151,7 +225,7 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
 
     const payload = directData || {
       ...dealForm,
-      rating: (Math.random() * 2 + 3).toFixed(1)
+      rating: Number(dealForm.rating || 0) || 0
     };
 
     try {
@@ -165,16 +239,16 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
       });
 
       if (response.ok) {
-        const newDeal = await response.json();
+        const newDeal = normalizeDealForUi(await response.json());
         // Notify other components (like Navbar) about the new deal
         window.dispatchEvent(new CustomEvent('newDealAdded', { detail: newDeal }));
         
         // Add new deal to top of list
-        setDeals(prev => [newDeal, ...prev]);
+        setDeals(prev => [newDeal, ...prev.filter(d => (d._id || d.id) !== (newDeal._id || newDeal.id))]);
         showToast('Deal published successfully!', 'success');
         setIsAddDealOpen(false);
         // Reset form
-        setDealForm({ title: '', store: '', price: '', originalPrice: '', discount: '', image: '', images: [], link: '', category: '', description: '', featured: false });
+        setDealForm({ title: '', store: '', price: '', originalPrice: '', discount: '', image: '', images: [], videos: [], link: '', affiliateOverrideLink: '', affiliateLink: '', category: '', description: '', extractionWarning: '', featured: false, isExpired: false });
         return true;
       } else {
         const error = await response.json();
@@ -188,22 +262,35 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
     }
   };
 
-  const filteredDeals = (deals || []).filter(deal =>
+  const publicDeals = (deals || []).filter(deal =>
+    deal
+    && Boolean(deal.title)
+    && Boolean(deal.productUrl || deal.link || deal._id || deal.id)
+  );
+
+  const filteredDeals = publicDeals.filter(deal =>
     deal && (
       (deal.title && deal.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (deal.store && deal.store.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      ((deal.store || deal.storeName) && String(deal.store || deal.storeName).toLowerCase().includes(searchQuery.toLowerCase())) ||
       (deal.category && deal.category.toLowerCase().includes(searchQuery.toLowerCase()))
     )
   );
 
   const [wishlist, setWishlist] = useState(() => {
-    const storedWishlist = localStorage.getItem('wishlist');
-    return storedWishlist ? JSON.parse(storedWishlist) : [];
+    const storedWishlist = readBrowserStorage('wishlist');
+    if (!storedWishlist) return [];
+
+    try {
+      const parsedWishlist = JSON.parse(storedWishlist);
+      return Array.isArray(parsedWishlist) ? parsedWishlist : [];
+    } catch {
+      return [];
+    }
   });
 
 
   useEffect(() => {
-    localStorage.setItem('wishlist', JSON.stringify(wishlist));
+    writeBrowserStorage('wishlist', JSON.stringify(wishlist));
   }, [wishlist]);
 
   // Clear search query when navigating to certain pages
@@ -282,7 +369,9 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
     showToast,
     apiBase,
     categories,
-    setCategories
+    setCategories,
+    dealsLoading: dealsState.loading,
+    dealsError: dealsState.error
   };
 
   return (
@@ -302,8 +391,10 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
           <Route path="/wishlist" element={<Wishlist {...sharedProps} wishlist={wishlist} wishlistCount={wishlist.length} />} />
           <Route path="/blog" element={<Blog {...sharedProps} />} />
           <Route path="/blog/:slug" element={<BlogPost {...sharedProps} />} />
-          <Route path="/stores" element={<Stores {...sharedProps} />} />
-          <Route path="/product/:id" element={<ProductDetails {...sharedProps} deals={deals} />} />
+          <Route path="/coupons" element={<Coupons {...sharedProps} />} />
+          <Route path="/coupons/:storeSlug" element={<CouponStore {...sharedProps} deals={publicDeals} />} />
+          <Route path="/stores" element={<Stores {...sharedProps} deals={publicDeals} />} />
+          <Route path="/product/:id" element={<ProductDetails {...sharedProps} deals={publicDeals} />} />
 
           <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
         </Routes>
