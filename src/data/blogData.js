@@ -303,7 +303,7 @@ export const BLOG_POSTS = [
             },
             {
                 type: "text",
-                text: "Use DealSphere to compare prices across Amazon, Flipkart, Myntra, and Meesho simultaneously. Always start with price comparison — there's no point stacking discounts on an already inflated price."
+                text: "Use DealSphere to compare prices across Amazon, Flipkart, Myntra, and Nykaa simultaneously. Always start with price comparison — there's no point stacking discounts on an already inflated price."
             },
             {
                 type: "heading",

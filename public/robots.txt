@@ -1,6 +1,15 @@
 User-agent: *
 Allow: /
 Disallow: /admin
-Disallow: /dashboard
-Disallow: /wishlist
+Disallow: /api
+Disallow: /temp-debug
 
+# Sitemaps
+Sitemap: https://dealsphere.com/sitemap.xml
+
+# Crawl-delay
+Crawl-delay: 10
+
+# Media
+User-agent: Googlebot-Image
+Allow: /

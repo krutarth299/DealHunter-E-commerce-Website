@@ -17,13 +17,22 @@ const categoryTone = {
 };
 
 const defaultTone = { color: 'border-amber-200 hover:border-amber-400', accent: 'text-amber-600', badgeBg: 'bg-amber-50 text-amber-700' };
+const getStoreSlug = (value = '') => (
+    String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'store'
+);
 
 const mergeStores = (localStores = [], apiStores = []) => {
     const byName = new Map();
 
     [...apiStores, ...localStores].forEach((store) => {
         const name = String(store.name || store.store || '').trim();
-        const count = Number(store.dealsCount || store.count || 0);
+        const dealsCount = Number(store.dealsCount || 0);
+        const couponsCount = Number(store.couponsCount || 0);
+        const count = Number(store.count || dealsCount + couponsCount || 0);
         if (!name || count <= 0) return;
 
         const existing = byName.get(name) || {};
@@ -32,8 +41,9 @@ const mergeStores = (localStores = [], apiStores = []) => {
             ...store,
             name,
             store: name,
-            dealsCount: Math.max(Number(existing.dealsCount || existing.count || 0), count),
-            count: Math.max(Number(existing.count || existing.dealsCount || 0), count),
+            dealsCount: Math.max(Number(existing.dealsCount || 0), dealsCount),
+            couponsCount: Math.max(Number(existing.couponsCount || 0), couponsCount),
+            count: Math.max(Number(existing.count || 0), count),
             categories: store.categories || existing.categories || []
         });
     });
@@ -67,19 +77,20 @@ const Stores = ({
         return ['All', ...new Set(storeCategories)].sort((a, b) => (a === 'All' ? -1 : b === 'All' ? 1 : a.localeCompare(b)));
     }, [liveStores]);
     const totalDeals = liveStores.reduce((sum, store) => sum + Number(store.dealsCount || 0), 0);
+    const totalCoupons = liveStores.reduce((sum, store) => sum + Number(store.couponsCount || 0), 0);
     const storesStructuredData = useMemo(() => ({
         '@context': 'https://schema.org',
         '@type': 'CollectionPage',
         name: 'Stores With Live Deals',
-        description: 'Live store directory generated from active DealSphere deals.',
+        description: 'Live store directory generated from active DealSphere deals and coupon collections.',
         mainEntity: {
             '@type': 'ItemList',
             itemListElement: liveStores.slice(0, 24).map((store, index) => ({
                 '@type': 'ListItem',
                 position: index + 1,
                 name: store.name,
-                url: `${SITE_ORIGIN}/deals?store=${encodeURIComponent(store.name)}`,
-                description: `${Number(store.dealsCount || 0)} live deals`
+                url: `${SITE_ORIGIN}/store/${encodeURIComponent(getStoreSlug(store.name))}`,
+                description: `${Number(store.dealsCount || 0)} live deals and ${Number(store.couponsCount || 0)} live coupons`
             }))
         }
     }), [liveStores]);
@@ -97,11 +108,11 @@ const Stores = ({
         if (!apiBase) return;
 
         let cancelled = false;
-        const fetchStores = async () => {
-            setStoresLoading(true);
+        const fetchStores = async ({ silent = false } = {}) => {
+            if (!silent) setStoresLoading(true);
             setStoresError('');
             try {
-                const response = await fetch(`${apiBase.replace('/user', '')}/stores`);
+                const response = await fetch(`${apiBase.replace('/user', '')}/stores`, { cache: 'no-store' });
                 const data = await response.json();
                 if (!response.ok) {
                     throw new Error(data?.message || `Failed to load stores (${response.status})`);
@@ -121,19 +132,31 @@ const Stores = ({
         };
 
         fetchStores();
+        const refreshStores = () => {
+            if (document.visibilityState === 'hidden') return;
+            fetchStores({ silent: true });
+        };
+        window.addEventListener('dealsphere:data-changed', refreshStores);
         return () => {
             cancelled = true;
+            window.removeEventListener('dealsphere:data-changed', refreshStores);
         };
     }, [apiBase]);
 
     useEffect(() => {
         if (activeCategory !== 'All' && !categories.includes(activeCategory)) {
-            setActiveCategory('All');
+            Promise.resolve().then(() => {
+                setActiveCategory('All');
+            });
         }
     }, [activeCategory, categories]);
 
     return (
-        <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900">
+        <div className="min-h-screen flex flex-col bg-[#F8FAFC] text-slate-900 relative overflow-hidden">
+            {/* Premium Mesh Gradients */}
+            <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-orange-50/60 blur-[150px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+            <div className="absolute top-[20%] left-0 w-[600px] h-[600px] bg-blue-50/40 blur-[120px] rounded-full -translate-x-1/2 pointer-events-none" />
+            
             <SEO
                 title="Stores With Live Deals"
                 description="Explore stores with active DealSphere deals. Browse live offers, deal counts, top categories and discounts from stores that currently have products available."
@@ -146,10 +169,10 @@ const Stores = ({
             />
             <Navbar user={user} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />
 
-            <main className="flex-grow">
-                <div className="bg-white border-b border-slate-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-orange-500/5 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
-                    <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/5 blur-[80px] rounded-full translate-y-1/2 -translate-x-1/3" />
+            <main className="flex-grow relative z-10">
+                <div className="bg-white/70 backdrop-blur-xl border-b border-slate-100 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-orange-500/5 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/5 blur-[80px] rounded-full translate-y-1/2 -translate-x-1/3 pointer-events-none" />
 
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14 relative z-10">
                         <div className="flex flex-col lg:flex-row items-center lg:items-end justify-between gap-12 text-center lg:text-left">
@@ -170,7 +193,7 @@ const Stores = ({
                                 {[
                                     { value: liveStores.length.toLocaleString('en-IN'), label: 'LIVE STORES' },
                                     { value: totalDeals.toLocaleString('en-IN'), label: 'LIVE DEALS' },
-                                    { value: Math.max(0, categories.length - 1).toLocaleString('en-IN'), label: 'CATEGORIES' }
+                                    { value: totalCoupons.toLocaleString('en-IN'), label: 'LIVE COUPONS' }
                                 ].map((stat) => (
                                     <div key={stat.label} className="bg-white px-5 py-5 rounded-[2rem] shadow-sm border border-slate-100/50 flex flex-col items-center min-w-[96px] md:min-w-[120px]">
                                         <p className="text-2xl md:text-3xl font-black text-slate-900">{stat.value}</p>
@@ -241,23 +264,22 @@ const Stores = ({
                                             animate={{ opacity: 1, scale: 1 }}
                                             exit={{ opacity: 0, scale: 0.9 }}
                                             transition={{ duration: 0.45, delay: index * 0.04, ease: [0.23, 1, 0.32, 1] }}
-                                            className="relative bg-white rounded-[3rem] border-2 border-transparent hover:border-orange-500/20 p-8 group cursor-pointer transition-all duration-500 shadow-premium hover:shadow-premium-lg flex flex-col gap-8 overflow-hidden"
-                                            onClick={() => navigate('/deals?store=' + encodeURIComponent(store.name))}
+                                            className="relative bg-white/70 backdrop-blur-md rounded-[3rem] border border-slate-200/60 hover:border-orange-500/30 p-8 group cursor-pointer transition-all duration-500 shadow-premium hover:shadow-premium-lg hover:-translate-y-2 flex flex-col gap-8 overflow-hidden"
+                                            onClick={() => navigate('/store/' + encodeURIComponent(getStoreSlug(store.name)))}
                                         >
                                             <div className="flex items-start justify-between relative z-10">
                                                 <div className="flex items-center gap-6 min-w-0">
                                                     <div className="relative shrink-0">
-                                                        <div className="relative w-20 h-20 bg-white shadow-2xl shadow-slate-200/50 rounded-3xl flex items-center justify-center p-4 border border-slate-50 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
+                                                        <div className="relative w-20 h-20 bg-white shadow-2xl shadow-slate-200/50 rounded-3xl flex items-center justify-center p-4 border border-slate-50 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 overflow-hidden">
                                                             <img
-                                                                src={store.logo}
+                                                                src={store.logo || `https://www.google.com/s2/favicons?domain=${store.name.toLowerCase().replace(/\s/g, '')}.com&sz=128`}
                                                                 alt={store.name}
-                                                                className="w-full h-full object-contain"
-                                                                onError={(event) => {
-                                                                    event.target.onerror = null;
-                                                                    event.target.style.display = 'none';
+                                                                className="w-full h-full object-contain relative z-10"
+                                                                onError={(e) => {
+                                                                    e.target.parentElement.innerHTML = `<div class="w-full h-full absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200"><span class="text-3xl font-black text-slate-400">${store.name[0]}</span></div>`;
                                                                 }}
                                                             />
-                                                            <StoreIcon size={28} className="absolute text-slate-300 -z-10" />
+                                                            <StoreIcon size={28} className="absolute text-slate-300 z-0" />
                                                         </div>
                                                     </div>
                                                     <div className="min-w-0">

@@ -7,17 +7,17 @@ export default {
     theme: {
         extend: {
             colors: {
-                primary: '#1E3A8A', // DealSphere Blue
-                accent: '#F97316',  // DealSphere Orange
-                'brand-blue': '#1E3A8A',
-                'brand-orange': '#F97316',
-                secondary: '#f3f4f6', 
-                text: {
-                    primary: '#1f2937', // Gray 800
-                    secondary: '#6b7280', // Gray 500
-                },
+                primary: '#FF6A00',
+                secondary: '#0F172A',
+                accent: '#22C55E',
+                background: '#F8FAFC',
+                card: '#FFFFFF',
+                text: '#0B0F19',
+                subtext: '#64748B',
+                border: '#E2E8F0',
+                'brand-blue': '#0F172A',
+                'brand-orange': '#FF6A00',
                 white: '#ffffff',
-                border: '#e5e7eb', // Gray 200
             },
             fontFamily: {
                 sans: ['Inter', 'system-ui', 'sans-serif'],

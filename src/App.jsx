@@ -1,31 +1,66 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import Home from './pages/Home';
-import Deals from './pages/Deals';
-import Stores from './pages/Stores';
-import ProductDetails from './pages/ProductDetails';
-import Wishlist from './pages/Wishlist';
-import AdminPanel from './pages/AdminPanel';
-import Blog from './pages/Blog';
-import BlogPost from './pages/BlogPost';
-import Coupons from './pages/Coupons';
-import CouponStore from './pages/CouponStore';
-import { INITIAL_DEALS } from './data/initialDeals';
+import React, { useState, useEffect, useContext, useRef, useMemo, useCallback, Suspense } from 'react';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { AuthContext } from './context/authContextDefinition';
 import ScrollToTop from './components/ScrollToTop';
-import { motion } from 'framer-motion';
-import { Flame, CheckCircle2, Info, AlertCircle, X, Loader2 } from 'lucide-react';
+import { CheckCircle2, Info, AlertCircle, X, Loader2 } from 'lucide-react';
 import { WishlistAnimationProvider } from './context/WishlistAnimationContext';
 import { RecentlyViewedProvider } from './context/RecentlyViewedContext';
-import Modal from './components/Modal';
-import { io } from 'socket.io-client';
+import { getSocket } from './utils/socket';
 import { normalizeDealForUi, normalizeDealsForUi } from './utils/dealUi';
 
-// socket initialized inside useEffect to avoid SSR crashes
-let socket;
+const lazyWithRetry = (factory, key) => React.lazy(async () => {
+  const reloadKey = `dealsphere:lazy-retried:${key}`;
 
-const API_BASE_URL = 'http://127.0.0.1:5000/api';
+  try {
+    const module = await factory();
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(reloadKey);
+    }
+    return module;
+  } catch (error) {
+    const message = String(error?.message || '');
+    const isDynamicImportFailure =
+      message.includes('Failed to fetch dynamically imported module')
+      || message.includes('Importing a module script failed')
+      || message.includes('error loading dynamically imported module');
+
+    if (typeof window !== 'undefined' && isDynamicImportFailure && !window.sessionStorage.getItem(reloadKey)) {
+      window.sessionStorage.setItem(reloadKey, '1');
+
+      return new Promise(() => { });
+    }
+
+    throw error;
+  }
+});
+
+
+const Home = lazyWithRetry(() => import('./pages/Home'), 'Home');
+const Deals = lazyWithRetry(() => import('./pages/Deals'), 'Deals');
+const Stores = lazyWithRetry(() => import('./pages/Stores'), 'Stores');
+const StoreDetails = lazyWithRetry(() => import('./pages/StoreDetails'), 'StoreDetails');
+const ProductDetails = lazyWithRetry(() => import('./pages/ProductDetails'), 'ProductDetails');
+const Wishlist = lazyWithRetry(() => import('./pages/Wishlist'), 'Wishlist');
+const Blog = lazyWithRetry(() => import('./pages/Blog'), 'Blog');
+const BlogPost = lazyWithRetry(() => import('./pages/BlogPost'), 'BlogPost');
+const CategoryDetails = lazyWithRetry(() => import('./pages/CategoryDetails'), 'CategoryDetails');
+const InfoPage = lazyWithRetry(() => import('./pages/InfoPage'), 'InfoPage');
+const AdminPanel = lazyWithRetry(() => import('./pages/AdminPanel'), 'AdminPanel');
+import { AFFILIATE_STORE_PROFILES } from './config/storeProfiles';
+
+const RouteFallback = ({ label = 'Loading page...' }) => (
+  <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+    <div className="flex items-center gap-3 rounded-3xl border border-slate-100 bg-white px-6 py-5 text-sm font-black text-slate-600 shadow-sm">
+      <Loader2 className="h-5 w-5 animate-spin text-orange-500" />
+      {label}
+    </div>
+  </div>
+);
+
+const AdminRouteFallback = () => <RouteFallback label="Loading admin workspace..." />;
+const PublicRouteFallback = () => <RouteFallback label="Loading DealSphere..." />;
+
 
 const getBrowserStorage = () => {
   if (typeof window === 'undefined') return null;
@@ -39,6 +74,30 @@ const readBrowserStorage = (key) => {
   } catch {
     return null;
   }
+};
+
+const DEALS_CACHE_META_KEY = 'cached_deals_meta';
+const DEALS_CACHE_KEY = 'cached_deals';
+const DEALS_CACHE_VERSION = 2;
+const LIVE_DEALS_REFRESH_MS = 2 * 60 * 1000;
+const LIVE_DATA_CHANGED_EVENT = 'dealsphere:data-changed';
+const DEFAULT_DEAL_FORM = {
+  title: '',
+  store: '',
+  dealPrice: '',
+  mrp: '',
+  discount: '',
+  imageUrl: '',
+  images: [],
+  videos: [],
+  productUrl: '',
+  affiliateOverrideLink: '',
+  affiliateLink: '',
+  category: '',
+  description: '',
+  extractionWarning: '',
+  featured: false,
+  isExpired: false
 };
 
 const writeBrowserStorage = (key, value) => {
@@ -57,29 +116,76 @@ const removeBrowserStorage = (key) => {
   }
 };
 
+const readDealsCacheMeta = () => {
+  const raw = readBrowserStorage(DEALS_CACHE_META_KEY);
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
+const getCachedDealsSnapshot = () => {
+  const cachedDealsRaw = readBrowserStorage(DEALS_CACHE_KEY);
+  const cacheMeta = readDealsCacheMeta();
+
+  if (!cachedDealsRaw || !cacheMeta || cacheMeta.version !== DEALS_CACHE_VERSION) {
+    removeBrowserStorage(DEALS_CACHE_KEY);
+    removeBrowserStorage(DEALS_CACHE_META_KEY);
+    return null;
+  }
+
+  try {
+    const parsedDeals = JSON.parse(cachedDealsRaw);
+    if (!Array.isArray(parsedDeals)) return null;
+
+    return {
+      deals: normalizeDealsForUi(parsedDeals),
+      meta: cacheMeta
+    };
+  } catch {
+    removeBrowserStorage(DEALS_CACHE_KEY);
+    removeBrowserStorage(DEALS_CACHE_META_KEY);
+    return null;
+  }
+};
+
+const emitLiveDataChanged = (detail = {}) => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(LIVE_DATA_CHANGED_EVENT, { detail }));
+};
+
 export function AppContent({ preloadedDeals = null, preloadedCategories = null }) {
-  const { user, logout, loading, apiBase } = useContext(AuthContext);
+  console.count("APP RENDER");
+  const authContext = useContext(AuthContext);
+  const { user, logout, loading, apiBase } = authContext || { user: null, logout: () => { }, loading: false, apiBase: '' };
+  const cachedDealsSnapshot = getCachedDealsSnapshot();
+  const cachedDealsMeta = cachedDealsSnapshot?.meta || null;
+  const cachedDealsUpdatedAt = cachedDealsMeta?.updatedAt;
+  const cachedDealsMetaVersion = cachedDealsMeta?.version;
   const hasPreloadedDeals = Array.isArray(preloadedDeals) && preloadedDeals.length > 0;
   const hasWindowDeals = typeof window !== 'undefined' && Array.isArray(window.__INITIAL_DATA__) && window.__INITIAL_DATA__.length > 0;
-  const hasCachedDeals = Boolean(readBrowserStorage('cached_deals'));
-  
+  const hasCachedDeals = Boolean(cachedDealsSnapshot?.deals?.length);
+  const hasPreloadedCategories = Array.isArray(preloadedCategories) && preloadedCategories.length > 0;
+  const hasWindowCategories = typeof window !== 'undefined' && Array.isArray(window.__INITIAL_CATEGORIES__) && window.__INITIAL_CATEGORIES__.length > 0;
+
   const [deals, setDeals] = useState(() => {
     // 1. High-priority Server Injected Prop (Hydration)
     if (preloadedDeals && Array.isArray(preloadedDeals) && preloadedDeals.length > 0) return normalizeDealsForUi(preloadedDeals);
     // 2. High-priority Window Global (Dynamic Hydration)
-    if (typeof window !== 'undefined' && window.__INITIAL_DATA__ && Array.isArray(window.__INITIAL_DATA__)) return normalizeDealsForUi(window.__INITIAL_DATA__);
-    
+    if (typeof window !== 'undefined' && window.__INITIAL_DATA__ && Array.isArray(window.__INITIAL_DATA__) && window.__INITIAL_DATA__.length > 0) return normalizeDealsForUi(window.__INITIAL_DATA__);
+
     // 3. Medium-priority Cache
-    const cached = readBrowserStorage('cached_deals');
-    if (cached) {
-        try { return normalizeDealsForUi(JSON.parse(cached)); } catch(e) { /* corrupted */ }
-    }
-    // 4. Fallback Static Data
-    return normalizeDealsForUi(INITIAL_DEALS);
+    if (cachedDealsSnapshot?.deals?.length) return cachedDealsSnapshot.deals;
+    // 4. No static fallback: the live API/database is the source of truth.
+    return [];
   });
+  const [coupons, setCoupons] = useState([]);
   const dealsRef = useRef(deals);
   const [dealsState, setDealsState] = useState({
-    loading: !(hasPreloadedDeals || hasWindowDeals || hasCachedDeals),
+    loading: false,
     error: '',
     source: hasPreloadedDeals ? 'ssr' : hasWindowDeals ? 'window' : hasCachedDeals ? 'cache' : 'fallback'
   });
@@ -89,18 +195,34 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
     if (preloadedCategories && Array.isArray(preloadedCategories) && preloadedCategories.length > 0) return preloadedCategories;
     // 2. High-priority Window Global (Dynamic Hydration)
     if (typeof window !== 'undefined' && window.__INITIAL_CATEGORIES__ && Array.isArray(window.__INITIAL_CATEGORIES__)) return window.__INITIAL_CATEGORIES__;
-    return []; 
+    return [];
   });
+  const [homepageSnapshot, setHomepageSnapshot] = useState(() => ({
+    deals: hasPreloadedDeals ? normalizeDealsForUi(preloadedDeals) : hasWindowDeals ? normalizeDealsForUi(window.__INITIAL_DATA__ || []) : cachedDealsSnapshot?.deals || [],
+    categories: hasPreloadedCategories ? preloadedCategories : hasWindowCategories ? (window.__INITIAL_CATEGORIES__ || []) : [],
+    stores: [],
+    updatedAt: cachedDealsUpdatedAt || null
+  }));
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [isAddDealOpen, setIsAddDealOpen] = useState(false);
+  const [dealForm, setDealForm] = useState(DEFAULT_DEAL_FORM);
 
   // Global Toast State
   const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
+  const toastTimerRef = useRef(null);
 
-  const showToast = (message, type = 'info') => {
+  const showToast = useCallback((message, type = 'info') => {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
     setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'info' }), 3000);
-  };
+    toastTimerRef.current = window.setTimeout(() => setToast({ show: false, message: '', type: 'info' }), 3000);
+  }, []);
+
+  useEffect(() => () => {
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+  }, []);
 
   // Global Custom Event Listener for Toasts
   useEffect(() => {
@@ -111,170 +233,200 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
     };
     window.addEventListener('showToast', handleCustomToast);
     return () => window.removeEventListener('showToast', handleCustomToast);
-  }, []);
+  }, [showToast]);
 
   // Sync Deals & Categories from Server & Handle Real-time Updates
   useEffect(() => {
     dealsRef.current = deals;
   }, [deals]);
 
-  useEffect(() => {
-    const fetchDeals = async () => {
+  const fetchHomepageSnapshot = useCallback(async ({ silent = false } = {}) => {
+    if (!apiBase) return null;
+
+    if (!silent) {
       setDealsState(prev => ({ ...prev, loading: true, error: '' }));
-      try {
-        const baseUrl = apiBase.replace('/user', '');
-        const [dealsRes, catsRes] = await Promise.all([
-            fetch(`${baseUrl}/deals`),
-            fetch(`${baseUrl}/deals/categories`)
-        ]);
-        
-        if (dealsRes.ok) {
-            const d = await dealsRes.json();
-            const apiDeals = Array.isArray(d) ? d : [];
-            const normalizedDeals = normalizeDealsForUi(apiDeals);
-            console.info(`[DEALS_FRONTEND] source=api fetched=${normalizedDeals.length}`);
+    }
 
-            if (normalizedDeals.length > 0 || dealsRef.current.length === 0) {
-                setDeals(normalizedDeals);
-                if (normalizedDeals.length > 0) {
-                  writeBrowserStorage('cached_deals', JSON.stringify(normalizedDeals));
-                } else {
-                  removeBrowserStorage('cached_deals');
-                }
-            } else {
-                console.warn(`[DEALS_FRONTEND] API returned 0 deals; preserving existing=${dealsRef.current.length}`);
-            }
-            setDealsState({ loading: false, error: '', source: 'api' });
-        } else {
-            setDealsState(prev => ({ ...prev, loading: false, error: `Failed to load deals (${dealsRes.status})` }));
-        }
-        if (catsRes.ok) {
-            const c = await catsRes.json();
-            if (Array.isArray(c)) setCategories(c);
-        }
-      } catch (err) {
-        console.error("Failed to sync app data:", err);
-        setDealsState(prev => ({ ...prev, loading: false, error: 'Failed to load live deals.' }));
+    const baseUrl = apiBase.replace('/user', '');
+    const snapshotResponse = await fetch(`${baseUrl}/deals/homepage?t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache'
       }
-    };
-
-    if (apiBase) fetchDeals();
-
-    // Socket.io Real-time Listeners (Client-side ONLY)
-    if (typeof window !== 'undefined' && !socket) {
-        socket = io('http://127.0.0.1:5000');
+    });
+    const snapshotRaw = await snapshotResponse.text().catch(() => '');
+    let snapshotData = {};
+    if (snapshotRaw) {
+      try {
+        const parsed = JSON.parse(snapshotRaw);
+        snapshotData = parsed.success && parsed.data ? parsed.data : parsed;
+      } catch (e) {
+        console.error('Failed to parse homepage JSON', e);
+      }
     }
 
-    if (socket) {
-        socket.on('newDeal', (newDeal) => {
-          const normalizedDeal = normalizeDealForUi(newDeal);
-          setDeals(prev => {
-            const next = [normalizedDeal, ...prev.filter(d => (d._id || d.id) !== (normalizedDeal._id || normalizedDeal.id))];
-            writeBrowserStorage('cached_deals', JSON.stringify(next));
-            return next;
-          });
-          showToast('New deal just went live! 🔥', 'info');
-        });
-
-        socket.on('updateDeal', (updatedDeal) => {
-          const normalizedDeal = normalizeDealForUi(updatedDeal);
-          setDeals(prev => {
-            const next = prev.map(d => (d._id || d.id) === (normalizedDeal._id || normalizedDeal.id) ? normalizedDeal : d);
-            writeBrowserStorage('cached_deals', JSON.stringify(next));
-            return next;
-          });
-        });
-
-        socket.on('deleteDeal', (dealId) => {
-          setDeals(prev => {
-            const next = prev.filter(d => (d._id || d.id) !== dealId);
-            writeBrowserStorage('cached_deals', JSON.stringify(next));
-            return next;
-          });
-        });
-
-        const notifyCouponPages = () => {
-          window.dispatchEvent(new CustomEvent('dealsphere:coupons-changed'));
-        };
-
-        socket.on('newCoupon', notifyCouponPages);
-        socket.on('updateCoupon', notifyCouponPages);
-        socket.on('deleteCoupon', notifyCouponPages);
-
-        return () => {
-          socket.off('newDeal');
-          socket.off('updateDeal');
-          socket.off('deleteDeal');
-          socket.off('newCoupon', notifyCouponPages);
-          socket.off('updateCoupon', notifyCouponPages);
-          socket.off('deleteCoupon', notifyCouponPages);
-        };
+    if (!snapshotResponse.ok) {
+      throw new Error(snapshotData?.message || `Failed to load homepage snapshot (${snapshotResponse.status})`);
     }
+
+    const normalizedDeals = normalizeDealsForUi(Array.isArray(snapshotData?.deals) ? snapshotData.deals : []);
+    const normalizedCategories = Array.isArray(snapshotData?.categories) ? snapshotData.categories : [];
+    const normalizedStores = Array.isArray(snapshotData?.stores) ? snapshotData.stores : [];
+
+    const normalizedCoupons = Array.isArray(snapshotData?.coupons) ? snapshotData.coupons : [];
+
+    console.log("[COUPONS_RAW]", snapshotData?.coupons);
+    console.log("[COUPONS_NORMALIZED]", normalizedCoupons);
+
+    console.info(`[HOMEPAGE_FETCH] deals=${normalizedDeals.length} coupons=${normalizedCoupons.length} stores=${normalizedStores.length} categories=${normalizedCategories.length}`);
+    console.info(`[DEALS_FRONTEND] source=homepage-api fetched=${normalizedDeals.length}`);
+
+    setDeals(normalizedDeals);
+    setCoupons(normalizedCoupons);
+    setCategories(normalizedCategories);
+    setHomepageSnapshot({
+      deals: normalizedDeals,
+      categories: normalizedCategories,
+      stores: normalizedStores,
+      updatedAt: snapshotData?.updatedAt || Date.now()
+    });
+
+    if (normalizedDeals.length > 0) {
+      writeBrowserStorage(DEALS_CACHE_KEY, JSON.stringify(normalizedDeals));
+      writeBrowserStorage(DEALS_CACHE_META_KEY, JSON.stringify({ updatedAt: Date.now(), version: DEALS_CACHE_VERSION }));
+    } else {
+      removeBrowserStorage(DEALS_CACHE_KEY);
+      removeBrowserStorage(DEALS_CACHE_META_KEY);
+    }
+
+    const visibleStores = [...new Set(normalizedDeals.map((deal) => String(deal.store || deal.storeName || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    console.info(`[HOMEPAGE_RENDER] visible stores=${visibleStores.join(', ') || 'none'} count=${normalizedDeals.length}`);
+    setDealsState(prev => ({
+      ...prev,
+      loading: false,
+      error: '',
+      source: 'homepage-api'
+    }));
+    return snapshotData;
   }, [apiBase]);
 
-  // Add Deal Form State (Shared)
-  const [isAddDealOpen, setIsAddDealOpen] = useState(false);
-  const [dealForm, setDealForm] = useState({
-    title: '', store: '', price: '', originalPrice: '', discount: '', image: '', images: [], videos: [], link: '', affiliateOverrideLink: '', affiliateLink: '', category: '', description: '', extractionWarning: '', featured: false, isExpired: false
-  });
+  const hasFetchedInitialDeals = useRef(false);
 
-  const handleAddDeal = async (e, directData = null) => {
-    if (e && e.preventDefault) e.preventDefault();
-    const token = 'anonymous'; // Auth system removed
-    const dealsApi = apiBase.replace('/user', '') + '/deals';
-
-    const payload = directData || {
-      ...dealForm,
-      rating: Number(dealForm.rating || 0) || 0
+  useEffect(() => {
+    const fetchDeals = async () => {
+      try {
+        await fetchHomepageSnapshot();
+      } catch (err) {
+        console.error("Failed to sync app data:", err);
+        setDealsState(prev => ({ ...prev, loading: false, error: err.message || 'Failed to load live homepage data.' }));
+      }
     };
 
-    try {
-      const response = await fetch(dealsApi, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'auth-token': token
-        },
-        body: JSON.stringify(payload)
+    const cacheFresh = Boolean(
+      cachedDealsMetaVersion === DEALS_CACHE_VERSION
+      && Number.isFinite(cachedDealsUpdatedAt)
+      && (Date.now() - cachedDealsUpdatedAt < LIVE_DEALS_REFRESH_MS)
+    );
+
+    const shouldSkipInitialFetch = hasPreloadedDeals || hasWindowDeals || (hasCachedDeals && cacheFresh);
+
+    if (apiBase && !hasFetchedInitialDeals.current) {
+      hasFetchedInitialDeals.current = true;
+      if (dealsRef.current.length === 0) {
+        fetchDeals();
+      } else if (shouldSkipInitialFetch) {
+        setDealsState(prev => ({ ...prev, loading: false, source: hasPreloadedDeals ? 'ssr' : hasWindowDeals ? 'window' : 'cache' }));
+      }
+    }
+
+    // Socket.io Real-time Listeners (Client-side ONLY)
+    const socket = typeof window !== 'undefined' ? getSocket() : null;
+
+    if (socket) {
+
+      socket.on('newDeal', (newDeal) => {
+        const normalizedDeal = normalizeDealForUi(newDeal);
+
+        setDeals(prev => {
+          const next = [
+            normalizedDeal,
+            ...prev.filter(d =>
+              (d._id || d.id) !== (normalizedDeal._id || normalizedDeal.id)
+            )
+          ];
+          writeBrowserStorage(DEALS_CACHE_KEY, JSON.stringify(next));
+          writeBrowserStorage(DEALS_CACHE_META_KEY, JSON.stringify({ updatedAt: Date.now(), version: DEALS_CACHE_VERSION }));
+          return next;
+        });
+        setHomepageSnapshot((snapshot) => ({
+          ...snapshot,
+          deals: [normalizedDeal, ...snapshot.deals.filter(d => (d._id || d.id) !== (normalizedDeal._id || normalizedDeal.id))],
+          updatedAt: Date.now()
+        }));
+        emitLiveDataChanged({ entity: 'deal', action: 'added', id: normalizedDeal._id || normalizedDeal.id });
       });
 
-      if (response.ok) {
-        const newDeal = normalizeDealForUi(await response.json());
-        // Notify other components (like Navbar) about the new deal
-        window.dispatchEvent(new CustomEvent('newDealAdded', { detail: newDeal }));
-        
-        // Add new deal to top of list
-        setDeals(prev => [newDeal, ...prev.filter(d => (d._id || d.id) !== (newDeal._id || newDeal.id))]);
-        showToast('Deal published successfully!', 'success');
-        setIsAddDealOpen(false);
-        // Reset form
-        setDealForm({ title: '', store: '', price: '', originalPrice: '', discount: '', image: '', images: [], videos: [], link: '', affiliateOverrideLink: '', affiliateLink: '', category: '', description: '', extractionWarning: '', featured: false, isExpired: false });
-        return true;
-      } else {
-        const error = await response.json();
-        showToast(error.message || 'Failed to publish deal', 'error');
-        return false;
-      }
-    } catch (err) {
-      console.error("Error adding deal:", err);
-      showToast('Connection error', 'error');
-      return false;
-    }
-  };
+      socket.on('updateDeal', (updatedDeal) => {
+        const normalizedDeal = normalizeDealForUi(updatedDeal);
+        setDeals(prev => {
+          // Remove the deal from its current position and put it at the very top
+          const next = [normalizedDeal, ...prev.filter(d => (d._id || d.id) !== (normalizedDeal._id || normalizedDeal.id))];
+          writeBrowserStorage(DEALS_CACHE_KEY, JSON.stringify(next));
+          writeBrowserStorage(DEALS_CACHE_META_KEY, JSON.stringify({ updatedAt: Date.now(), version: DEALS_CACHE_VERSION }));
+          return next;
+        });
+        setHomepageSnapshot((snapshot) => ({
+          ...snapshot,
+          deals: [normalizedDeal, ...snapshot.deals.filter(d => (d._id || d.id) !== (normalizedDeal._id || normalizedDeal.id))],
+          updatedAt: Date.now()
+        }));
+        emitLiveDataChanged({ entity: 'deal', action: 'updated', id: normalizedDeal._id || normalizedDeal.id });
+      });
 
-  const publicDeals = (deals || []).filter(deal =>
+      socket.on('deleteDeal', (dealId) => {
+        setDeals(prev => {
+          const next = prev.filter(d => (d._id || d.id) !== dealId);
+          writeBrowserStorage(DEALS_CACHE_KEY, JSON.stringify(next));
+          writeBrowserStorage(DEALS_CACHE_META_KEY, JSON.stringify({ updatedAt: Date.now(), version: DEALS_CACHE_VERSION }));
+          return next;
+        });
+        setHomepageSnapshot((snapshot) => ({
+          ...snapshot,
+          deals: snapshot.deals.filter(d => (d._id || d.id) !== dealId),
+          updatedAt: Date.now()
+        }));
+        emitLiveDataChanged({ entity: 'deal', action: 'deleted', id: dealId });
+      });
+
+      return () => {
+        socket.off('newDeal');
+        socket.off('updateDeal');
+        socket.off('deleteDeal');
+      };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiBase, fetchHomepageSnapshot]);
+
+  const publicDeals = useMemo(() => (deals || []).filter(deal =>
     deal
     && Boolean(deal.title)
     && Boolean(deal.productUrl || deal.link || deal._id || deal.id)
-  );
+  ), [deals]);
 
-  const filteredDeals = publicDeals.filter(deal =>
+  useEffect(() => {
+    const visibleStores = [...new Set(publicDeals.map((deal) => String(deal.store || deal.storeName || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    console.info(`[UI_RENDER] visible stores=${visibleStores.join(', ') || 'none'} count=${publicDeals.length}`);
+  }, [publicDeals]);
+
+  const normalizedSearchQuery = searchQuery.toLowerCase();
+  const filteredDeals = useMemo(() => publicDeals.filter(deal =>
     deal && (
-      (deal.title && deal.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      ((deal.store || deal.storeName) && String(deal.store || deal.storeName).toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (deal.category && deal.category.toLowerCase().includes(searchQuery.toLowerCase()))
+      !normalizedSearchQuery ||
+      (deal.title && deal.title.toLowerCase().includes(normalizedSearchQuery)) ||
+      ((deal.store || deal.storeName) && String(deal.store || deal.storeName).toLowerCase().includes(normalizedSearchQuery)) ||
+      (deal.category && deal.category.toLowerCase().includes(normalizedSearchQuery))
     )
-  );
+  ), [normalizedSearchQuery, publicDeals]);
 
   const [wishlist, setWishlist] = useState(() => {
     const storedWishlist = readBrowserStorage('wishlist');
@@ -298,7 +450,7 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
     // Determine path simply since useLocation isn't directly here
   }, [setSearchQuery]);
 
-  const toggleWishlist = (product) => {
+  const toggleWishlist = useCallback((product) => {
     setWishlist(prev => {
       const prodId = product.id || product._id;
       if (!prodId) return prev; // Cannot toggle item without ID
@@ -318,45 +470,71 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
       showToast('Added to Wishlist ❤️', 'success');
       return [...prev, product];
     });
-  };
+  }, [showToast]);
 
-  const clearWishlist = () => {
+  const clearWishlist = useCallback(() => {
     setWishlist([]);
     showToast('Wishlist cleared', 'info');
-  };
+  }, [showToast]);
+
+  const handleAddDeal = useCallback(async (e, directData = null) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!apiBase) return false;
+
+    const dealsApi = apiBase.replace('/user', '') + '/deals';
+    const payload = directData || {
+      ...dealForm,
+      rating: Number(dealForm.rating || 0) || 0
+    };
+
+    try {
+      const response = await fetch(dealsApi, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'auth-token': 'anonymous'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        showToast(error.message || 'Failed to publish deal', 'error');
+        return false;
+      }
+
+      const newDeal = normalizeDealForUi(await response.json());
+      window.dispatchEvent(new CustomEvent('newDealAdded', { detail: newDeal }));
+      setDeals(prev => [newDeal, ...prev.filter(d => (d._id || d.id) !== (newDeal._id || newDeal.id))]);
+      emitLiveDataChanged({ entity: 'deal', action: 'created', id: newDeal._id || newDeal.id, source: 'manual-create' });
+      showToast('Deal published successfully!', 'success');
+      setIsAddDealOpen(false);
+      setDealForm(DEFAULT_DEAL_FORM);
+      return true;
+    } catch (err) {
+      console.error('Error adding deal:', err);
+      showToast('Connection error', 'error');
+      return false;
+    }
+  }, [apiBase, dealForm, showToast]);
+
+  const slugify = (value = '') => String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  const normalizedStoreSlugs = useMemo(() => (
+    new Set(Object.keys(AFFILIATE_STORE_PROFILES).map((store) => slugify(store)))
+  ), []);
 
 
 
-  // Optimized Hydration Loading System:
-  // If we have no data at all (not even cached/default), we show a clean loading screen on the CLIENT.
-  // We NEVER show the loading screen during SSR (server-side rendering) to ensure the Page Source is complete.
-  const isServer = typeof window === 'undefined';
-  const hasData = (deals && deals.length > 0) || (categories && categories.length > 0);
+  const handleAddDealClick = useCallback(() => setIsAddDealOpen(true), []);
 
-  // loading is from AuthContext, deals/hasData is our content
-  if (loading && !isServer && !hasData) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-         <div className="flex flex-col items-center gap-6">
-            <div className="w-20 h-20 bg-white rounded-3xl shadow-xl flex items-center justify-center">
-                <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
-            </div>
-            <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Initializing DealSphere</span>
-                <div className="flex gap-1">
-                    <div className="w-1 h-1 rounded-full bg-blue-600 animate-bounce" />
-                    <div className="w-1 h-1 rounded-full bg-blue-600 animate-bounce [animation-delay:-0.15s]" />
-                    <div className="w-1 h-1 rounded-full bg-blue-600 animate-bounce [animation-delay:-0.3s]" />
-                </div>
-            </div>
-         </div>
-      </div>
-    );
-  }
-
-  const sharedProps = {
+  const sharedProps = useMemo(() => ({
     user,
-    onAddDealClick: () => setIsAddDealOpen(true),
+    onAddDealClick: handleAddDealClick,
     isAddDealOpen,
     setIsAddDealOpen,
     handleAddDeal,
@@ -370,34 +548,109 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
     apiBase,
     categories,
     setCategories,
+    coupons,
+    setCoupons,
     dealsLoading: dealsState.loading,
     dealsError: dealsState.error
+  }), [
+    user,
+    handleAddDealClick,
+    isAddDealOpen,
+    handleAddDeal,
+    dealForm,
+    wishlist,
+    toggleWishlist,
+    clearWishlist,
+    showToast,
+    apiBase,
+    categories,
+    coupons,
+    dealsState.loading,
+    dealsState.error
+  ]);
+
+  // Optimized Hydration Loading System:
+  // If we have no data at all (not even cached/default), we show a clean loading screen on the CLIENT.
+  // We NEVER show the loading screen during SSR (server-side rendering) to ensure the Page Source is complete.
+  const isServer = typeof window === 'undefined';
+  const hasData = (deals && deals.length > 0) || (categories && categories.length > 0);
+
+  // loading is from AuthContext, deals/hasData is our content
+  if (loading && !isServer && !hasData) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-20 h-20 bg-white rounded-3xl shadow-xl flex items-center justify-center">
+            <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Initializing DealSphere</span>
+            <div className="flex gap-1">
+              <div className="w-1 h-1 rounded-full bg-blue-600 animate-bounce" />
+              <div className="w-1 h-1 rounded-full bg-blue-600 animate-bounce [animation-delay:-0.15s]" />
+              <div className="w-1 h-1 rounded-full bg-blue-600 animate-bounce [animation-delay:-0.3s]" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const SeoAliasRedirect = ({ mode = 'offers' }) => {
+    const { slug } = useParams();
+    const normalizedSlug = slugify(slug);
+
+    if (normalizedStoreSlugs.has(normalizedSlug)) {
+      return <Navigate to={`/store/${encodeURIComponent(normalizedSlug)}`} replace />;
+    }
+
+    if (mode === 'deals' || mode === 'offers' || mode === 'coupons') {
+      return <Navigate to={`/category/${encodeURIComponent(normalizedSlug)}`} replace />;
+    }
+
+    return <Navigate to="/deals" replace />;
   };
 
   return (
     <>
       <ScrollToTop />
       <div id="main-app-container" className="min-h-screen">
-        <Routes>
-          <Route path="/" element={<Home {...sharedProps} deals={filteredDeals} onSearch={setSearchQuery} />} />
-          <Route path="/home" element={<Home {...sharedProps} deals={filteredDeals} onSearch={setSearchQuery} />} />
+        <Suspense fallback={<PublicRouteFallback />}>
+          <Routes>
+            <Route path="/" element={<Home {...sharedProps} deals={filteredDeals} homepageSnapshot={homepageSnapshot} onSearch={setSearchQuery} />} />
+            <Route path="/home" element={<Home {...sharedProps} deals={filteredDeals} homepageSnapshot={homepageSnapshot} onSearch={setSearchQuery} />} />
+            <Route path="/blogs" element={<Navigate to="/blog" replace />} />
+            <Route path="/categories" element={<Navigate to="/deals" replace />} />
+            <Route path="/about" element={<InfoPage {...sharedProps} page="about" />} />
+            <Route path="/contact" element={<InfoPage {...sharedProps} page="contact" />} />
+            <Route path="/privacy-policy" element={<InfoPage {...sharedProps} page="privacy" />} />
+            <Route path="/terms" element={<InfoPage {...sharedProps} page="terms" />} />
+            <Route path="/category/:slug" element={<CategoryDetails {...sharedProps} deals={publicDeals} />} />
+            <Route path="/store/:storeName" element={<StoreDetails {...sharedProps} />} />
+            <Route path="/today-deals" element={<Navigate to="/deals" replace />} />
+            <Route path="/:slug-deals" element={<SeoAliasRedirect mode="deals" />} />
+            <Route path="/:slug-offers" element={<SeoAliasRedirect mode="offers" />} />
 
-          {/* Dedicated Admin Panel Routes - Protected */}
-          {/* Admin Panel made accessible without login */}
-          <Route path="/admin/*" element={<AdminPanel {...sharedProps} deals={deals} setDeals={setDeals} />} />
-          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+            {/* Dedicated Admin Panel Routes - Protected */}
+            {/* Admin Panel made accessible without login */}
+            <Route path="/admin/*" element={(
+              <Suspense fallback={<AdminRouteFallback />}>
+                <AdminPanel {...sharedProps} deals={deals} setDeals={setDeals} />
+              </Suspense>
+            )} />
+            <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
 
-          <Route path="/deals" element={<Deals {...sharedProps} deals={filteredDeals} onSearch={setSearchQuery} />} />
-          <Route path="/wishlist" element={<Wishlist {...sharedProps} wishlist={wishlist} wishlistCount={wishlist.length} />} />
-          <Route path="/blog" element={<Blog {...sharedProps} />} />
-          <Route path="/blog/:slug" element={<BlogPost {...sharedProps} />} />
-          <Route path="/coupons" element={<Coupons {...sharedProps} />} />
-          <Route path="/coupons/:storeSlug" element={<CouponStore {...sharedProps} deals={publicDeals} />} />
-          <Route path="/stores" element={<Stores {...sharedProps} deals={publicDeals} />} />
-          <Route path="/product/:id" element={<ProductDetails {...sharedProps} deals={publicDeals} />} />
+            <Route path="/deals" element={<Deals {...sharedProps} deals={filteredDeals} onSearch={setSearchQuery} />} />
+            <Route path="/wishlist" element={<Wishlist {...sharedProps} wishlist={wishlist} wishlistCount={wishlist.length} />} />
+            <Route path="/blog" element={<Blog {...sharedProps} />} />
+            <Route path="/blog/:slug" element={<BlogPost {...sharedProps} />} />
+            <Route path="/stores" element={<Stores {...sharedProps} deals={publicDeals} />} />
+            <Route path="/deal/:id" element={<ProductDetails {...sharedProps} deals={publicDeals} />} />
+            <Route path="/product/:id" element={<ProductDetails {...sharedProps} deals={publicDeals} />} />
 
-          <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
-        </Routes>
+            <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
+          </Routes>
+        </Suspense>
       </div>
 
       {/* Global Toast Notification */}

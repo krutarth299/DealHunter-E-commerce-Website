@@ -1,19 +1,17 @@
 import { getProductImageGallery } from './imageOptimizer.js';
 import { createProductTitleSet } from './productTitles.js';
 
+import { STORE_DETECTION_PATTERNS } from '../config/storeProfiles';
+
 const STORE_PATTERNS = [
-  { name: 'Amazon', patterns: ['amazon.in', 'amazon.com', 'amzn.in', 'amazon'] },
-  { name: 'Flipkart', patterns: ['flipkart.com', 'flipkart'] },
-  { name: 'Myntra', patterns: ['myntra.com', 'myntra'] },
-  { name: 'Meesho', patterns: ['meesho.com', 'meesho'] },
-  { name: 'Blinkit', patterns: ['blinkit.com', 'blinkit'] },
-  { name: 'Nykaa', patterns: ['nykaa.com', 'nykaa'] },
-  { name: 'Ajio', patterns: ['ajio.com', 'ajio'] },
-  { name: 'Croma', patterns: ['croma.com', 'croma'] },
-  { name: 'BigBasket', patterns: ['bigbasket.com', 'bigbasket'] }
+  ...STORE_DETECTION_PATTERNS
 ];
 
-const INR_SYMBOL = '\u20B9';
+const INR_FORMATTER = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  maximumFractionDigits: 0
+});
 
 const asPlainObject = (value = {}) => {
   if (!value || typeof value !== 'object') return {};
@@ -48,6 +46,17 @@ const pickImageValue = (input) => {
   return '';
 };
 
+const slugifyText = (value = '') => (
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 90)
+    .replace(/-+$/g, '') || 'product'
+);
+
 export const parsePriceNumber = (value) => {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -81,32 +90,32 @@ const pickHighestPriceNumber = (...candidates) => (
 );
 
 const normalizePricePair = ({ dealPriceCandidates = [], mrpCandidates = [] } = {}) => {
-  let dealPrice = pickPreferredPriceNumber(dealPriceCandidates);
-  let mrp = pickHighestPriceNumber(mrpCandidates);
+  const cleanedMrpCandidates = mrpCandidates
+    .flat()
+    .map((candidate) => parsePriceNumber(candidate))
+    .filter((parsed) => parsed !== null && parsed > 0);
+  const hasExplicitMrp = cleanedMrpCandidates.length > 0;
+  const dealPrice = pickPreferredPriceNumber(dealPriceCandidates);
+  let mrp = cleanedMrpCandidates.sort((a, b) => b - a)[0] || null;
 
-  if (dealPrice > 0 && mrp > 0 && mrp < dealPrice) {
-    [dealPrice, mrp] = [mrp, dealPrice];
-  }
-
-  if (dealPrice <= 0) {
-    mrp = 0;
-  } else if (mrp <= dealPrice) {
-    mrp = 0;
-  }
+  // Preserve MRP if it exists
+  if (!mrp && dealPrice) mrp = dealPrice;
 
   const discountPercent = dealPrice > 0 && mrp > dealPrice
     ? Math.round(((mrp - dealPrice) / mrp) * 100)
     : 0;
 
-  return { dealPrice, mrp, discountPercent };
+  return { dealPrice, mrp, discountPercent, hasExplicitMrp };
 };
 
 export const formatPriceDisplay = (value) => {
   const numeric = parsePriceNumber(value) ?? 0;
-  return `${INR_SYMBOL}${numeric.toLocaleString('en-IN', {
-    minimumFractionDigits: Number.isInteger(numeric) ? 0 : 2,
-    maximumFractionDigits: 2
-  })}`;
+  return INR_FORMATTER.format(numeric).replace(/\u00a0/g, ' ');
+};
+
+export const formatDiscountDisplay = (value) => {
+  const numeric = Number.parseInt(String(value ?? '').replace(/[^0-9-]/g, ''), 10);
+  return Number.isFinite(numeric) && numeric > 0 ? `${numeric}%` : '0%';
 };
 
 export const detectStoreName = (storeValue, productUrl = '') => {
@@ -139,10 +148,12 @@ const normalizeVariantForUi = (variant = {}, fallback = {}, index = 0) => {
     images: Array.isArray(rawVariant.images) ? rawVariant.images : [],
     productUrl
   });
-  const { dealPrice, mrp, discountPercent } = normalizePricePair({
+  const { dealPrice, mrp, discountPercent, hasExplicitMrp } = normalizePricePair({
     dealPriceCandidates: [rawVariant.dealPrice, rawVariant.price, fallback.dealPrice, fallback.price],
     mrpCandidates: [rawVariant.mrp, rawVariant.originalPrice, fallback.mrp, fallback.originalPrice]
   });
+  const variantStore = detectStoreName(rawVariant.store || fallback.store || fallback.storeName, productUrl || fallback.productUrl || '');
+  const isFlipkartStore = String(variantStore || '').toLowerCase().includes('flipkart');
   const variantTitleSet = createProductTitleSet(rawVariant.title || rawVariant.name || fallback.title);
 
   return {
@@ -158,9 +169,9 @@ const normalizeVariantForUi = (variant = {}, fallback = {}, index = 0) => {
     images: imageGallery,
     price: dealPrice > 0 ? formatPriceDisplay(dealPrice) : (rawVariant.price || fallback.price || ''),
     dealPrice,
-    originalPrice: mrp > dealPrice && dealPrice > 0 ? formatPriceDisplay(mrp) : '',
+    originalPrice: mrp > 0 && dealPrice > 0 && (mrp > dealPrice || hasExplicitMrp) ? formatPriceDisplay(mrp) : '',
     mrp,
-    discount: discountPercent > 0 ? `${discountPercent}% OFF` : '',
+    discount: discountPercent > 0 ? `${discountPercent}% OFF` : (isFlipkartStore && mrp > 0 && dealPrice > 0 ? '0% OFF' : ''),
     discountPercent,
     productUrl,
     link: rawVariant.link || rawVariant.affiliateLink || productUrl,
@@ -179,6 +190,7 @@ export const normalizeDealForUi = (deal = {}) => {
   const affiliateOverrideLink = String(rawDeal.affiliateOverrideLink || '').trim();
   const affiliateLink = String(rawDeal.affiliateLink || rawDeal.buyLink || '').trim();
   const store = detectStoreName(rawDeal.storeName || storeInfo.name || rawDeal.store, productUrl);
+  const isFlipkartStore = String(store || '').toLowerCase().includes('flipkart');
   const rawTitle = pickFirstString(rawDeal.title, rawDeal.rawTitle, rawDeal.originalTitle, rawDeal.name, rawDeal.productTitle, rawDeal.product?.title);
   const titleSet = createProductTitleSet(rawTitle);
   const imageGallery = getProductImageGallery({
@@ -198,7 +210,7 @@ export const normalizeDealForUi = (deal = {}) => {
     storeName: store,
     productUrl
   });
-  const { dealPrice, mrp, discountPercent } = normalizePricePair({
+  const { dealPrice, mrp, discountPercent, hasExplicitMrp } = normalizePricePair({
     dealPriceCandidates: [
       pricing.dealPrice,
       pricing.currentPrice,
@@ -226,31 +238,58 @@ export const normalizeDealForUi = (deal = {}) => {
   const normalizedDeal = {
     ...rawDeal,
     title: rawTitle,
+    shortTitle: rawDeal.shortTitle || titleSet.cardTitle,
+    fullTitle: rawDeal.fullTitle || titleSet.displayTitle,
+    slug: rawDeal.slug || slugifyText(rawTitle),
     originalTitle: pickFirstString(rawDeal.originalTitle, rawDeal.rawTitle, titleSet.originalTitle),
     rawTitle: pickFirstString(rawDeal.rawTitle, rawDeal.originalTitle, titleSet.rawTitle),
     displayTitle: pickFirstString(rawDeal.displayTitle, titleSet.displayTitle),
     cardTitle: pickFirstString(rawDeal.cardTitle, titleSet.cardTitle),
+    thumbnail: imageGallery[0] || rawDeal.thumbnail || '',
     image: imageGallery[0] || '',
     images: imageGallery,
     store,
     storeName: store,
+    storeSlug: rawDeal.storeSlug || slugifyText(store),
     productUrl,
     affiliateOverrideLink,
     affiliateLink,
     link: affiliateLink || productUrl,
     dealPrice,
-    price: dealPrice > 0 ? formatPriceDisplay(dealPrice) : '',
+    price: mrp || dealPrice || 0, // In backend price=MRP
+    priceDisplay: dealPrice > 0 ? formatPriceDisplay(dealPrice) : '',
     mrp,
-    originalPrice: dealPrice > 0 && mrp > dealPrice ? formatPriceDisplay(mrp) : '',
+    originalPrice: mrp > 0 ? formatPriceDisplay(mrp) : (dealPrice > 0 ? formatPriceDisplay(dealPrice) : ''),
     discountPercent,
-    discount: discountPercent > 0 ? `${discountPercent}% OFF` : '',
+    discount: discountPercent > 0 ? `${discountPercent}% OFF` : (isFlipkartStore && mrp > 0 && dealPrice > 0 ? '0% OFF' : ''),
+    categorySlug: rawDeal.categorySlug || slugifyText(rawDeal.category || ''),
     category: pickFirstString(rawDeal.category, rawDeal.categoryName, rawDeal.product?.category, rawDeal.category?.name),
     description: pickFirstString(rawDeal.description, rawDeal.summary, rawDeal.product?.description),
+    shortDescription: rawDeal.shortDescription || '',
+    brand: rawDeal.brand || '',
+    model: rawDeal.model || '',
+    specifications: rawDeal.specifications || rawDeal.product?.specifications || {},
+    highlights: Array.isArray(rawDeal.highlights) ? rawDeal.highlights : [],
+    reviewCount: Number(rawDeal.reviewCount || 0) || 0,
+    availability: String(rawDeal.availability || (rawDeal.isExpired ? 'Out of stock' : 'In stock')).trim(),
+    isVerified: Boolean(rawDeal.isVerified),
+    isTrending: Boolean(rawDeal.isTrending || rawDeal.trending || rawDeal.featured),
+    isBestseller: Boolean(rawDeal.isBestseller),
+    freshness: rawDeal.freshness || '',
+    priceCheckedAt: rawDeal.priceCheckedAt || rawDeal.lastFetchedAt || '',
+    publishedAt: rawDeal.publishedAt || rawDeal.createdAt || '',
+    lastSyncedAt: rawDeal.lastSyncedAt || rawDeal.updatedAt || rawDeal.lastFetchedAt || '',
+    canonicalUrl: rawDeal.canonicalUrl || '',
     createdAt: rawDeal.createdAt || rawDeal.updatedAt || rawDeal.publishedAt || null
   };
-  normalizedDeal.variants = Array.isArray(rawDeal.variants)
-    ? rawDeal.variants.map((variant, index) => normalizeVariantForUi(variant, normalizedDeal, index))
+  const rawVariants = Array.isArray(rawDeal.variants)
+    ? rawDeal.variants
     : [];
+
+  normalizedDeal.variants = rawVariants.length
+    ? rawVariants.map((variant, index) => normalizeVariantForUi(variant, normalizedDeal, index))
+    : [];
+  normalizedDeal.variations = normalizedDeal.variants;
 
   return normalizedDeal;
 };

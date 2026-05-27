@@ -1,10 +1,9 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/static-components */
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, useDeferredValue } from 'react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import DealsGrid from '../components/DealsGrid';
-import Modal from '../components/Modal';
 import { 
     Filter, X, SlidersHorizontal, ShoppingBag, TrendingDown, Zap, ShieldCheck, ArrowRight,
     Clock, Search, Tag, Layers, Package, ChevronRight, Star, ExternalLink, Flame, BadgePercent
@@ -16,6 +15,7 @@ import { CATEGORY_MAP, FEATURED_CATEGORIES, getCategoryStyle, normalizeCategory 
 import { formatPriceDisplay, parsePriceNumber } from '../utils/dealUi';
 import { getCardTitle } from '../utils/productTitles';
 import { getMainProductImage, NO_PRODUCT_IMAGE } from '../utils/imageOptimizer';
+import { getProductPath } from '../utils/productUrls';
 
 // Shared category styles are now imported from ../utils/categoryConstants
 
@@ -90,6 +90,19 @@ const parseDealDiscount = (deal = {}) => {
     return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const shouldShowDealMrp = (deal = {}, dealPrice = 0, mrp = 0) => {
+    const pricing = deal.pricing || {};
+    const hasExplicitMrp = [
+        pricing.mrp,
+        pricing.originalPrice,
+        pricing.listPrice,
+        deal.mrp,
+        deal.originalPrice,
+        deal.listPrice
+    ].some((candidate) => (parsePriceNumber(candidate) || 0) > 0);
+    return Boolean(mrp > 0 && dealPrice > 0 && (mrp > dealPrice || (mrp === dealPrice && hasExplicitMrp)));
+};
+
 const getDealTimestamp = (deal = {}) => {
     const time = new Date(deal.createdAt || deal.updatedAt || deal.publishedAt || 0).getTime();
     return Number.isFinite(time) ? time : 0;
@@ -97,7 +110,7 @@ const getDealTimestamp = (deal = {}) => {
 
 const getDealIdentity = (deal = {}) => String(deal._id || deal.id || deal.productUrl || deal.link || '');
 
-const getDealPath = (deal = {}) => `/product/${deal.id || deal._id}`;
+const getDealPath = (deal = {}) => getProductPath(deal);
 
 const getUpdatedLabel = (deal = {}) => {
     const time = new Date(deal.updatedAt || deal.createdAt || deal.viewedAt || 0).getTime();
@@ -132,13 +145,13 @@ const SpotlightDealCard = ({ deal, rank = 0 }) => {
     return (
         <Link
             to={getDealPath(deal)}
-            className="group relative flex h-full min-h-[34rem] flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm no-underline transition-all hover:-translate-y-1 hover:border-orange-200 hover:shadow-[0_32px_70px_-42px_rgba(15,23,42,0.75)] md:p-5"
+            className="group relative z-0 flex h-full min-h-[34rem] flex-col overflow-visible rounded-[2rem] border border-slate-200 bg-white p-4 shadow-[0_10px_30px_-22px_rgba(15,23,42,0.32)] no-underline transition-all hover:z-20 hover:-translate-y-1 hover:border-orange-200 hover:shadow-[0_32px_70px_-42px_rgba(15,23,42,0.75)] md:p-5"
         >
             <div className="absolute left-5 top-5 z-20 rounded-2xl bg-slate-950 px-3 py-2 text-[9px] font-black uppercase tracking-[0.2em] text-white shadow-xl">
                 {badge}
             </div>
             {discount > 0 && (
-                <div className="absolute right-5 top-5 z-20 rounded-2xl bg-orange-500 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-xl shadow-orange-500/25">
+                <div className="absolute right-5 top-5 z-20 rounded-2xl bg-[#FF6A00] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-xl shadow-orange-500/25">
                     {discount}% OFF
                 </div>
             )}
@@ -158,25 +171,25 @@ const SpotlightDealCard = ({ deal, rank = 0 }) => {
 
             <div className="flex flex-1 flex-col">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                    <span className="inline-flex min-w-0 items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-blue-700">
+                    <span className="inline-flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700">
                         <ShieldCheck size={12} className="shrink-0" />
                         <span className="truncate">{store}</span>
                     </span>
                     <span className="shrink-0 text-[10px] font-black uppercase tracking-widest text-slate-400">{getUpdatedLabel(deal)}</span>
                 </div>
 
-                <h3 className="mb-5 line-clamp-2 min-h-[3rem] overflow-hidden text-lg font-black leading-snug tracking-tight text-slate-950 group-hover:text-orange-600">
+                <h3 className="mb-5 line-clamp-2 min-h-[3rem] overflow-hidden text-lg font-black leading-snug tracking-tight text-slate-950 group-hover:text-[#FF6A00]">
                     {title}
                 </h3>
 
                 <div className="mt-auto">
                     <div className="mb-4 flex min-h-[3.65rem] flex-wrap items-end gap-2">
                         <span className="text-3xl font-black leading-none tracking-tighter text-slate-950">{formatPriceDisplay(dealPrice)}</span>
-                        {mrp > dealPrice && (
+                        {shouldShowDealMrp(deal, dealPrice, mrp) && (
                             <span className="text-sm font-bold text-slate-400 line-through">{formatPriceDisplay(mrp)}</span>
                         )}
                     </div>
-                    <span className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-5 py-4 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-orange-500/20 transition-all group-hover:bg-slate-950 group-active:scale-95">
+                    <span className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#FF6A00] to-[#FF8C42] px-5 py-4 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-orange-500/20 transition-all group-hover:brightness-95 group-active:scale-95">
                         Open Details
                         <ChevronRight size={15} strokeWidth={3} />
                     </span>
@@ -195,7 +208,7 @@ const CompactTrendingCard = ({ deal }) => {
     return (
         <Link
             to={getDealPath(deal)}
-            className="group flex min-w-[18rem] items-center gap-4 rounded-[2rem] border border-slate-200 bg-white p-3 shadow-sm transition-all hover:-translate-y-1 hover:border-orange-200 hover:shadow-[0_22px_48px_-34px_rgba(15,23,42,0.9)] sm:min-w-[22rem]"
+            className="group flex min-w-[18rem] items-center gap-4 rounded-[2rem] border border-slate-200 bg-white p-3 shadow-[0_10px_28px_-22px_rgba(15,23,42,0.28)] transition-all hover:-translate-y-1 hover:border-orange-200 hover:shadow-[0_22px_48px_-34px_rgba(15,23,42,0.9)] sm:min-w-[22rem]"
         >
             <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-[1.5rem] bg-slate-50 p-3">
                 <img
@@ -209,22 +222,22 @@ const CompactTrendingCard = ({ deal }) => {
                     }}
                 />
                 {discount > 0 && (
-                    <span className="absolute left-2 top-2 rounded-lg bg-orange-500 px-2 py-1 text-[8px] font-black text-white shadow-lg">
+                    <span className="absolute left-2 top-2 rounded-lg bg-[#FF6A00] px-2 py-1 text-[8px] font-black text-white shadow-lg">
                         {discount}%
                     </span>
                 )}
             </div>
             <div className="min-w-0 flex-1">
                 <div className="mb-2 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400">
-                    <Flame size={11} className="text-orange-500" fill="currentColor" />
+                    <Flame size={11} className="text-[#22C55E]" fill="currentColor" />
                     <span className="truncate">{store}</span>
                 </div>
-                <h3 className="line-clamp-2 min-h-[2.35rem] text-sm font-black leading-snug tracking-tight text-slate-950 group-hover:text-orange-600">
+                <h3 className="line-clamp-2 min-h-[2.35rem] text-sm font-black leading-snug tracking-tight text-slate-950 group-hover:text-[#FF6A00]">
                     {title}
                 </h3>
                 <div className="mt-3 flex items-center justify-between gap-3">
                     <span className="text-xl font-black tracking-tighter text-slate-950">{formatPriceDisplay(dealPrice)}</span>
-                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white transition-colors group-hover:bg-orange-500">
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white transition-colors group-hover:bg-[#FF6A00]">
                         <ChevronRight size={16} strokeWidth={3} />
                     </span>
                 </div>
@@ -237,16 +250,16 @@ const TrendingDealsRail = ({ deals = [] }) => {
     if (deals.length < 3) return null;
 
     return (
-        <section className="mb-12 overflow-hidden rounded-[2.5rem] border border-slate-200 bg-slate-950 p-5 text-white shadow-[0_32px_80px_-55px_rgba(2,6,23,1)] sm:p-7">
+        <section className="mb-12 overflow-hidden rounded-[2.5rem] border border-slate-200 bg-[#0B1220] p-5 text-white shadow-[0_32px_80px_-55px_rgba(2,6,23,1)] sm:p-7">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                    <p className="mb-2 inline-flex items-center gap-2 rounded-full bg-orange-500/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-orange-300 ring-1 ring-orange-400/20">
+                    <p className="mb-2 inline-flex items-center gap-2 rounded-full bg-[#FF6A00]/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-[#FF6A00] ring-1 ring-[#FF6A00]/20">
                         <Flame size={13} fill="currentColor" />
                         Trending Row
                     </p>
                     <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Deals shoppers are opening now</h2>
                 </div>
-                <p className="max-w-xs text-sm font-semibold leading-relaxed text-slate-400">
+                <p className="max-w-xs text-sm font-semibold leading-relaxed text-slate-300">
                     Quick-scan high-confidence offers with strong price and discount signals.
                 </p>
             </div>
@@ -264,10 +277,10 @@ const InlineDealHighlights = ({ deals = [] }) => {
     if (deals.length === 0) return null;
 
     return (
-        <section className="rounded-[2.75rem] border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-blue-50 p-5 shadow-sm sm:p-7">
+        <section className="rounded-[2.75rem] border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-slate-50 p-5 shadow-sm sm:p-7">
             <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div>
-                    <p className="mb-2 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-orange-600">
+                    <p className="mb-2 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#FF6A00]">
                         <BadgePercent size={14} />
                         Marketplace Highlight
                     </p>
@@ -286,7 +299,7 @@ const InlineDealHighlights = ({ deals = [] }) => {
     );
 };
 
-const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen, setIsAddDealOpen, handleAddDeal, dealForm, setDealForm, showToast, apiBase, categories: globalCategories, dealsLoading = false, dealsError = '' }) => {
+const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: globalCategories, dealsLoading = false, dealsError = '' }) => {
     const [searchParams] = useSearchParams();
     
     const categories = React.useMemo(() => {
@@ -299,11 +312,12 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
     const [priceRange, setPriceRange] = useState(PRICE_RANGES[0]);
     const [sortBy, setSortBy] = useState('newest');
     const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
     const [selectedDiscount, setSelectedDiscount] = useState(DISCOUNT_FILTERS[0]);
     const [customMaxPrice, setCustomMaxPrice] = useState(0);
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const feedRef = useRef(null);
+    const deferredSearchQuery = useDeferredValue(searchQuery);
 
     const allDeals = useMemo(() => (Array.isArray(deals) ? deals.filter(Boolean) : []), [deals]);
     const liveStores = useMemo(() => [...new Set(allDeals.map(d => d.store || d.storeName).filter(Boolean))].sort(), [allDeals]);
@@ -331,8 +345,10 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
     useEffect(() => {
         const cat = searchParams.get('category');
         const store = searchParams.get('store');
+        const search = searchParams.get('search');
         setSelectedCategory(cat || 'All');
         setSelectedStore(store || 'All');
+        setSearchQuery(search || '');
         // Scroll when filters change
         scrollToFeed();
     }, [searchParams, scrollToFeed]);
@@ -345,7 +361,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    const getFilteredDeals = () => {
+    const filteredDeals = useMemo(() => {
         let filtered = [...allDeals];
         if (selectedCategory !== 'All') {
             filtered = filtered.filter(d => {
@@ -357,8 +373,8 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
         if (selectedStore !== 'All') {
             filtered = filtered.filter(d => (d.store || d.storeName)?.toLowerCase() === selectedStore.toLowerCase());
         }
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase().trim();
+        if (deferredSearchQuery) {
+            const query = deferredSearchQuery.toLowerCase().trim();
             filtered = filtered.filter(d => {
                 const haystack = [
                     d.title,
@@ -401,18 +417,19 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
         });
 
         return filtered;
-    };
-
-    const filteredDeals = getFilteredDeals();
+    }, [allDeals, deferredSearchQuery, effectiveMaxPrice, priceRange.max, priceRange.min, selectedCategory, selectedDiscount.value, selectedStore, sortBy]);
     const featuredDeals = useMemo(() => getTopDeals(filteredDeals, filteredDeals.length > 8 ? 3 : 0), [filteredDeals]);
     const featuredIdentitySet = useMemo(() => new Set(featuredDeals.map(getDealIdentity)), [featuredDeals]);
     const gridDeals = featuredDeals.length > 0
         ? filteredDeals.filter((deal) => !featuredIdentitySet.has(getDealIdentity(deal)))
         : filteredDeals;
     const trendingDeals = useMemo(() => getTopDeals(gridDeals, Math.min(6, gridDeals.length)), [gridDeals]);
+    const trendingIdentitySet = useMemo(() => new Set(trendingDeals.map(getDealIdentity)), [trendingDeals]);
+    const gridDealsPostTrending = gridDeals.filter(deal => !trendingIdentitySet.has(getDealIdentity(deal)));
+
     const gridSections = useMemo(() => {
-        const firstPage = gridDeals.slice(0, 12);
-        const remaining = gridDeals.slice(12);
+        const firstPage = gridDealsPostTrending.slice(0, 12);
+        const remaining = gridDealsPostTrending.slice(12);
         const inlineHighlights = remaining.length > 8 ? getTopDeals(remaining, 2) : [];
         const inlineHighlightIds = new Set(inlineHighlights.map(getDealIdentity));
         const finalGrid = inlineHighlights.length > 0
@@ -424,9 +441,9 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
             inlineHighlights,
             finalGrid
         };
-    }, [gridDeals]);
+    }, [gridDealsPostTrending]);
     const searchSuggestions = useMemo(() => {
-        const query = searchQuery.trim().toLowerCase();
+        const query = deferredSearchQuery.trim().toLowerCase();
         if (!query || query.length < 2) return [];
 
         const seen = new Set();
@@ -447,7 +464,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                 return true;
             })
             .slice(0, 6);
-    }, [allDeals, searchQuery]);
+    }, [allDeals, deferredSearchQuery]);
     const activeListingLabel = selectedCategory !== 'All'
         ? `${selectedCategory} Deals`
         : selectedStore !== 'All'
@@ -474,7 +491,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
             <div className="space-y-8">
                 <div className="flex items-center justify-between">
                     <h3 className="text-[11px] font-[1000] text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                        <div className="w-1.5 h-4 bg-orange-500 rounded-full" /> Categories
+                        <div className="w-1.5 h-4 bg-[#FF6A00] rounded-full" /> Categories
                     </h3>
                     <span className="text-[10px] font-black text-slate-300 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-lg">
                         {categories.length + 1}
@@ -486,14 +503,14 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                         className={`group flex items-center gap-4 px-5 py-4 rounded-2xl text-[13px] font-black transition-all text-left border relative overflow-hidden
                             ${selectedCategory === 'All'
                                 ? 'bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-900/20'
-                                : 'bg-white text-slate-500 border-slate-100 hover:border-orange-200 hover:text-orange-600 hover:shadow-lg hover:shadow-orange-500/5'
+                                : 'bg-white text-slate-500 border-slate-200 hover:border-orange-200 hover:text-[#FF6A00] hover:shadow-lg hover:shadow-orange-500/5'
                             }`}
                     >
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${selectedCategory === 'All' ? 'bg-white/10' : 'bg-slate-50 group-hover:bg-orange-50 group-hover:text-orange-600'}`}>
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${selectedCategory === 'All' ? 'bg-white/10' : 'bg-slate-50 group-hover:bg-orange-50 group-hover:text-[#FF6A00]'}`}>
                             <ShoppingBag size={18} strokeWidth={2.5} />
                         </div>
                         <span className="flex-1 uppercase tracking-wider">Infinity Feed</span>
-                        {selectedCategory === 'All' && <motion.div layoutId="filter-active" className="absolute right-4 w-1.5 h-4 bg-orange-500 rounded-full" />}
+                        {selectedCategory === 'All' && <motion.div layoutId="filter-active" className="absolute right-4 w-1.5 h-4 bg-[#FF6A00] rounded-full" />}
                     </button>
 
                     {categories.map(catName => {
@@ -507,14 +524,14 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                                 className={`group flex items-center gap-4 px-5 py-4 rounded-2xl text-[13px] font-black transition-all text-left border relative overflow-hidden
                                     ${isActive
                                         ? 'bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-900/20'
-                                        : 'bg-white text-slate-500 border-slate-100 hover:border-orange-200 hover:text-orange-600 hover:shadow-lg hover:shadow-orange-500/5'
+                                        : 'bg-white text-slate-500 border-slate-200 hover:border-orange-200 hover:text-[#FF6A00] hover:shadow-lg hover:shadow-orange-500/5'
                                     }`}
                             >
                                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${isActive ? 'bg-white/10' : `${style.bg} ${style.icon_color} group-hover:scale-110 shadow-sm`}`}>
                                     <Icon size={18} strokeWidth={2.5} />
                                 </div>
                                 <span className="flex-1 uppercase tracking-wider truncate">{catName}</span>
-                                {isActive && <motion.div layoutId="filter-active" className="absolute right-4 w-1.5 h-4 bg-orange-500 rounded-full" />}
+                                {isActive && <motion.div layoutId="filter-active" className="absolute right-4 w-1.5 h-4 bg-[#FF6A00] rounded-full" />}
                             </button>
                         );
                     })}
@@ -525,9 +542,9 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
             <div className="space-y-8">
                 <div className="flex items-center justify-between">
                     <h3 className="text-[11px] font-[1000] text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                        <div className="w-1.5 h-4 bg-emerald-500 rounded-full" /> Stores
+                        <div className="w-1.5 h-4 bg-[#22C55E] rounded-full" /> Stores
                     </h3>
-                    <span className="text-[10px] font-black text-slate-300 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-lg">
+                    <span className="text-[10px] font-black text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-lg">
                         {liveStores.length}
                     </span>
                 </div>
@@ -536,8 +553,8 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                         onClick={() => { setSelectedStore('All'); setIsMobileFilterOpen(false); }}
                         className={`flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 text-[11px] font-black uppercase tracking-widest transition-all
                             ${selectedStore === 'All'
-                                ? 'border-emerald-600 bg-emerald-600 text-white shadow-xl shadow-emerald-600/20'
-                                : 'border-slate-100 bg-white text-slate-500 hover:border-emerald-200 hover:text-emerald-600'
+                                ? 'border-[#22C55E] bg-[#22C55E] text-white shadow-xl shadow-emerald-600/20'
+                                : 'border-slate-200 bg-white text-slate-500 hover:border-emerald-200 hover:text-[#22C55E]'
                             }`}
                     >
                         All live stores
@@ -549,8 +566,8 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                             onClick={() => { setSelectedStore(store); setIsMobileFilterOpen(false); }}
                             className={`flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 text-[11px] font-black uppercase tracking-widest transition-all
                                 ${selectedStore === store
-                                    ? 'border-emerald-600 bg-emerald-600 text-white shadow-xl shadow-emerald-600/20'
-                                    : 'border-slate-100 bg-white text-slate-500 hover:border-emerald-200 hover:text-emerald-600'
+                                    ? 'border-[#22C55E] bg-[#22C55E] text-white shadow-xl shadow-emerald-600/20'
+                                    : 'border-slate-200 bg-white text-slate-500 hover:border-emerald-200 hover:text-[#22C55E]'
                                 }`}
                         >
                             <span className="truncate">{store}</span>
@@ -565,7 +582,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
             {/* Price */}
             <div className="space-y-8">
                 <h3 className="text-[11px] font-[1000] text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <div className="w-1.5 h-4 bg-blue-500 rounded-full" /> Smart Pricing
+                    <div className="w-1.5 h-4 bg-[#FF6A00] rounded-full" /> Smart Pricing
                 </h3>
                 <div className="flex flex-col gap-2.5">
                     {PRICE_RANGES.map(range => (
@@ -574,8 +591,8 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                             onClick={() => { setPriceRange(range); setIsMobileFilterOpen(false); }}
                             className={`group px-6 py-4 rounded-2xl text-[11px] font-black transition-all text-left border uppercase tracking-widest relative overflow-hidden
                                 ${priceRange.label === range.label
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-xl shadow-blue-600/20'
-                                    : 'bg-white text-slate-500 border-slate-100 hover:border-blue-200 hover:text-blue-600 hover:shadow-lg'
+                                    ? 'bg-[#0F172A] text-white border-[#0F172A] shadow-xl shadow-slate-900/20'
+                                    : 'bg-white text-slate-500 border-slate-200 hover:border-orange-200 hover:text-[#FF6A00] hover:shadow-lg'
                                 }`}
                         >
                             {range.label}
@@ -586,7 +603,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                 <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
                     <div className="mb-4 flex items-center justify-between gap-3">
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Max price</span>
-                        <span className="rounded-xl bg-blue-50 px-3 py-1 text-[10px] font-black text-blue-700">
+                        <span className="rounded-xl bg-slate-50 px-3 py-1 text-[10px] font-black text-slate-700">
                             {customMaxPrice > 0 ? formatPriceDisplay(customMaxPrice) : 'No limit'}
                         </span>
                     </div>
@@ -597,13 +614,13 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                         step={priceSliderMax > 50000 ? 1000 : 500}
                         value={customMaxPrice}
                         onChange={(event) => setCustomMaxPrice(Number(event.target.value))}
-                        className="w-full accent-blue-600"
+                        className="w-full accent-[#FF6A00]"
                     />
                     {customMaxPrice > 0 && (
                         <button
                             type="button"
                             onClick={() => setCustomMaxPrice(0)}
-                            className="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-blue-600"
+                            className="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-[#FF6A00]"
                         >
                             Clear price cap
                         </button>
@@ -614,7 +631,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
             {/* Discount */}
             <div className="space-y-8">
                 <h3 className="text-[11px] font-[1000] text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <div className="w-1.5 h-4 bg-rose-500 rounded-full" /> Discount
+                    <div className="w-1.5 h-4 bg-[#22C55E] rounded-full" /> Discount
                 </h3>
                 <div className="grid grid-cols-2 gap-2.5">
                     {DISCOUNT_FILTERS.map(filter => (
@@ -623,8 +640,8 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                             onClick={() => { setSelectedDiscount(filter); setIsMobileFilterOpen(false); }}
                             className={`rounded-2xl border px-4 py-4 text-center text-[10px] font-black uppercase tracking-widest transition-all
                                 ${selectedDiscount.value === filter.value
-                                    ? 'border-orange-500 bg-orange-500 text-white shadow-xl shadow-orange-500/20'
-                                    : 'border-slate-100 bg-white text-slate-500 hover:border-orange-200 hover:text-orange-600'
+                                    ? 'border-[#FF6A00] bg-[#FF6A00] text-white shadow-xl shadow-orange-500/20'
+                                    : 'border-slate-200 bg-white text-slate-500 hover:border-orange-200 hover:text-[#FF6A00]'
                                 }`}
                         >
                             {filter.label}
@@ -636,7 +653,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
     );
 
     return (
-        <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900">
+        <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900 relative">
             <SEO
                 title={activeListingLabel}
                 description={activeListingDescription}
@@ -647,14 +664,13 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                     { name: activeListingLabel, url: dealsCanonical }
                 ]}
             />
-            <Navbar user={user} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist.length} wishlist={wishlist} />
-            <Modal isOpen={isAddDealOpen} onClose={() => setIsAddDealOpen(false)} title="Add a Deal" onSubmit={handleAddDeal} dealForm={dealForm} setDealForm={setDealForm} />
+            <Navbar user={user} onSearch={onSearch} wishlistCount={wishlist.length} wishlist={wishlist} />
 
             {/* ─── Page Header ─── */}
             <div className="bg-white border-b border-slate-100 relative overflow-hidden py-10 md:py-14">
                 {/* Mesh Gradients */}
                 <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-orange-50/60 blur-[150px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-                <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-blue-50/60 blur-[120px] rounded-full translate-y-1/2 -translate-x-1/3 pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-slate-100/70 blur-[120px] rounded-full translate-y-1/2 -translate-x-1/3 pointer-events-none" />
                 
                 <div className="w-full mx-auto px-4 sm:px-8 lg:px-12 relative z-10">
                     <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-10">
@@ -662,26 +678,26 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                             <motion.div 
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                className="inline-flex items-center gap-2.5 bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-xl border border-emerald-100"
+                                className="inline-flex items-center gap-2.5 bg-emerald-50 text-[#22C55E] text-[10px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-xl border border-emerald-100"
                             >
-                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500 mr-1"></span>
+                                <div className="w-2 h-2 rounded-full bg-[#22C55E] animate-ping" />
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#22C55E] mr-1"></span>
                                 Live Pulse Intelligence
                             </motion.div>
                             <h1 className="text-5xl md:text-7xl font-[1000] text-slate-900 tracking-tight leading-[0.9]">
                                 {selectedCategory !== 'All' ? (
                                     <>
-                                        Best <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-600">{selectedCategory}</span>
+                                        Best <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF6A00] to-[#FF8C42]">{selectedCategory}</span>
                                         <span className="block text-slate-400 mt-2">Collections</span>
                                     </>
                                 ) : selectedStore !== 'All' ? (
                                     <>
-                                        Curated <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-600">{selectedStore}</span> 
+                                        Curated <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF6A00] to-[#FF8C42]">{selectedStore}</span> 
                                         <span className="block text-slate-400 mt-2">Intelligence</span>
                                     </>
                                 ) : (
                                     <>
-                                        Elite <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-600">Deals</span>
+                                        Elite <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF6A00] to-[#FF8C42]">Deals</span>
                                         <span className="block text-slate-400 mt-2">Command Center</span>
                                     </>
                                 )}
@@ -697,8 +713,8 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                         {/* Search bar */}
                         <div className="relative w-full md:w-[480px] group">
                             <div className="absolute inset-0 bg-orange-500/5 blur-3xl rounded-[2.5rem] opacity-0 group-focus-within:opacity-100 transition-opacity" />
-                            <div className="relative flex items-center h-20 bg-white border-2 border-slate-100 rounded-3xl group-focus-within:border-orange-400/50 group-focus-within:shadow-[0_20px_50px_-10px_rgba(249,115,22,0.1)] transition-all overflow-hidden p-2">
-                                <div className="w-16 h-full flex items-center justify-center text-slate-400 group-focus-within:text-orange-500">
+                            <div className="relative flex items-center h-20 bg-white border-2 border-slate-100 rounded-3xl group-focus-within:border-[#FF6A00]/40 group-focus-within:shadow-[0_20px_50px_-10px_rgba(255,106,0,0.1)] transition-all overflow-hidden p-2">
+                                <div className="w-16 h-full flex items-center justify-center text-slate-400 group-focus-within:text-[#FF6A00]">
                                     <Search size={24} strokeWidth={2.5} />
                                 </div>
                                 <input
@@ -769,12 +785,11 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                             </AnimatePresence>
                         </div>
                     </div>
-
                     {/* Store Pill Strip - Elevated Design */}
                     <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pt-6 pb-4 mt-2 scroll-smooth">
-                        <div className="flex items-center gap-2 mr-2 py-1.5 px-3 bg-white/50 backdrop-blur-md rounded-xl border border-slate-200 shrink-0 shadow-sm">
-                            <Zap size={14} className="text-orange-500" fill="currentColor" />
-                            <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Certified</span>
+                        <div className="flex items-center gap-2 mr-2 py-1.5 px-3 bg-white/60 backdrop-blur-md rounded-xl border border-slate-200 shrink-0 shadow-sm">
+                            <Zap size={14} className="text-[#FF6A00]" fill="currentColor" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[#FF6A00]">Active Stores</span>
                         </div>
                         
                         <button
@@ -782,7 +797,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                             className={`h-11 px-6 rounded-xl text-[11px] font-black whitespace-nowrap transition-all border uppercase tracking-wider flex items-center justify-center
                                 ${selectedStore === 'All'
                                     ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20'
-                                    : 'bg-white text-slate-500 border-slate-200 hover:border-orange-400 hover:text-orange-500 shadow-sm'
+                                    : 'bg-white/70 backdrop-blur-md text-slate-500 border-slate-200 hover:border-orange-200 hover:text-[#FF6A00] shadow-sm'
                                 }`}
                         >
                             Global
@@ -795,8 +810,8 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                                     onClick={() => setSelectedStore(store)}
                                     className={`group h-11 px-4 rounded-xl text-[11px] font-black whitespace-nowrap transition-all border flex items-center gap-3 uppercase tracking-wide
                                         ${isActive
-                                            ? 'bg-gradient-to-r from-orange-500 to-rose-500 text-white border-transparent shadow-lg shadow-orange-500/30'
-                                            : 'bg-white text-slate-600 border-slate-200 hover:border-orange-400 hover:text-orange-500 shadow-sm'
+                                            ? 'bg-gradient-to-r from-[#FF6A00] to-[#FF8C42] text-white border-transparent shadow-lg shadow-orange-500/30'
+                                            : 'bg-white/70 backdrop-blur-md text-slate-600 border-slate-200 hover:border-orange-200 hover:text-[#FF6A00] shadow-sm'
                                         }`}
                                 >
                                     <div className={`w-7 h-7 rounded-lg bg-white flex items-center justify-center p-1 shadow-sm transition-all group-hover:scale-110 ${isActive ? '' : 'border border-slate-100'}`}>
@@ -804,7 +819,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                                             src={`https://www.google.com/s2/favicons?domain=${store.toLowerCase().replace(/\s/g, '')}.com&sz=64`} 
                                             className="w-full h-full object-contain"
                                             alt=""
-                                            onError={e => { e.target.parentElement.innerHTML = `<span class="text-[9px] font-black text-orange-500">${store[0]}</span>`; }}
+                                            onError={e => { e.target.parentElement.innerHTML = `<span class="text-[9px] font-black text-[#FF6A00]">${store[0]}</span>`; }}
                                         />
                                     </div>
                                     <span className="hidden sm:inline">{store}</span>
@@ -821,9 +836,9 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                 <div className="flex flex-col lg:flex-row gap-10">
                     {/* Desktop Sidebar */}
                     <aside className="hidden lg:block w-64 shrink-0">
-                        <div className="sticky top-28 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
+                        <div className="sticky top-28 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm max-h-[calc(100vh-9rem)] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
                             <h2 className="text-base font-black text-slate-900 mb-8 flex items-center gap-2">
-                                <SlidersHorizontal size={18} className="text-orange-500" /> Filters
+                                <SlidersHorizontal size={18} className="text-[#FF6A00]" /> Filters
                             </h2>
                             <FilterContent />
                         </div>
@@ -835,7 +850,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                         <div className="flex items-center justify-between mb-10 gap-6 flex-wrap">
                             <div className="flex items-center gap-4 text-sm font-bold text-slate-400 bg-white px-5 py-3 rounded-2xl border border-slate-100 shadow-sm">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+                                    <div className="w-2 h-2 rounded-full bg-[#FF6A00] animate-pulse" />
                                     <span className="text-slate-900">Live Updates</span>
                                 </div>
                                 <div className="w-1 h-4 bg-slate-100 rounded-full mx-1" />
@@ -849,7 +864,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                                     onClick={() => setIsMobileFilterOpen(true)}
                                     className="lg:hidden flex items-center gap-3 h-14 px-8 rounded-2xl bg-white border border-slate-200 text-slate-800 text-sm font-black shadow-sm active:scale-95 transition-all"
                                 >
-                                    <SlidersHorizontal size={18} className="text-orange-500" /> Filters
+                                    <SlidersHorizontal size={18} className="text-[#FF6A00]" /> Filters
                                 </button>
                                 <div className="relative h-14 bg-white border border-slate-200 rounded-2xl shadow-sm px-4 flex items-center gap-2">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Sort By</span>
@@ -874,7 +889,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                             <section className="mb-12">
                                 <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                                     <div>
-                                        <p className="mb-2 inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-orange-600">
+                                        <p className="mb-2 inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#FF6A00]">
                                             <Flame size={13} fill="currentColor" />
                                             First-row picks
                                         </p>
@@ -932,7 +947,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                                     <div className="absolute inset-0 bg-orange-500/5 blur-3xl rounded-full" />
                                     <Search size={56} className="text-slate-200" />
                                     <div className="absolute -bottom-2 -right-2 w-12 h-12 rounded-2xl bg-white border border-slate-100 shadow-xl flex items-center justify-center text-2xl">
-                                        🤔
+                                        😕
                                     </div>
                                 </div>
                                 <h3 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">No deals found matching your criteria</h3>
@@ -948,7 +963,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                                         setSelectedDiscount(DISCOUNT_FILTERS[0]);
                                         setCustomMaxPrice(0);
                                     }}
-                                    className="h-16 px-12 rounded-[2rem] bg-slate-900 text-white font-black text-sm uppercase tracking-widest hover:bg-orange-500 transition-all shadow-2xl active:scale-95"
+                                    className="h-16 px-12 rounded-[2rem] bg-slate-900 text-white font-black text-sm uppercase tracking-widest hover:bg-[#FF6A00] transition-all shadow-2xl active:scale-95"
                                 >
                                     Reset All Search Filters
                                 </button>
@@ -972,7 +987,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, isAddDealOpen,
                             </div>
                             <div className="flex-1 overflow-y-auto p-6"><FilterContent /></div>
                             <div className="p-6 border-t border-slate-100">
-                                <button onClick={() => setIsMobileFilterOpen(false)} className="w-full h-14 bg-orange-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/20">
+                                <button onClick={() => setIsMobileFilterOpen(false)} className="w-full h-14 bg-gradient-to-r from-[#FF6A00] to-[#FF8C42] text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:brightness-95 transition-colors shadow-lg shadow-orange-500/20">
                                     Apply ({filteredDeals.length} results)
                                 </button>
                             </div>

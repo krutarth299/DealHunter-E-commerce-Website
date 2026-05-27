@@ -1,14 +1,4 @@
-const STORE_PROFILES = {
-    Amazon: { domain: 'amazon.in', tagline: 'Live Amazon deals from your catalog' },
-    Flipkart: { domain: 'flipkart.com', tagline: 'Live Flipkart deals from your catalog' },
-    Myntra: { domain: 'myntra.com', tagline: 'Live Myntra fashion and lifestyle deals' },
-    Meesho: { domain: 'meesho.com', tagline: 'Live Meesho marketplace offers' },
-    Blinkit: { domain: 'blinkit.com', tagline: 'Live grocery and essentials offers' },
-    Nykaa: { domain: 'nykaa.com', tagline: 'Live beauty and skincare offers' },
-    Ajio: { domain: 'ajio.com', tagline: 'Live branded fashion deals' },
-    Croma: { domain: 'croma.com', tagline: 'Live electronics and appliance deals' },
-    BigBasket: { domain: 'bigbasket.com', tagline: 'Live supermarket offers' }
-};
+import { getStoreProfile } from '../config/storeProfiles';
 
 const getDealId = (deal = {}) => String(deal._id || deal.id || deal.productUrl || deal.link || deal.title || '');
 
@@ -54,17 +44,42 @@ export const selectBalancedDeals = (deals = [], { limit = 12, maxPerCategory = 3
     };
 
     const categoryBuckets = new Map();
+    const storeBuckets = new Map();
     candidates.forEach((deal) => {
         const category = deal.category || 'Other';
         const bucket = categoryBuckets.get(category) || [];
         bucket.push(deal);
         categoryBuckets.set(category, bucket);
+
+        const store = String(deal.store || deal.storeName || 'Online Store').trim() || 'Online Store';
+        const storeBucket = storeBuckets.get(store) || [];
+        storeBucket.push(deal);
+        storeBuckets.set(store, storeBucket);
     });
 
     const orderedCategories = [...categoryBuckets.keys()].sort((a, b) =>
         getNewestTime(categoryBuckets.get(b)?.[0]) - getNewestTime(categoryBuckets.get(a)?.[0])
         || a.localeCompare(b)
     );
+    const orderedStores = [...storeBuckets.keys()].sort((a, b) =>
+        getNewestTime(storeBuckets.get(b)?.[0]) - getNewestTime(storeBuckets.get(a)?.[0])
+        || a.localeCompare(b)
+    );
+
+    for (let round = 0; round < 2 && selected.length < limit; round += 1) {
+        let addedThisRound = false;
+
+        for (const store of orderedStores) {
+            const bucket = storeBuckets.get(store) || [];
+            const deal = bucket[round];
+            if (deal && tryAdd(deal, true)) {
+                addedThisRound = true;
+            }
+            if (selected.length >= limit) break;
+        }
+
+        if (!addedThisRound) break;
+    }
 
     for (let round = 0; round < maxPerCategory && selected.length < limit; round += 1) {
         let addedThisRound = false;
@@ -89,7 +104,7 @@ export const selectBalancedDeals = (deals = [], { limit = 12, maxPerCategory = 3
 };
 
 const resolveStoreDomain = (store = '', sampleDeal = {}) => {
-    const profile = STORE_PROFILES[store];
+    const profile = getStoreProfile(store);
     if (profile?.domain) return profile.domain;
 
     try {
@@ -138,7 +153,7 @@ export const getLiveStoresFromDeals = (deals = []) => {
             const category = [...summary.categories.entries()]
                 .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || 'Multi-category';
             const domain = resolveStoreDomain(summary.name, summary.sampleDeal);
-            const profile = STORE_PROFILES[summary.name] || {};
+            const profile = getStoreProfile(summary.name) || {};
 
             return {
                 name: summary.name,

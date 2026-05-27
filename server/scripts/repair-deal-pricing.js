@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import Deal from '../models/Deal.js';
 import { repairStoredDeals } from '../utils/deal-normalizer.js';
 
-const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/dealorbit';
+const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/dealsphere';
 
 const run = async () => {
     try {

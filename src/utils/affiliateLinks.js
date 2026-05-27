@@ -37,53 +37,68 @@ export const buildAffiliateUrl = ({ url = '', store = '', settings = [], manualO
         return override;
     }
 
+    // Safety check for settings
+    const safeSettings = Array.isArray(settings) ? settings : [];
     const detectedStore = detectStoreName(store, originalUrl);
-    const rule = settings.find((setting) => (
-        setting.store === detectedStore
-        || (
+    
+    // Find rule: prioritize exact store match, then pattern match
+    const rule = safeSettings.find((setting) => setting.store === detectedStore)
+        || safeSettings.find((setting) => (
             setting.urlPattern
             && originalUrl.toLowerCase().includes(String(setting.urlPattern).toLowerCase())
-        )
-    ))
-        || settings.find((setting) => setting.store === 'Generic')
+        ))
+        || safeSettings.find((setting) => setting.store === 'Generic')
         || null;
 
     if (
         !rule?.enabled
         || !rule.paramKey
         || !rule.paramValue
-        || (
-            rule.urlPattern
-            && !originalUrl.toLowerCase().includes(String(rule.urlPattern).toLowerCase())
-        )
+    ) {
+        return originalUrl;
+    }
+
+    // Optional pattern check for the matched rule
+    if (
+        rule.urlPattern
+        && !originalUrl.toLowerCase().includes(String(rule.urlPattern).toLowerCase())
     ) {
         return originalUrl;
     }
 
     try {
         const parsedUrl = new URL(originalUrl);
+        const lowerKey = String(rule.paramKey).toLowerCase();
+        
+        // Clear existing to avoid duplicates
         [...parsedUrl.searchParams.keys()].forEach((key) => {
-            if (key.toLowerCase() === String(rule.paramKey).toLowerCase()) {
+            if (key.toLowerCase() === lowerKey) {
                 parsedUrl.searchParams.delete(key);
             }
         });
+
         parsedUrl.searchParams.set(rule.paramKey, rule.paramValue);
         return parsedUrl.toString();
     } catch {
-        return originalUrl;
+        // Fallback for invalid URLs that passed earlier checks
+        const separator = originalUrl.includes('?') ? '&' : '?';
+        if (originalUrl.toLowerCase().includes(`${rule.paramKey.toLowerCase()}=`)) return originalUrl;
+        return `${originalUrl}${separator}${rule.paramKey}=${rule.paramValue}`;
     }
 };
 
-export const resolveBuyLink = (deal = {}, settings = []) =>
-    String(
+export const resolveBuyLink = (deal = {}, settings = []) => {
+    const safeSettings = Array.isArray(settings) ? settings : [];
+    return String(
         deal.affiliateLink
         || buildAffiliateUrl({
             url: deal.productUrl || deal.link || '',
             store: deal.storeName || deal.store || '',
-            settings,
+            settings: safeSettings,
             manualOverride: deal.affiliateOverrideLink
         })
         || deal.link
         || deal.productUrl
         || ''
     ).trim();
+};

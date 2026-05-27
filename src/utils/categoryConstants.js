@@ -9,48 +9,53 @@ import {
 
 export const CATEGORY_MAP = {
     // Tech & Electronics
-    'Electronics':      { icon: Smartphone,      bg: 'bg-indigo-50',    icon_color: 'text-indigo-600',    border: 'border-indigo-100', shadow: 'shadow-indigo-500/10' },
-    'Mobiles':          { icon: Smartphone,      bg: 'bg-blue-50',      icon_color: 'text-blue-600',      border: 'border-blue-100', shadow: 'shadow-blue-500/10' },
+    'Electronics':      { icon: Smartphone,      bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Mobiles':          { icon: Smartphone,      bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
     'Laptops':          { icon: Laptop,          bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
-    'Gaming':           { icon: Gamepad2,        bg: 'bg-violet-50',    icon_color: 'text-violet-600',    border: 'border-violet-100', shadow: 'shadow-violet-500/10' },
-    'Digital Products': { icon: Cpu,             bg: 'bg-purple-50',    icon_color: 'text-purple-600',    border: 'border-purple-100', shadow: 'shadow-purple-500/10' },
-    'Audio':            { icon: Headphones,      bg: 'bg-violet-50',    icon_color: 'text-violet-600',    border: 'border-violet-100', shadow: 'shadow-violet-500/10' },
-    'Cameras':          { icon: Camera,          bg: 'bg-gray-50',      icon_color: 'text-gray-600',      border: 'border-gray-200', shadow: 'shadow-gray-500/10' },
-    'Appliances':       { icon: Zap,             bg: 'bg-cyan-50',      icon_color: 'text-cyan-600',      border: 'border-cyan-100', shadow: 'shadow-cyan-500/10' },
+    'Gaming':           { icon: Gamepad2,        bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Digital Products': { icon: Cpu,             bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Audio':            { icon: Headphones,      bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Cameras':          { icon: Camera,          bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Appliances':       { icon: Zap,             bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
     
     // Fashion & Lifestyle
-    'Fashion':          { icon: Shirt,           bg: 'bg-rose-50',      icon_color: 'text-rose-600',      border: 'border-rose-100', shadow: 'shadow-rose-500/10' },
-    'Beauty & Personal Care': { icon: Sparkles,  bg: 'bg-pink-50',      icon_color: 'text-pink-600',      border: 'border-pink-100', shadow: 'shadow-pink-500/10' },
-    'Watches':          { icon: Watch,           bg: 'bg-amber-50',     icon_color: 'text-amber-600',     border: 'border-amber-100', shadow: 'shadow-amber-500/10' },
-    'Jewelry':          { icon: Gem,             bg: 'bg-yellow-50',    icon_color: 'text-yellow-600',    border: 'border-yellow-100', shadow: 'shadow-yellow-500/10' },
+    'Fashion':          { icon: Shirt,           bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Footwear':         { icon: Bike,            bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Accessories':      { icon: Gift,            bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Beauty & Personal Care': { icon: Sparkles,  bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Beauty':           { icon: Sparkles,        bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Watches':          { icon: Watch,           bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Jewelry':          { icon: Gem,             bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
     
     // Home & Living
-    'Home & Kitchen':   { icon: HomeIcon,        bg: 'bg-orange-50',    icon_color: 'text-orange-600',    border: 'border-orange-100', shadow: 'shadow-orange-500/10' },
-    'Furniture':        { icon: Sofa,            bg: 'bg-amber-50',     icon_color: 'text-amber-700',     border: 'border-amber-100', shadow: 'shadow-amber-500/10' },
-    'Industrial & Tools': { icon: Wrench,        bg: 'bg-stone-50',     icon_color: 'text-stone-600',     border: 'border-stone-100', shadow: 'shadow-stone-500/10' },
+    'Home & Kitchen':   { icon: HomeIcon,        bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Furniture':        { icon: Sofa,            bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Industrial & Tools': { icon: Wrench,        bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
     
     // Food & Groceries
-    'Groceries':        { icon: ShoppingBag,     bg: 'bg-emerald-50',   icon_color: 'text-emerald-600',   border: 'border-emerald-100', shadow: 'shadow-emerald-500/10' },
-    'Grocery':          { icon: ShoppingBag,     bg: 'bg-emerald-50',   icon_color: 'text-emerald-600',   border: 'border-emerald-100', shadow: 'shadow-emerald-500/10' },
-    'Food':             { icon: Utensils,        bg: 'bg-amber-50',     icon_color: 'text-amber-600',     border: 'border-amber-100', shadow: 'shadow-amber-500/10' },
+    'Groceries':        { icon: ShoppingBag,     bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Grocery':          { icon: ShoppingBag,     bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Food':             { icon: Utensils,        bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
     
     // Health & Family
-    'Baby Products':    { icon: Baby,            bg: 'bg-sky-50',       icon_color: 'text-sky-600',       border: 'border-sky-100', shadow: 'shadow-sky-500/10' },
-    'Health & Medical': { icon: Stethoscope,     bg: 'bg-red-50',       icon_color: 'text-red-500',       border: 'border-red-100', shadow: 'shadow-red-500/10' },
-    'Pet Supplies':     { icon: PawPrint,        bg: 'bg-orange-50',    icon_color: 'text-orange-500',    border: 'border-orange-100', shadow: 'shadow-orange-500/10' },
+    'Baby':             { icon: Baby,            bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Baby Products':    { icon: Baby,            bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Health':           { icon: Stethoscope,     bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Health & Medical': { icon: Stethoscope,     bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Pet Supplies':     { icon: PawPrint,        bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
     
     // Education & Hobby
-    'Books & Media':    { icon: BookOpen,        bg: 'bg-yellow-50',    icon_color: 'text-yellow-700',    border: 'border-yellow-100', shadow: 'shadow-yellow-500/10' },
-    'Toys & Games':     { icon: Gift,            bg: 'bg-pink-50',      icon_color: 'text-pink-500',      border: 'border-pink-100', shadow: 'shadow-pink-500/10' },
-    'Office & Stationery': { icon: Briefcase,     bg: 'bg-indigo-50',    icon_color: 'text-indigo-600',    border: 'border-indigo-100', shadow: 'shadow-indigo-500/10' },
-    'Sports & Fitness': { icon: Dumbbell,        bg: 'bg-lime-50',      icon_color: 'text-lime-600',      border: 'border-lime-100', shadow: 'shadow-lime-500/10' },
+    'Books & Media':    { icon: BookOpen,        bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Toys & Games':     { icon: Gift,            bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Office & Stationery': { icon: Briefcase,     bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+    'Sports & Fitness': { icon: Dumbbell,        bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
     
     // Travel & Auto
     'Automotive':       { icon: Car,             bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
-    'Travel':           { icon: Plane,           bg: 'bg-sky-50',       icon_color: 'text-sky-600',       border: 'border-sky-100', shadow: 'shadow-sky-500/10' },
-    
+    'Travel':           { icon: Plane,           bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
+
 // Others
-    'Multi-category':   { icon: Layers,          bg: 'bg-purple-50',    icon_color: 'text-purple-600',    border: 'border-purple-100', shadow: 'shadow-purple-500/10' },
+    'Multi-category':   { icon: Layers,          bg: 'bg-slate-50',     icon_color: 'text-slate-700',     border: 'border-slate-200', shadow: 'shadow-slate-500/10' },
 };
 
 export const normalizeCategory = (catName) => {
@@ -65,7 +70,9 @@ export const normalizeCategory = (catName) => {
     if (lower.includes('home') || lower.includes('kitchen') || lower.includes('living') || lower.includes('furniture') || lower.includes('decor') || lower.includes('appliance')) return 'Home & Kitchen';
     if (lower.includes('electron') || lower.includes('mobile') || lower.includes('phone') || lower.includes('computer') || lower.includes('laptop') || lower.includes('tablet')) return 'Electronics';
     if (lower.includes('audio') || lower.includes('headphone') || lower.includes('music') || lower.includes('sound')) return 'Electronics';
-    if (lower.includes('fashion') || lower.includes('cloth') || lower.includes('wear') || lower.includes('shoe') || lower.includes('apparel')) return 'Fashion';
+    if (lower.includes('shoe') || lower.includes('sandal') || lower.includes('slipper') || lower.includes('footwear')) return 'Footwear';
+    if (lower.includes('bag') || lower.includes('wallet') || lower.includes('belt') || lower.includes('sunglass') || lower.includes('accessor')) return 'Accessories';
+    if (lower.includes('fashion') || lower.includes('cloth') || lower.includes('wear') || lower.includes('apparel')) return 'Fashion';
     if (lower.includes('sport') || lower.includes('fitness') || lower.includes('gym') || lower.includes('exercise')) return 'Sports & Fitness';
     if (lower.includes('grocery') || lower.includes('food') || lower.includes('eat') || lower.includes('beverage')) return 'Groceries';
     if (lower.includes('health') || lower.includes('medical') || lower.includes('medicine') || lower.includes('well')) return 'Health & Medical';
@@ -81,10 +88,10 @@ export const normalizeCategory = (catName) => {
 };
 
 export const FEATURED_CATEGORIES = [
-    'Electronics', 'Fashion', 'Beauty & Personal Care', 'Home & Kitchen', 
-    'Groceries', 'Baby Products', 'Sports & Fitness', 'Books & Media', 
+    'Electronics', 'Fashion', 'Footwear', 'Accessories', 'Beauty & Personal Care', 'Home & Kitchen',
+    'Furniture', 'Groceries', 'Baby Products', 'Sports & Fitness', 'Books & Media',
     'Toys & Games', 'Automotive', 'Office & Stationery', 'Health & Medical', 
-    'Pet Supplies', 'Industrial & Tools', 'Digital Products'
+    'Travel', 'Pet Supplies', 'Industrial & Tools', 'Digital Products'
 ];
 
 export const getCategoryStyle = (catName) => {
@@ -113,7 +120,9 @@ export const getCategoryStyle = (catName) => {
     if (lower.includes('digital') || lower.includes('software') || lower.includes('course') || lower.includes('subscription')) return CATEGORY_MAP['Digital Products'];
     if (lower.includes('grocery') || lower.includes('fruit') || lower.includes('vegetable') || lower.includes('dairy')) return CATEGORY_MAP['Groceries'];
     if (lower.includes('electron') || lower.includes('mobile') || lower.includes('phone') || lower.includes('computer') || lower.includes('monitor')) return CATEGORY_MAP['Electronics'];
-    if (lower.includes('fashion') || lower.includes('cloth') || lower.includes('wear') || lower.includes('shoe')) return CATEGORY_MAP['Fashion'];
+    if (lower.includes('shoe') || lower.includes('sandal') || lower.includes('slipper') || lower.includes('footwear')) return CATEGORY_MAP['Footwear'];
+    if (lower.includes('bag') || lower.includes('wallet') || lower.includes('belt') || lower.includes('sunglass') || lower.includes('accessor')) return CATEGORY_MAP['Accessories'];
+    if (lower.includes('fashion') || lower.includes('cloth') || lower.includes('wear')) return CATEGORY_MAP['Fashion'];
     if (lower.includes('home') || lower.includes('kitchen') || lower.includes('furniture') || lower.includes('decor')) return CATEGORY_MAP['Home & Kitchen'];
     if (lower.includes('game') || lower.includes('gaming') || lower.includes('puzzle') || lower.includes('rc toy')) return CATEGORY_MAP['Gaming'];
     if (lower.includes('travel') || lower.includes('hotel') || lower.includes('flight') || lower.includes('luggage')) return CATEGORY_MAP['Travel'];

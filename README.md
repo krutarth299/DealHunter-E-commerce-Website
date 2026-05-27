@@ -8,7 +8,7 @@ The platform has been streamlined for stability and ease of management. Product 
 
 ### How to Add a New Deal:
 1.  **Admin Panel**: Navigate to `Admin Panel` -> `Add Deal`.
-2.  **Paste Link**: Paste the product URL from any supported e-commerce site (Amazon, Flipkart, Ajio, Meesho, etc.).
+2.  **Paste Link**: Paste the product URL from any supported e-commerce site (Amazon, Flipkart, Myntra, Nykaa, etc.).
 3.  **Smart Fetch**: The system will automatically extract product details (Title, Price, Original Price, Image, Discount) but will NOT save it yet.
 4.  **Review & Refine**: Review the extracted data. You can manually edit any field or choose a different image from the extracted gallery.
 5.  **Publish**: Click **Publish Deal** to go live. New deals are instantly broadcast to all users via Socket.io.

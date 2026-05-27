@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import {
@@ -6,14 +6,22 @@ import {
     TrendingUp, LogOut, Shield, ExternalLink, Edit3, Image as ImageIcon,
     Zap, DollarSign, Flame, Menu, X, CheckCircle, AlertCircle, Pencil, Activity,
     TrendingDown, Sparkles, Smartphone, Shirt, Gamepad2, Plane, Utensils, ShoppingBag, Layers,
-    ChevronLeft, ChevronRight, Home as HomeIcon, ShoppingCart, BadgePercent
+    ChevronLeft, ChevronRight, Home as HomeIcon, ShoppingCart, Loader2
 } from 'lucide-react';
 import { useNavigate, Link, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { optimizeImageUrl } from '../utils/imageOptimizer';
 import { buildAffiliateUrl, sanitizeOriginalUrl } from '../utils/affiliateLinks';
 import { normalizeDealForUi, normalizeDealsForUi } from '../utils/dealUi';
 import { SITE_NAME } from '../config/brand';
-import AdminCouponManager from '../components/admin/AdminCouponManager';
+import { getStoreLogoUrl, AFFILIATE_STORE_PROFILES } from '../config/storeProfiles';
+import { safeObject, safeString, normalizeAdminDeal } from '../utils/safety';
+import { getSocket } from '../utils/socket';
+import logo from '../assets/logo.png';
+
+// Sub-components
+import Dashboard from '../components/admin/Dashboard';
+
+import { DealAutomationChecklist, DuplicateCandidatesPanel } from '../components/admin/AdminComponents';
 
 const CATEGORY_MAP = {
     'Electronics': Smartphone,
@@ -32,193 +40,121 @@ const DEFAULT_CAT_ICON = Layers;
 const DEFAULT_DEAL_FORM = {
     title: '',
     store: '',
-    price: '',
-    originalPrice: '',
+    dealPrice: '',
+    mrp: '',
     discount: '',
-    image: '',
+    imageUrl: '',
     images: [],
     videos: [],
-    link: '',
+    productUrl: '',
     affiliateOverrideLink: '',
     affiliateLink: '',
     category: '',
     description: '',
-    extractionWarning: '',
+    brand: '',
     featured: false,
     isExpired: false
 };
 
-const DEFAULT_COUPON_FORM = {
-    title: '',
-    description: '',
-    code: '',
-    offerType: 'coupon',
-    store: '',
-    category: 'Multi-category',
-    affiliateUrl: '',
-    landingUrl: '',
-    cashbackValue: '',
-    discountValue: '',
-    expiryDate: '',
-    isVerified: true,
-    verifiedAt: '',
-    isFeatured: false,
-    isTrending: false,
-    status: 'active',
-    terms: '',
-    successRate: '',
-    usageCount: ''
-};
-
-const COUPON_OFFER_TYPES = [
-    { value: 'coupon', label: 'Coupon Code' },
-    { value: 'deal', label: 'Instant Deal' },
-    { value: 'cashback', label: 'Cashback' },
-    { value: 'bank', label: 'Bank Offer' },
-    { value: 'app', label: 'App Only' },
-    { value: 'new-user', label: 'New User' },
-    { value: 'wallet', label: 'Wallet / UPI' },
-    { value: 'sale', label: 'Sale Offer' }
-];
-
 /* ───────────────────────────────── helpers ── */
-const token = () => 'anonymous'; // Auth system removed
+const token = () => 'anonymous';
 
 const deriveStoreFromUrl = (rawUrl = '') => {
     try {
         const host = new URL(rawUrl).hostname.toLowerCase();
         if (host.includes('amazon')) return 'Amazon';
         if (host.includes('flipkart')) return 'Flipkart';
-        if (host.includes('meesho')) return 'Meesho';
         if (host.includes('myntra')) return 'Myntra';
-        if (host.includes('ajio')) return 'Ajio';
         if (host.includes('nykaa')) return 'Nykaa';
+        if (host.includes('croma')) return 'Croma';
+        if (host.includes('reliancedigital')) return 'Reliance Digital';
+        if (host.includes('firstcry')) return 'FirstCry';
+        if (host.includes('tatacliq')) return 'Tata CLiQ';
+        if (host.includes('snapdeal')) return 'Snapdeal';
         return host.replace(/^www\./, '').split('.')[0]?.replace(/^./, c => c.toUpperCase()) || '';
     } catch {
         return '';
     }
 };
 
+const detectPlatform = (url = '') => {
+    const low = url.toLowerCase();
+    if (low.includes("amazon")) return "amazon";
+    if (low.includes("flipkart")) return "flipkart";
+    if (low.includes("myntra")) return "myntra";
+    if (low.includes("croma")) return "croma";
+    if (low.includes("reliancedigital")) return "reliancedigital";
+    if (low.includes("nykaa")) return "nykaa";
+    if (low.includes("firstcry")) return "firstcry";
+    if (low.includes("tatacliq")) return "tatacliq";
+    if (low.includes("snapdeal")) return "snapdeal";
+    return "unknown";
+};
+
 const normalizeNumberLike = (value) => {
     if (value === null || value === undefined || value === '') return '';
     if (typeof value === 'number') return value.toString();
     const cleaned = String(value).replace(/[^\d.]/g, '');
-    if (!cleaned) return '';
-    const parsed = Number(cleaned);
-    return Number.isFinite(parsed) ? parsed.toString() : '';
+    return cleaned || '';
 };
 
 const sanitizeUrl = (u = '') => {
     let val = String(u || '').trim();
     if (!val) return '';
-    if (!/^https?:\/\//i.test(val) && /^(www\.)?meesho\./i.test(val)) {
-        val = `https://${val}`;
-    }
-    if (!/^https?:\/\//i.test(val) && /^(www\.)?blinkit\./i.test(val)) {
-        val = `https://${val}`;
-    }
-    if (!/^https?:\/\//i.test(val) && /^meesho\./i.test(val)) {
-        val = `https://www.${val}`;
-    }
-    if (!/^https?:\/\//i.test(val) && /^(www\.)?[a-z0-9-]+\.[a-z]{2,}/i.test(val)) {
-        val = `https://${val}`;
-    }
+    if (!/^https?:\/\//i.test(val)) val = `https://${val.replace(/^\/+/, '')}`;
     return val;
+};
+
+const mergeAffiliateSettings = (backendSettings = [], storeNames = []) => {
+    const safeBackend = Array.isArray(backendSettings) ? backendSettings : [];
+    const safeStoreNames = Array.isArray(storeNames) ? storeNames : [];
+    
+    const allStoreNames = [
+        ...new Set([
+            ...safeStoreNames,
+            ...Object.keys(AFFILIATE_STORE_PROFILES || {})
+        ])
+    ].sort((a, b) => a.localeCompare(b));
+
+    return allStoreNames.map(storeName => {
+        const existing = safeBackend.find(s => 
+            String(s?.store || s?.storeName || '').toLowerCase() === storeName.toLowerCase()
+        );
+        if (existing) {
+            return {
+                ...existing,
+                store: storeName
+            };
+        }
+        
+        return {
+            store: storeName,
+            storeSlug: storeName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
+            enabled: false,
+            paramKey: '',
+            paramValue: '',
+            urlPattern: '',
+            notes: '',
+            discoveredFromDeals: false,
+            pendingSetup: true
+        };
+    });
 };
 
 const isLikelyHttpUrl = (u = '') => /^https?:\/\//i.test(sanitizeUrl(u));
 
-const getAffiliateStoreSlug = (store = '') =>
-    String(store || 'store')
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '') || 'store';
-
-const createPendingAffiliateSetting = (store = '') => ({
-    store: String(store || '').trim(),
-    storeSlug: getAffiliateStoreSlug(store),
-    enabled: false,
-    paramKey: '',
-    paramValue: '',
-    urlPattern: '',
-    notes: '',
-    discoveredFromDeals: true,
-    pendingSetup: true
-});
-
-const normalizeAffiliateSetting = (setting = {}) => {
-    const store = String(setting.store || setting.storeName || '').trim();
-    const paramKey = String(setting.paramKey || setting.parameterKey || '').trim();
-    const paramValue = String(setting.paramValue || setting.parameterValue || '').trim();
-
-    return {
-        ...createPendingAffiliateSetting(store),
-        ...setting,
-        store,
-        storeSlug: String(setting.storeSlug || getAffiliateStoreSlug(store)).trim().toLowerCase(),
-        enabled: Boolean(setting.enabled),
-        paramKey,
-        paramValue,
-        urlPattern: String(setting.urlPattern || '').trim(),
-        notes: String(setting.notes || '').trim(),
-        pendingSetup: !setting.enabled || !paramKey || !paramValue
-    };
-};
-
-const mergeAffiliateSettings = (settings = [], storeNames = []) => {
-    const bySlug = new Map();
-
-    storeNames
-        .map((store) => String(store || '').trim())
-        .filter(Boolean)
-        .forEach((store) => {
-            const pending = createPendingAffiliateSetting(store);
-            bySlug.set(pending.storeSlug, pending);
-        });
-
-    (Array.isArray(settings) ? settings : [])
-        .map(normalizeAffiliateSetting)
-        .filter((setting) => setting.store)
-        .forEach((setting) => bySlug.set(setting.storeSlug, {
-            ...(bySlug.get(setting.storeSlug) || {}),
-            ...setting
-        }));
-
-    return [...bySlug.values()].sort((a, b) => a.store.localeCompare(b.store));
-};
-
-const normalizeCouponForAdmin = (coupon = {}) => ({
-    ...DEFAULT_COUPON_FORM,
-    ...coupon,
-    _id: coupon._id || coupon.id,
-    id: coupon.id || coupon._id,
-    store: String(coupon.store || '').trim(),
-    code: String(coupon.code || '').trim().toUpperCase(),
-    expiryDate: coupon.expiryDate ? String(coupon.expiryDate).slice(0, 10) : '',
-    verifiedAt: coupon.verifiedAt ? String(coupon.verifiedAt).slice(0, 16) : '',
-    successRate: coupon.successRate ? String(coupon.successRate) : '',
-    usageCount: coupon.usageCount ? String(coupon.usageCount) : '',
-    autoFetched: Boolean(coupon.autoFetched),
-    sourceType: coupon.sourceType || 'manual',
-    sourceUrl: coupon.sourceUrl || '',
-    fetchedAt: coupon.fetchedAt || '',
-    lastSeenAt: coupon.lastSeenAt || '',
-    lastFetchStatus: coupon.lastFetchStatus || '',
-    lastFetchError: coupon.lastFetchError || '',
-    scanBatchId: coupon.scanBatchId || '',
-    reviewStatus: coupon.reviewStatus || 'approved'
-});
-
 const fetchJson = async (url, options = {}) => {
     const response = await fetch(url, options);
-    const data = await response.json().catch(() => ({}));
-
     if (!response.ok) {
-        throw new Error(data?.message || `Request failed (${response.status})`);
+        throw new Error(`HTTP ${response.status}`);
     }
-
-    return data;
+    const contentType = response.headers.get("content-type");
+    if (!contentType?.includes("application/json")) {
+        const text = await response.text();
+        console.error("NON JSON RESPONSE:", text.slice(0, 500));
+        throw new Error("Server did not return JSON");
+    }
+    return await response.json();
 };
 
 const formatMoney = (value) => {
@@ -227,232 +163,118 @@ const formatMoney = (value) => {
     return `₹${Number(normalized).toLocaleString('en-IN')}`;
 };
 
-const formatDealDate = (value) => {
-    if (!value) return '—';
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return '—';
-    return parsed.toLocaleDateString('en-IN', {
-        day: 'numeric',
+const getDealDisplayPrice = (deal) => formatMoney(deal?.dealPrice || deal?.price);
+const getDealDisplayMrp = (deal) => formatMoney(deal?.mrp || deal?.originalPrice);
+const getDealDisplayDiscount = (deal) => {
+    const discount = Number(normalizeNumberLike(deal?.discountPercent || deal?.discount) || 0);
+    return discount > 0 ? `${discount}% OFF` : '0% OFF';
+};
+const getNumericDiscount = (deal) => Number(normalizeNumberLike(deal?.discountPercent || deal?.discount) || 0);
+const getDealTimestamp = (deal) => new Date(deal?.createdAt || deal?.updatedAt || 0).getTime();
+const getNumericDealPrice = (deal) => Number(normalizeNumberLike(deal?.dealPrice || deal?.price) || 0);
+const getDealDuplicateKey = (deal) => {
+    const title = safeString(deal?.title || '').toLowerCase().trim();
+    const store = safeString(deal?.store || deal?.storeName || '').toLowerCase().trim();
+    return `${title}-${store}`;
+};
+const normalizeComparableTitle = (title = '') => safeString(title).toLowerCase().replace(/[^a-z0-9]+/g, '').trim();
+
+const getDealId = (deal) => String(deal?._id || deal?.id || '');
+const getDealViews = (deal) => Number(deal?.views || deal?.clicks || 0) || 0;
+
+const getAffiliateStoreSlug = (storeName = '') => {
+    if (!storeName) return '';
+    return String(storeName).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+};
+
+const formatDealDate = (date) => {
+    if (!date) return '—';
+    const d = new Date(date);
+    if (!Number.isFinite(d.getTime())) return '—';
+    return d.toLocaleDateString('en-IN', {
+        day: '2-digit',
         month: 'short',
         year: 'numeric'
     });
 };
 
-const getDealDisplayPrice = (deal) => formatMoney(deal?.dealPrice || deal?.price);
-const getDealDisplayMrp = (deal) => {
-    const mrp = Number(normalizeNumberLike(deal?.mrp || deal?.originalPrice) || 0);
-    if (!mrp) return '—';
-    return formatMoney(mrp);
-};
-const getDealDisplayDiscount = (deal) => {
-    const discount = Number(normalizeNumberLike(deal?.discountPercent || deal?.discount) || 0);
-    return discount > 0 ? `${discount}% OFF` : '0% OFF';
-};
+const safeArray = (arr = []) => {
+    if (!Array.isArray(arr)) return [];
 
-const getDealId = (deal) => String(deal?._id || deal?.id || '');
+    return arr.filter((item) => {
+        if (!item) return false;
 
-const getNumericDealPrice = (deal) =>
-    Number(normalizeNumberLike(deal?.dealPrice || deal?.price) || 0);
+        if (typeof item !== 'object') return false;
 
-const getNumericMrp = (deal) =>
-    Number(normalizeNumberLike(deal?.mrp || deal?.originalPrice) || 0);
+        const hasProductUrl =
+            typeof item.productUrl === 'string' &&
+            item.productUrl.trim() !== '';
 
-const getNumericDiscount = (deal) =>
-    Number(normalizeNumberLike(deal?.discountPercent || deal?.discount) || 0);
+        const hasLink =
+            typeof item.link === 'string' &&
+            item.link.trim() !== '';
 
-const getDealViews = (deal) =>
-    Number(deal?.views || deal?.clicks || deal?.viewCount || 0) || 0;
+        const hasTitle =
+            typeof item.title === 'string' &&
+            item.title.trim() !== '';
 
-const getDealTimestamp = (deal) => {
-    const time = new Date(deal?.createdAt || deal?.updatedAt || 0).getTime();
-    return Number.isFinite(time) ? time : 0;
-};
+        const hasName =
+            typeof item.name === 'string' &&
+            item.name.trim() !== '';
 
-const normalizeComparableTitle = (value = '') =>
-    String(value)
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, ' ')
-        .replace(/\b(?:with|for|and|the|combo|offer|sale|new)\b/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-const normalizeComparableUrl = (value = '') => {
-    try {
-        const url = new URL(sanitizeUrl(value));
-        [
-            'tag', 'ascsubtag', 'affid', 'affExtParam', 'utm_source', 'utm_medium',
-            'utm_campaign', 'utm_term', 'utm_content', 'ref', 'ref_', 'pf_rd_p',
-            'pf_rd_r'
-        ].forEach((param) => url.searchParams.delete(param));
-        url.hash = '';
-        return `${url.origin}${url.pathname}`.replace(/\/$/, '').toLowerCase();
-    } catch {
-        return String(value || '').split('?')[0].replace(/\/$/, '').toLowerCase();
-    }
-};
-
-const getDealDuplicateKey = (deal) => {
-    const urlKey = normalizeComparableUrl(deal?.canonicalProductUrl || deal?.productUrl || deal?.link || '');
-    if (urlKey) return `url:${urlKey}`;
-
-    const titleKey = normalizeComparableTitle(deal?.normalizedTitle || deal?.title || '');
-    const storeKey = String(deal?.storeName || deal?.store || '').toLowerCase().trim();
-    return titleKey && storeKey ? `title:${storeKey}:${titleKey}` : getDealId(deal);
-};
-
-const findDuplicateGroups = (deals = []) => {
-    const groups = new Map();
-    deals.forEach((deal) => {
-        const key = getDealDuplicateKey(deal);
-        if (!key) return;
-        const group = groups.get(key) || [];
-        group.push(deal);
-        groups.set(key, group);
+        return hasProductUrl || hasLink || hasTitle || hasName;
     });
-    return [...groups.values()].filter((group) => group.length > 1);
 };
 
-const buildAdminInsights = (deals = [], stores = []) => {
-    const activeDeals = deals.filter((deal) => !deal.isExpired);
-    const discountValues = activeDeals.map(getNumericDiscount).filter((discount) => discount > 0);
+
+const buildAdminInsights = (deals = [], stores = [], dashboardStats = {}) => {
+    const safeStores = safeArray(stores);
+    const topStore = [...safeStores].sort((a, b) => (b?.count || 0) - (a?.count || 0))[0] || null;
+
+    if (dashboardStats) {
+        return {
+            avgDiscount: Number(dashboardStats.avgDiscount || 0),
+            topStore,
+            topClickedDeals: safeArray(dashboardStats.topClickedDeals),
+            incompleteDeals: safeArray(dashboardStats.incompleteDeals),
+            duplicateGroups: safeArray(dashboardStats.duplicateGroups),
+            duplicateCount: Number(dashboardStats.duplicateCount || 0)
+        };
+    }
+
+    const safeDeals = safeArray(deals);
+    const activeDeals = safeDeals.filter((deal) => deal && !deal?.isExpired);
+    const discountValues = activeDeals.map(d => Number(d?.discountPercent || d?.discount || 0)).filter(v => v > 0);
     const avgDiscount = discountValues.length
-        ? Math.round(discountValues.reduce((sum, discount) => sum + discount, 0) / discountValues.length)
+        ? Math.round(discountValues.reduce((sum, v) => sum + v, 0) / discountValues.length)
         : 0;
 
-    const topStore = [...stores]
-        .sort((a, b) => Number(b.count || b.dealsCount || 0) - Number(a.count || a.dealsCount || 0))[0];
-    const topClickedDeals = [...activeDeals]
-        .sort((a, b) => getDealViews(b) - getDealViews(a) || getDealTimestamp(b) - getDealTimestamp(a))
-        .slice(0, 5);
-    const topDiscountDeals = [...activeDeals]
-        .sort((a, b) => getNumericDiscount(b) - getNumericDiscount(a) || getDealTimestamp(b) - getDealTimestamp(a))
-        .slice(0, 5);
-    const incompleteDeals = activeDeals.filter((deal) =>
-        !deal.title || !deal.image || !getNumericDealPrice(deal) || !deal.store || !deal.category
-    );
-    const duplicateGroups = findDuplicateGroups(deals);
+    const topClickedDeals = [...activeDeals].sort((a, b) => getDealViews(b) - getDealViews(a)).slice(0, 5);
 
     return {
         avgDiscount,
         topStore,
         topClickedDeals,
-        topDiscountDeals,
-        incompleteDeals,
-        duplicateGroups,
-        duplicateCount: duplicateGroups.reduce((sum, group) => sum + Math.max(0, group.length - 1), 0)
+        incompleteDeals: activeDeals.filter(d => !d?.title || !(d?.imageUrl || d?.image) || !d?.dealPrice),
+        duplicateGroups: [],
+        duplicateCount: 0
     };
 };
 
-const loadAdminSnapshot = async ({ adminApiBase }) => {
-    const headers = { 'auth-token': token() };
-    const [dealsData, statsData, categoriesData, storesData] = await Promise.all([
-        fetchJson(`${adminApiBase}/admin/deals`, { headers }),
-        fetchJson(`${adminApiBase}/admin/deals/stats`, { headers }),
-        fetchJson(`${adminApiBase}/admin/deals/categories`, { headers }),
-        fetchJson(`${adminApiBase}/stores`, { headers })
-    ]);
 
-    return {
-        deals: normalizeDealsForUi(dealsData),
-        stats: statsData,
-        categories: Array.isArray(categoriesData) ? categoriesData.filter(Boolean) : [],
-        stores: Array.isArray(storesData) ? storesData : []
-    };
-};
-
-/* ───────────────────────────────── components ── */
-
-const DealAutomationChecklist = ({ form }) => {
-    const price = Number(normalizeNumberLike(form.price) || 0);
-    const mrp = Number(normalizeNumberLike(form.originalPrice) || 0);
-    const imageCount = [form.image, ...(Array.isArray(form.images) ? form.images : [])].filter(Boolean).length;
-    const finalUrl = sanitizeUrl(form.affiliateOverrideLink || form.affiliateLink || form.link);
-    const checks = [
-        { label: 'Original product URL is valid', ok: isLikelyHttpUrl(form.link) },
-        { label: 'Final outbound / affiliate URL is ready', ok: isLikelyHttpUrl(finalUrl) },
-        { label: 'Title, store and category are mapped', ok: Boolean(form.title && form.store && form.category) },
-        { label: 'Deal price is greater than zero', ok: price > 0 },
-        { label: 'MRP is blank or not lower than deal price', ok: !mrp || mrp >= price },
-        { label: `${imageCount || 'No'} product image${imageCount === 1 ? '' : 's'} selected`, ok: imageCount > 0 }
-    ];
-
-    return (
-        <div className="bg-white rounded-2xl border border-slate-100 p-6">
-            <h4 className="font-black text-slate-800 text-sm mb-4 flex items-center gap-2">
-                <Shield size={16} className="text-emerald-500" /> Publish Readiness
-            </h4>
-            <div className="space-y-3">
-                {checks.map((check) => (
-                    <div key={check.label} className="flex items-start gap-3">
-                        <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${check.ok ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                            {check.ok ? <CheckCircle size={12} /> : <AlertCircle size={12} />}
-                        </span>
-                        <span className={`text-xs font-bold leading-relaxed ${check.ok ? 'text-slate-700' : 'text-amber-700'}`}>
-                            {check.label}
-                        </span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-};
-
-const DuplicateCandidatesPanel = ({ candidates = [], onEdit }) => {
-    if (!candidates.length) {
-        return (
-            <div className="bg-emerald-50 rounded-2xl border border-emerald-100 p-5">
-                <div className="flex items-center gap-3">
-                    <CheckCircle size={18} className="text-emerald-600" />
-                    <div>
-                        <h4 className="text-sm font-black text-emerald-900">No obvious duplicate found</h4>
-                        <p className="text-xs font-semibold text-emerald-700 mt-1">The admin UI did not find a matching URL/title in the loaded deals.</p>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="bg-amber-50 rounded-2xl border border-amber-200 p-5">
-            <div className="flex items-start gap-3 mb-4">
-                <AlertCircle size={18} className="text-amber-700 mt-0.5" />
-                <div>
-                    <h4 className="text-sm font-black text-amber-900">Possible duplicate</h4>
-                    <p className="text-xs font-semibold text-amber-700 mt-1">Review existing products before publishing a second card.</p>
-                </div>
-            </div>
-            <div className="space-y-3">
-                {candidates.slice(0, 3).map((deal) => (
-                    <div key={getDealId(deal)} className="flex items-center gap-3 rounded-2xl bg-white/80 p-3 border border-amber-100">
-                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-white">
-                            {deal.image && <img src={optimizeImageUrl(deal.image)} alt="" className="h-full w-full object-contain" />}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <p className="truncate text-xs font-black text-slate-900">{deal.title}</p>
-                            <p className="text-[10px] font-bold text-slate-500">{deal.store} · {getDealDisplayPrice(deal)}</p>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => onEdit?.(deal)}
-                            className="rounded-xl bg-amber-100 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-amber-800 hover:bg-amber-200"
-                        >
-                            Edit
-                        </button>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-};
+// Component definitions moved to external files
 
 /* ═══════════════════════════════════════════ */
-const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealForm, showToast, apiBase }) => {
+const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDealForm = () => {}, showToast, apiBase }) => {
     const navigate = useNavigate();
     const routerLocation = useLocation();
     const isAdmin = true; // Account system removed - accessibility granted to all admin routes
     const activeTab = routerLocation.pathname.split('/').pop() || 'dashboard';
 
+    const adminApiBase = apiBase ? apiBase.replace('/user', '') : '';
+
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     const [storeFilter, setStoreFilter] = useState('All');
     const [categoryFilter, setCategoryFilter] = useState('All');
     const [discountFilter, setDiscountFilter] = useState('All');
@@ -462,330 +284,466 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
     const [selectedDealIds, setSelectedDealIds] = useState([]);
     const [quickEditDeal, setQuickEditDeal] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [isStatsLoading, setIsStatsLoading] = useState(true);
+
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [editMode, setEditMode] = useState(false);
     const [editId, setEditId] = useState(null);
-    const [autoPopulated, setAutoPopulated] = useState(new Set());
-    const [fetchStatus, setFetchStatus] = useState({ type: '', msg: '' });
     const [dashboardStats, setDashboardStats] = useState(null);
     const [categories, setCategories] = useState([]);
     const [stores, setStores] = useState([]);
     const [affiliateSettings, setAffiliateSettings] = useState([]);
     const [isSavingAffiliateSettings, setIsSavingAffiliateSettings] = useState(false);
-    const [coupons, setCoupons] = useState([]);
-    const [couponForm, setCouponForm] = useState(DEFAULT_COUPON_FORM);
-    const [editingCouponId, setEditingCouponId] = useState(null);
-    const [couponSearch, setCouponSearch] = useState('');
-    const [couponTypeFilter, setCouponTypeFilter] = useState('all');
-    const [isSavingCoupon, setIsSavingCoupon] = useState(false);
-    const [couponsLoading, setCouponsLoading] = useState(false);
-    const [couponScanStatus, setCouponScanStatus] = useState(null);
-    const [isScanningCoupons, setIsScanningCoupons] = useState(false);
-    const [isStatsLoading, setIsStatsLoading] = useState(true);
     const [isRefreshingData, setIsRefreshingData] = useState(false);
+    const [isCleaning, setIsCleaning] = useState(false);
+    const [isFetching, setIsFetching] = useState(false);
     const [adminError, setAdminError] = useState('');
-    const adminApiBase = apiBase ? apiBase.replace('/user', '') : '';
-    const adminDeals = useMemo(() => normalizeDealsForUi(deals), [deals]);
+    const [fetchError, setFetchError] = useState('');
+    const [autoFetchUrl, setAutoFetchUrl] = useState('');
+    const [autoPopulated, setAutoPopulated] = useState(new Set());
+
+    // Paginated Admin Panel States
+    const [adminDeals, setAdminDeals] = useState([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+    const [pageSize, setPageSize] = useState(50);
+    const [duplicateCandidates, setDuplicateCandidates] = useState([]);
+
     const liveAffiliateStoreNames = useMemo(() => {
-        const fromStoresApi = stores.map((store) => store.store || store.name).filter(Boolean);
-        const fromDeals = adminDeals.map((deal) => deal.storeName || deal.store).filter(Boolean);
-        return [...new Set([...fromStoresApi, ...fromDeals])].sort((a, b) => a.localeCompare(b));
-    }, [adminDeals, stores]);
-    const couponStoreOptions = useMemo(() => (
-        [...new Set([
-            ...liveAffiliateStoreNames,
-            ...coupons.map((coupon) => coupon.store).filter(Boolean),
-            couponForm.store
-        ].filter(Boolean))].sort((a, b) => a.localeCompare(b))
-    ), [couponForm.store, coupons, liveAffiliateStoreNames]);
-    const filteredCoupons = useMemo(() => {
-        const query = couponSearch.trim().toLowerCase();
-        return coupons.filter((coupon) => {
-            const haystack = `${coupon.title || ''} ${coupon.store || ''} ${coupon.category || ''} ${coupon.code || ''}`.toLowerCase();
-            return (!query || haystack.includes(query))
-                && (couponTypeFilter === 'all' || coupon.offerType === couponTypeFilter);
-        }).sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
-    }, [couponSearch, couponTypeFilter, coupons]);
-    const adminInsights = useMemo(() => buildAdminInsights(adminDeals, stores), [adminDeals, stores]);
+        const fromStoresApi = safeArray(stores).map((store) => store?.store || store?.name).filter(Boolean);
+        return [...new Set(fromStoresApi)].sort((a, b) => a.localeCompare(b));
+    }, [stores]);
+    const adminInsights = useMemo(() => buildAdminInsights(adminDeals, stores, dashboardStats), [adminDeals, stores, dashboardStats]);
     const duplicateIdSet = useMemo(() => new Set(
-        adminInsights.duplicateGroups.flatMap((group) => group.map(getDealId))
-    ), [adminInsights.duplicateGroups]);
-    const storeFilterOptions = useMemo(() =>
-        ['All', ...new Set(adminDeals.map((deal) => deal.store || deal.storeName).filter(Boolean))].sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : a.localeCompare(b))
-    , [adminDeals]);
-    const categoryFilterOptions = useMemo(() =>
-        ['All', ...new Set(adminDeals.map((deal) => deal.category).filter(Boolean))].sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : a.localeCompare(b))
-    , [adminDeals]);
-    const filteredDeals = useMemo(() => {
-        const now = Date.now();
-        const oneDay = 24 * 60 * 60 * 1000;
-        const query = searchQuery.toLowerCase();
-
-        const visible = adminDeals.filter(d => {
-            if (!d) return false;
-            const searchOk = !query
-                || (d.title?.toLowerCase().includes(query) ?? false)
-                || (d.store?.toLowerCase().includes(query) ?? false)
-                || (d.category?.toLowerCase().includes(query) ?? false);
-            const storeOk = storeFilter === 'All' || (d.store || d.storeName) === storeFilter;
-            const categoryOk = categoryFilter === 'All' || d.category === categoryFilter;
-            const discount = getNumericDiscount(d);
-            const discountOk = discountFilter === 'All'
-                || (discountFilter === '50+' && discount >= 50)
-                || (discountFilter === '25+' && discount >= 25)
-                || (discountFilter === '1-24' && discount > 0 && discount < 25)
-                || (discountFilter === '0' && discount === 0);
-            const age = now - getDealTimestamp(d);
-            const dateOk = dateFilter === 'All'
-                || (dateFilter === '24h' && age <= oneDay)
-                || (dateFilter === '7d' && age <= oneDay * 7)
-                || (dateFilter === '30d' && age <= oneDay * 30);
-            const duplicateOk = !duplicateOnly || duplicateIdSet.has(getDealId(d));
-
-            return searchOk && storeOk && categoryOk && discountOk && dateOk && duplicateOk;
-        });
-
-        return [...visible].sort((a, b) => {
-            if (sortMode === 'price-low') return getNumericDealPrice(a) - getNumericDealPrice(b);
-            if (sortMode === 'price-high') return getNumericDealPrice(b) - getNumericDealPrice(a);
-            if (sortMode === 'discount') return getNumericDiscount(b) - getNumericDiscount(a);
-            if (sortMode === 'clicked') return getDealViews(b) - getDealViews(a);
-            return getDealTimestamp(b) - getDealTimestamp(a);
-        });
-    }, [adminDeals, searchQuery, storeFilter, categoryFilter, discountFilter, dateFilter, duplicateOnly, duplicateIdSet, sortMode]);
+        safeArray(adminInsights?.duplicateGroups).flatMap((group) => safeArray(group).map(getDealId))
+    ), [adminInsights?.duplicateGroups]);
+    const storeFilterOptions = useMemo(() => {
+        const names = safeArray(stores).map(store => store?.store || store?.name).filter(Boolean);
+        return ['All', ...new Set(names)].sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : a.localeCompare(b));
+    }, [stores]);
+    const categoryFilterOptions = useMemo(() => {
+        const cats = safeArray(categories).filter(Boolean);
+        return ['All', ...new Set(cats)].sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : a.localeCompare(b));
+    }, [categories]);
+    const filteredDeals = adminDeals;
     const selectedDeals = useMemo(() =>
-        selectedDealIds.map((id) => adminDeals.find((deal) => getDealId(deal) === id)).filter(Boolean)
-    , [adminDeals, selectedDealIds]);
-    const duplicateCandidatesForForm = useMemo(() => {
-        const candidateKey = getDealDuplicateKey({
-            ...dealForm,
-            productUrl: dealForm.link,
-            storeName: dealForm.store
-        });
-        const candidateTitle = normalizeComparableTitle(dealForm.title);
-        if ((!candidateKey || candidateKey === getDealId({})) && !candidateTitle) return [];
-
-        return adminDeals.filter((deal) => {
-            if (editId && getDealId(deal) === String(editId)) return false;
-            if (candidateKey && getDealDuplicateKey(deal) === candidateKey) return true;
-            return candidateTitle && normalizeComparableTitle(deal.title) === candidateTitle && (deal.store || '') === dealForm.store;
-        }).slice(0, 5);
-    }, [adminDeals, dealForm, editId]);
+        safeArray(selectedDealIds).map((id) => adminDeals.find((deal) => getDealId(deal) === id)).filter(Boolean)
+        , [adminDeals, selectedDealIds]);
+    const formCategory = dealForm?.category;
     const formCategories = useMemo(() => {
-        const merged = [...categories, dealForm.category].filter(Boolean);
+        const merged = [...categories, formCategory].filter(Boolean);
         return [...new Set(merged)].sort((a, b) => a.localeCompare(b));
-    }, [categories, dealForm.category]);
+    }, [categories, formCategory]);
     const affiliatePreviewUrl = buildAffiliateUrl({
-        url: dealForm.link,
-        store: dealForm.store,
+        url: dealForm?.productUrl,
+        store: dealForm?.store,
         settings: affiliateSettings,
-        manualOverride: dealForm.affiliateOverrideLink
+        manualOverride: dealForm?.affiliateOverrideLink
     });
 
     const refreshAffiliateSettings = useCallback(async (storeNames = []) => {
         if (!isAdmin || !adminApiBase) return [];
 
-        const response = await fetch(`${adminApiBase}/admin/affiliate-settings`, {
-            headers: { 'auth-token': token() }
-        });
-
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error.message || 'Failed to load affiliate settings');
+        let data = [];
+        try {
+            data = await fetchJson(`${adminApiBase}/admin/affiliate-settings`, {
+                headers: { 'auth-token': token() }
+            });
+        } catch (e) {
+            console.error('[Admin] Affiliate settings JSON fetch fail', e);
         }
 
-        const data = await response.json();
-        const mergedSettings = mergeAffiliateSettings(data, storeNames);
-        setAffiliateSettings(mergedSettings);
+        console.log("[AFFILIATE_SETTINGS_TYPE]", typeof data, data);
+        const safeData = Array.isArray(data) ? data : [];
+        const mergedSettings = mergeAffiliateSettings(safeData, storeNames);
+        setAffiliateSettings(Array.isArray(mergedSettings) ? mergedSettings : []);
         return mergedSettings;
     }, [adminApiBase, isAdmin]);
 
-    const refreshCoupons = useCallback(async () => {
-        if (!isAdmin || !adminApiBase) return [];
-
-        setCouponsLoading(true);
+    const fetchDealsList = useCallback(async ({ silent = false } = {}) => {
+        if (!isAdmin || !adminApiBase) return;
+        if (!silent) setIsLoading(true);
         try {
-            const [response, statusResponse] = await Promise.all([
-                fetch(`${adminApiBase}/admin/coupons?status=all`, {
-                    headers: { 'auth-token': token() }
-                }),
-                fetch(`${adminApiBase}/admin/coupons/scan/status`, {
-                    headers: { 'auth-token': token() }
-                }).catch(() => null)
-            ]);
-            if (statusResponse?.ok) {
-                setCouponScanStatus(await statusResponse.json().catch(() => null));
-            }
+            const headers = { 'auth-token': token() };
+            const params = new URLSearchParams();
+            params.append('page', currentPage.toString());
+            params.append('limit', pageSize.toString());
+            if (debouncedSearchQuery) params.append('search', debouncedSearchQuery);
+            if (storeFilter && storeFilter !== 'All') params.append('store', storeFilter);
+            if (categoryFilter && categoryFilter !== 'All') params.append('category', categoryFilter);
+            if (discountFilter && discountFilter !== 'All') params.append('discount', discountFilter);
+            if (dateFilter && dateFilter !== 'All') params.append('dateFilter', dateFilter);
+            if (sortMode) params.append('sort', sortMode);
+            if (duplicateOnly) params.append('duplicateOnly', 'true');
 
-            const data = await response.json().catch(() => []);
-            if (!response.ok) {
-                throw new Error(data?.message || 'Failed to load coupons');
-            }
-            const normalizedCoupons = (Array.isArray(data) ? data : []).map(normalizeCouponForAdmin);
-            setCoupons(normalizedCoupons);
-            return normalizedCoupons;
+            const data = await fetchJson(`${adminApiBase}/admin/deals?${params.toString()}`, { headers });
+            const dealsArray = Array.isArray(data) ? data : (data?.deals || []);
+            const normalizedDeals = normalizeDealsForUi(dealsArray);
+            
+            setAdminDeals(normalizedDeals);
+            setTotalCount(data?.totalCount || normalizedDeals.length);
+            setTotalPages(data?.totalPages || 1);
+            return normalizedDeals;
+        } catch (error) {
+            console.error('Failed to fetch deals list:', error);
+            setAdminError(error.message || 'Failed to fetch deals list.');
         } finally {
-            setCouponsLoading(false);
+            if (!silent) setIsLoading(false);
+        }
+    }, [adminApiBase, isAdmin, currentPage, pageSize, debouncedSearchQuery, storeFilter, categoryFilter, discountFilter, dateFilter, sortMode, duplicateOnly]);
+
+    const fetchMetadata = useCallback(async ({ silent = false } = {}) => {
+        if (!isAdmin || !adminApiBase) return;
+        if (!silent) setIsStatsLoading(true);
+        try {
+            const headers = { 'auth-token': token() };
+            const [statsData, categoriesData, storesData] = await Promise.all([
+                fetchJson(`${adminApiBase}/admin/stats`, { headers }),
+                fetchJson(`${adminApiBase}/admin/deals/categories`, { headers }),
+                fetchJson(`${adminApiBase}/stores`, { headers })
+            ]);
+
+            setDashboardStats(statsData);
+            setCategories(Array.isArray(categoriesData) ? categoriesData.filter(Boolean) : []);
+            setStores(Array.isArray(storesData) ? storesData : []);
+            
+            return { statsData, categoriesData, storesData };
+        } catch (error) {
+            console.error('Failed to fetch admin metadata:', error);
+            setAdminError(error.message || 'Failed to load admin metadata.');
+        } finally {
+            if (!silent) setIsStatsLoading(false);
         }
     }, [adminApiBase, isAdmin]);
 
-    const handleCouponScan = useCallback(async () => {
-        if (!isAdmin || !adminApiBase) return;
-
-        setIsScanningCoupons(true);
-        try {
-            const response = await fetch(`${adminApiBase}/admin/coupons/scan`, {
-                method: 'POST',
-                headers: { 'auth-token': token() }
-            });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                throw new Error(data?.message || 'Coupon scan failed');
-            }
-            setCouponScanStatus(data.status || null);
-            await refreshCoupons();
-            const summary = data.summary || {};
-            showToast?.(`Coupon scan completed: ${summary.created || 0} created, ${summary.updated || 0} updated.`, 'success');
-        } catch (error) {
-            showToast?.(error.message || 'Coupon scan failed', 'error');
-        } finally {
-            setIsScanningCoupons(false);
-        }
-    }, [adminApiBase, isAdmin, refreshCoupons, showToast]);
-
     const refreshAdminData = useCallback(async ({ silent = false } = {}) => {
         if (!isAdmin || !adminApiBase) return;
-
-        if (!silent) {
-            setIsStatsLoading(true);
-        }
         setIsRefreshingData(true);
         setAdminError('');
-
         try {
-            const snapshot = await loadAdminSnapshot({ adminApiBase });
-            setDeals(snapshot.deals);
-            setDashboardStats(snapshot.stats);
-            setCategories(snapshot.categories);
-            setStores(snapshot.stores);
-            const snapshotStoreNames = [
-                ...snapshot.stores.map((store) => store.store || store.name).filter(Boolean),
-                ...snapshot.deals.map((deal) => deal.storeName || deal.store).filter(Boolean)
-            ];
-            await refreshAffiliateSettings(snapshotStoreNames).catch((error) => {
-                console.warn('Affiliate settings refresh warning:', error);
-            });
-            await refreshCoupons().catch((error) => {
-                console.warn('Coupons refresh warning:', error);
-            });
+            const [metaResult, newDealsList] = await Promise.all([
+                fetchMetadata({ silent }),
+                fetchDealsList({ silent })
+            ]);
+
+            if (metaResult) {
+                const safeStoresData = Array.isArray(metaResult.storesData) ? metaResult.storesData : [];
+                const safeDealsData = Array.isArray(newDealsList) ? newDealsList : [];
+                const snapshotStoreNames = [
+                    ...safeStoresData.map((store) => store?.store || store?.name).filter(Boolean),
+                    ...safeDealsData.map((deal) => deal?.storeName || deal?.store).filter(Boolean)
+                ];
+                await refreshAffiliateSettings(snapshotStoreNames).catch((error) => {
+                    console.warn('Affiliate settings refresh warning:', error);
+                });
+            }
         } catch (error) {
             console.error('Admin snapshot error:', error);
             setAdminError(error.message || 'Failed to load admin data.');
         } finally {
-            setIsStatsLoading(false);
             setIsRefreshingData(false);
         }
-    }, [adminApiBase, isAdmin, refreshAffiliateSettings, refreshCoupons, setDeals]);
+    }, [isAdmin, adminApiBase, fetchMetadata, fetchDealsList, refreshAffiliateSettings]);
 
     /* ── auth guard ── (Centrally managed by App.jsx Route) */
 
     /* ── stats ── */
     useEffect(() => {
+        document.body.classList.add('admin-page-active');
+        return () => {
+            document.body.classList.remove('admin-page-active');
+        };
+    }, []);
+
+    // Fetch deals when page/filters change
+    useEffect(() => {
         if (!isAdmin || !adminApiBase) return;
-        refreshAdminData();
-    }, [isAdmin, adminApiBase, refreshAdminData]);
+        Promise.resolve().then(() => {
+            fetchDealsList();
+        });
+    }, [fetchDealsList, isAdmin, adminApiBase]);
+
+    // Initial load for metadata and stats
+    useEffect(() => {
+        if (!isAdmin || !adminApiBase) return;
+        
+        // We use a ref to prevent infinite loops from object references
+        let mounted = true;
+        
+        const loadMeta = async () => {
+            if (mounted) await fetchMetadata();
+            if (mounted) {
+                refreshAffiliateSettings().catch(console.warn);
+            }
+        };
+        
+        loadMeta();
+        
+        return () => { mounted = false; };
+    }, [isAdmin, adminApiBase, fetchMetadata, refreshAffiliateSettings]);
 
     useEffect(() => {
         if (!isAdmin || !adminApiBase || activeTab !== 'affiliate-tags') return undefined;
 
-        const intervalId = window.setInterval(() => {
-            refreshAdminData({ silent: true });
-        }, 30000);
-
-        return () => window.clearInterval(intervalId);
+        // intervalId was removed to prevent continuous backend polling
+        // Admin data will now only refresh on mount or manual trigger.
+        return undefined;
     }, [activeTab, adminApiBase, isAdmin, refreshAdminData]);
 
-    useEffect(() => {
-        if (!isAdmin || !adminApiBase) return;
+    // refreshAffiliateSettings effect consolidated above
 
-        refreshAffiliateSettings(liveAffiliateStoreNames).catch((error) => {
-            console.error('Affiliate settings fetch error:', error);
+    // Debounce searchQuery
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery);
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [searchQuery]);
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        Promise.resolve().then(() => {
+            setCurrentPage(1);
         });
-    }, [isAdmin, adminApiBase, liveAffiliateStoreNames, refreshAffiliateSettings]);
+    }, [debouncedSearchQuery, storeFilter, categoryFilter, discountFilter, dateFilter, sortMode, duplicateOnly]);
+
+    // Debounce similar candidates search
+    useEffect(() => {
+        const title = dealForm?.title?.trim();
+        if (!title || title.length < 3) {
+            Promise.resolve().then(() => {
+                setDuplicateCandidates([]);
+            });
+            return;
+        }
+
+        const handler = setTimeout(async () => {
+            try {
+                const headers = { 'auth-token': token() };
+                const params = new URLSearchParams();
+                params.append('search', title);
+                params.append('limit', '5');
+                const res = await fetchJson(`${adminApiBase}/admin/deals?${params.toString()}`, { headers });
+                const fetchedDeals = normalizeDealsForUi(Array.isArray(res) ? res : (res?.deals || []));
+                
+                // Filter out the one we are editing
+                const candidates = fetchedDeals.filter(d => !editId || getDealId(d) !== String(editId));
+                setDuplicateCandidates(candidates);
+            } catch (err) {
+                console.warn('Failed to fetch duplicate candidates:', err);
+            }
+        }, 500);
+
+        return () => clearTimeout(handler);
+    }, [dealForm?.title, dealForm?.store, editId, adminApiBase]);
+
+    // Real-Time Socket Connection
+    useEffect(() => {
+        const socket = typeof window !== 'undefined' ? getSocket() : null;
+        if (!socket) return;
+
+        const handleNewDeal = (newDeal) => {
+            if (currentPage === 1) {
+                fetchDealsList({ silent: true });
+            } else {
+                setTotalCount(prev => prev + 1);
+            }
+        };
+
+        const handleUpdateDeal = (updatedDeal) => {
+            if (currentPage === 1) {
+                fetchDealsList({ silent: true });
+            } else {
+                const normalized = normalizeDealForUi(updatedDeal);
+                setAdminDeals(prev => prev.map(d => (d._id || d.id) === (normalized._id || normalized.id) ? normalized : d));
+            }
+        };
+
+        const handleDeleteDeal = (dealId) => {
+            setAdminDeals(prev => prev.filter(d => (d._id || d.id) !== dealId));
+            setTotalCount(prev => Math.max(0, prev - 1));
+        };
+
+        socket.on('newDeal', handleNewDeal);
+        socket.on('updateDeal', handleUpdateDeal);
+        socket.on('deleteDeal', handleDeleteDeal);
+
+        return () => {
+            socket.off('newDeal', handleNewDeal);
+            socket.off('updateDeal', handleUpdateDeal);
+            socket.off('deleteDeal', handleDeleteDeal);
+        };
+    }, [currentPage, fetchDealsList, adminApiBase]);
+
+    const handleFetchDeal = async (urlToFetch) => {
+        const url = (typeof urlToFetch === 'string' ? urlToFetch : dealForm.productUrl)?.trim();
+        if (!url) {
+            showToast?.('Please paste a product URL first.', 'error');
+            return;
+        }
+
+        setIsFetching(true);
+        setFetchError('');
+        try {
+            const response = await fetch(`${adminApiBase}/admin/deals/fetch-deal`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'auth-token': token()
+                },
+                body: JSON.stringify({ url })
+            });
+
+            // Check if response is JSON
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                const text = await response.text();
+                console.error('[FETCH_ERROR_NON_JSON]', text.slice(0, 200));
+                throw new Error("Server returned non-JSON response. (Check API Route)");
+            }
+
+            const result = await response.json();
+            
+            if (result.success && result.data) {
+                const d = result.data;
+                setDealForm(prev => {
+                    const finalStore = d.store || prev.store || deriveStoreFromUrl(url);
+                    const generatedOverride = buildAffiliateUrl({
+                        url: url,
+                        store: finalStore,
+                        settings: affiliateSettings,
+                        manualOverride: ''
+                    });
+
+                    const sanitizedOriginal = sanitizeOriginalUrl(url);
+                    const hasAffiliateApplied = generatedOverride && generatedOverride !== sanitizedOriginal;
+
+                    return {
+                        ...prev,
+                        title: d.title || prev.title,
+                        store: finalStore,
+                        category: d.category || prev.category,
+                        description: d.description || prev.description,
+                        mrp: d.mrp || prev.mrp,
+                        dealPrice: d.dealPrice || prev.dealPrice,
+                        imageUrl: d.imageUrl || prev.imageUrl,
+                        images: d.images || prev.images || [],
+                        productUrl: url,
+                        affiliateOverrideLink: hasAffiliateApplied ? generatedOverride : '',
+                        discount: d.mrp && d.dealPrice ? Math.round(((d.mrp - d.dealPrice) / d.mrp) * 100).toString() : prev.discount
+                    };
+                });
+                showToast?.('Product details fetched!', 'success');
+                setAutoFetchUrl(''); // Clear input after success
+            } else {
+                setFetchError(result.message || 'Fetch failed');
+                showToast?.(result.message || 'Fetch failed', 'error');
+            }
+        } catch (error) {
+            setFetchError(error.message);
+            showToast?.(error.message, 'error');
+        } finally {
+            setIsFetching(false);
+        }
+    };
 
     /* ── reset form when switching away from add-deal ── */
     useEffect(() => {
         if (activeTab !== 'add-deal') {
-            setEditMode(false);
-            setEditId(null);
-            setDealForm(DEFAULT_DEAL_FORM);
-            setFetchStatus({ type: '', msg: '' });
-            setAutoPopulated(new Set());
+            Promise.resolve().then(() => {
+                setEditMode(false);
+                setEditId(null);
+                setDealForm(DEFAULT_DEAL_FORM);
+            });
         }
     }, [activeTab, setDealForm]);
 
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        if (name === 'productUrl') {
+            console.log('[PRODUCT_URL_INPUT]', value);
+        }
+        setDealForm((prev) => ({
+            ...prev,
+            [name]: value,
+        }));
+    };
+
     useEffect(() => {
-        if (activeTab !== 'coupons') return;
-        refreshCoupons().catch((error) => {
-            showToast?.(error.message || 'Failed to refresh coupons', 'error');
-        });
-
-        const intervalId = window.setInterval(() => {
-            refreshCoupons().catch((error) => {
-                console.warn('Coupons auto-refresh warning:', error);
-            });
-        }, 30000);
-
-        return () => window.clearInterval(intervalId);
-    }, [activeTab, refreshCoupons, showToast]);
+        if (dealForm.mrp && dealForm.dealPrice) {
+            const disc = ((Number(dealForm.mrp) - Number(dealForm.dealPrice)) / Number(dealForm.mrp)) * 100;
+            setDealForm((prev) => ({
+                ...prev,
+                discount: disc > 0 ? disc.toFixed(0) : "0",
+            }));
+        }
+    }, [dealForm.mrp, dealForm.dealPrice, setDealForm]);
 
     /* ── CRUD helpers ── */
-    const handleEditClick = (deal) => {
+
+
+    const handleEditClick = (rawDeal) => {
+        if (!rawDeal) return;
+        const deal = normalizeAdminDeal(rawDeal);
         setEditMode(true);
-        setEditId(deal.id || deal._id);
+        setEditId(getDealId(deal));
         setDealForm({
-            title: deal.title || '', store: deal.store || '', price: deal.price || '',
-            originalPrice: deal.originalPrice || '', discount: deal.discount || '',
-            image: deal.image || '', images: deal.images || [], videos: deal.videos || [], link: sanitizeOriginalUrl(deal.productUrl || deal.link || ''), affiliateOverrideLink: deal.affiliateOverrideLink || '', affiliateLink: deal.affiliateLink || '',
-            category: deal.category || '', description: deal.description || '',
-            extractionWarning: deal.extractionWarning || '',
-            featured: deal.featured || false,
-            isExpired: deal.isExpired || false
+            title: deal?.title || '',
+            store: deal?.store || '',
+            dealPrice: deal?.dealPrice || deal?.price || '',
+            mrp: deal?.mrp || deal?.price || deal?.originalPrice || '',
+            discount: deal?.discount || '',
+            image: deal?.imageUrl || deal?.image || '',
+            imageUrl: deal?.imageUrl || deal?.image || '',
+            images: safeArray(deal?.images),
+            videos: safeArray(deal?.videos),
+            productUrl: sanitizeOriginalUrl(deal?.productUrl || deal?.link || ''),
+            affiliateOverrideLink: deal?.affiliateOverrideLink || '',
+            affiliateLink: deal?.affiliateLink || '',
+            category: deal?.category || '',
+            description: deal?.description || '',
+            featured: deal?.featured || false,
+            isExpired: deal?.isExpired || false,
+            brand: deal?.brand || ''
         });
         navigate('/admin/add-deal');
+        // Ensure the browser scrolls to the top of the edit form
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
     };
 
     const buildValidatedDealPayload = () => {
-        const price = Number(normalizeNumberLike(dealForm.price) || 0);
-        const originalPrice = Number(normalizeNumberLike(dealForm.originalPrice) || 0);
-        const safeMrp = originalPrice && originalPrice >= price ? originalPrice : originalPrice ? price : '';
-        const computedDiscount = safeMrp && price > 0 && safeMrp > price
+        const price = Number(normalizeNumberLike(dealForm?.dealPrice) || 0);
+        const originalPrice = Number(normalizeNumberLike(dealForm?.mrp) || 0);
+        const safeMrp = originalPrice || null;
+        const computedDiscount = (safeMrp && price > 0)
             ? Math.round(((safeMrp - price) / safeMrp) * 100)
-            : Number(normalizeNumberLike(dealForm.discount) || 0);
-        const finalUrl = affiliatePreviewUrl || dealForm.affiliateLink || '';
+            : Number(normalizeNumberLike(dealForm?.discount) || 0);
+        const finalUrl = affiliatePreviewUrl || dealForm?.affiliateLink || '';
         const payload = {
             ...dealForm,
-            link: sanitizeUrl(dealForm.link),
-            productUrl: sanitizeUrl(dealForm.link),
+            image: dealForm?.imageUrl,
+            link: sanitizeUrl(dealForm?.productUrl),
+            productUrl: sanitizeUrl(dealForm?.productUrl),
             affiliateLink: finalUrl,
-            price: price ? price.toString() : '',
+            price: safeMrp || price || 0, // Mapping: price => MRP
             dealPrice: price,
-            originalPrice: safeMrp ? safeMrp.toString() : '',
-            mrp: safeMrp || price || 0,
+            originalPrice: safeMrp || 0,
+            mrp: safeMrp || 0,
             discount: computedDiscount ? `${computedDiscount}%` : '',
             discountPercent: computedDiscount || 0,
-            store: dealForm.store || deriveStoreFromUrl(dealForm.link),
-            storeName: dealForm.store || deriveStoreFromUrl(dealForm.link),
-            rating: Number(dealForm.rating || 0) || 0
+            store: dealForm?.store || deriveStoreFromUrl(dealForm?.productUrl),
+            storeName: dealForm?.store || deriveStoreFromUrl(dealForm?.productUrl),
+            rating: Number(dealForm?.rating || 0) || 0
         };
 
         const validationErrors = [];
-        if (!payload.title?.trim()) validationErrors.push('Title is required.');
-        if (!payload.store?.trim()) validationErrors.push('Store is required.');
-        if (!payload.category?.trim()) validationErrors.push('Category is required.');
+        if (!payload?.title?.trim()) validationErrors.push('Title is required.');
+        if (!payload?.store?.trim()) validationErrors.push('Store is required.');
+        if (!payload?.category?.trim()) validationErrors.push('Category is required.');
         if (!price) validationErrors.push('Deal price must be greater than 0.');
-        if (!payload.image?.trim()) validationErrors.push('Product image is required.');
-        if (!isLikelyHttpUrl(payload.link)) validationErrors.push('Valid original product URL is required.');
+        if (!dealForm?.imageUrl?.trim()) validationErrors.push('Product image is required.');
+        if (!isLikelyHttpUrl(payload?.productUrl)) validationErrors.push('Valid original product URL is required.');
         if (safeMrp && safeMrp < price) validationErrors.push('MRP cannot be lower than deal price.');
 
         return { payload, validationErrors };
@@ -828,6 +786,13 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
             const dealsApi = `${adminApiBase}/admin/deals/${id}`;
             const r = await fetch(dealsApi, { method: 'DELETE', headers: { 'auth-token': token() } });
             if (r.ok) {
+                if (typeof setDeals === 'function') {
+                    setDeals(prev => {
+                        const next = prev.filter(d => (d._id || d.id) !== id);
+                        localStorage.setItem('dealhunter_deals_cache', JSON.stringify(next));
+                        return next;
+                    });
+                }
                 await refreshAdminData({ silent: true });
                 showToast?.('Deal deleted!', 'success');
             } else {
@@ -849,21 +814,22 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
     };
 
     const toggleVisibleSelection = () => {
-        const visibleIds = filteredDeals.map(getDealId).filter(Boolean);
-        const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedDealIds.includes(id));
+        const visibleIds = safeArray(filteredDeals).map(getDealId).filter(Boolean);
+        const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => safeArray(selectedDealIds).includes(id));
         setSelectedDealIds(prev => allVisibleSelected
-            ? prev.filter((id) => !visibleIds.includes(id))
-            : [...new Set([...prev, ...visibleIds])]
+            ? safeArray(prev).filter((id) => !visibleIds.includes(id))
+            : [...new Set([...safeArray(prev), ...visibleIds])]
         );
     };
 
     const handleBulkDelete = async () => {
-        if (selectedDealIds.length === 0) return;
-        if (!window.confirm(`Delete ${selectedDealIds.length} selected deal${selectedDealIds.length === 1 ? '' : 's'}?`)) return;
+        const ids = safeArray(selectedDealIds);
+        if (ids.length === 0) return;
+        if (!window.confirm(`Delete ${ids.length} selected deal${ids.length === 1 ? '' : 's'}?`)) return;
 
         setIsLoading(true);
         try {
-            const results = await Promise.allSettled(selectedDealIds.map((id) =>
+            const results = await Promise.allSettled(ids.map((id) =>
                 fetch(`${adminApiBase}/admin/deals/${id}`, {
                     method: 'DELETE',
                     headers: { 'auth-token': token() }
@@ -912,17 +878,17 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
         setIsLoading(true);
         try {
             const id = getDealId(quickEditDeal);
-            const price = Number(normalizeNumberLike(quickEditDeal.price || quickEditDeal.dealPrice) || 0);
-            const mrp = Number(normalizeNumberLike(quickEditDeal.originalPrice || quickEditDeal.mrp) || 0);
+            const price = Number(normalizeNumberLike(quickEditDeal?.price || quickEditDeal?.dealPrice) || 0);
+            const mrp = Number(normalizeNumberLike(quickEditDeal?.originalPrice || quickEditDeal?.mrp) || 0);
             const discount = mrp > price && price > 0
                 ? Math.round(((mrp - price) / mrp) * 100)
                 : getNumericDiscount(quickEditDeal);
             const payload = {
                 ...quickEditDeal,
-                price: price ? price.toString() : quickEditDeal.price,
+                price: price ? price.toString() : quickEditDeal?.price,
                 dealPrice: price,
-                originalPrice: mrp ? mrp.toString() : quickEditDeal.originalPrice,
-                mrp: mrp || price,
+                originalPrice: mrp ? mrp.toString() : quickEditDeal?.originalPrice,
+                mrp: mrp > price ? mrp : null,
                 discount: discount ? `${discount}%` : '',
                 discountPercent: discount || 0
             };
@@ -954,7 +920,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
             showToast?.(validationErrors[0], 'error');
             return false;
         }
-        if (duplicateCandidatesForForm.length > 0 && !window.confirm('A similar deal already exists. Publish a new listing anyway?')) {
+        if (duplicateCandidates.length > 0 && !window.confirm('A similar deal already exists. Publish a new listing anyway?')) {
             if (e?.preventDefault) e.preventDefault();
             showToast?.('Publish cancelled. Open the duplicate candidate and update it instead.', 'info');
             return false;
@@ -972,8 +938,41 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
         }
     };
 
+    const handleCleanupDeals = async () => {
+        const confirmMsg = "Are you sure you want to clean up the database?\n\nThis will permanently delete all deals that match the following criteria:\n" +
+            "- Missing/Wrong images (placeholder, default, no-image, invalid url, etc. in both image and imageUrl fields)\n" +
+            "- Invalid or no-discount prices (dealPrice <= 0, or dealPrice >= MRP)\n" +
+            "- Title issues/Fake listings (missing title, blank/whitespace, no letters, less than 8 characters, or placeholder/fake names like 'product', 'charger', 'gopro', 'tws ans', test, demo, fake, asdf)\n\n" +
+            "This action cannot be undone. Proceed?";
+            
+        if (!window.confirm(confirmMsg)) return;
+        
+        setIsCleaning(true);
+        try {
+            const response = await fetch(`${adminApiBase}/admin/deals/cleanup`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'auth-token': token()
+                }
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+                const deletedCount = data.deletedCount || 0;
+                await refreshAdminData({ silent: true });
+                showToast?.(`Successfully cleaned up database! Removed ${deletedCount} invalid deals.`, 'success');
+            } else {
+                showToast?.(data.message || 'Cleanup failed', 'error');
+            }
+        } catch (error) {
+            showToast?.(error.message || 'Server error', 'error');
+        } finally {
+            setIsCleaning(false);
+        }
+    };
+
     const handleFeaturedToggle = async (deal) => {
-        const id = deal._id || deal.id;
+        const id = deal?._id || deal?.id;
         if (!id) return;
 
         setIsLoading(true);
@@ -984,16 +983,16 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                     'Content-Type': 'application/json',
                     'auth-token': token()
                 },
-                body: JSON.stringify({ featured: !deal.featured })
+                body: JSON.stringify({ featured: !deal?.featured })
             });
 
             const data = await response.json().catch(() => ({}));
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to update featured status');
+                throw new Error(data?.message || 'Failed to update featured status');
             }
 
             await refreshAdminData({ silent: true });
-            showToast?.(`Deal ${deal.featured ? 'removed from' : 'added to'} featured deals.`, 'success');
+            showToast?.(`Deal ${deal?.featured ? 'removed from' : 'added to'} featured deals.`, 'success');
         } catch (error) {
             showToast?.(error.message || 'Failed to update featured status', 'error');
         } finally {
@@ -1002,15 +1001,18 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
     };
 
     const handleAffiliateSettingChange = (storeSlug, field, value) => {
-        setAffiliateSettings(prev => prev.map(setting =>
-            setting.storeSlug === storeSlug
-                ? (() => {
-                    const nextSetting = { ...setting, [field]: field === 'enabled' ? Boolean(value) : value };
-                    nextSetting.pendingSetup = !nextSetting.enabled || !String(nextSetting.paramKey || '').trim() || !String(nextSetting.paramValue || '').trim();
-                    return nextSetting;
-                })()
-                : setting
-        ));
+        setAffiliateSettings(prev => {
+            const safePrev = Array.isArray(prev) ? prev : [];
+            return safePrev.map(setting =>
+                setting?.storeSlug === storeSlug
+                    ? (() => {
+                        const nextSetting = { ...setting, [field]: field === 'enabled' ? Boolean(value) : value };
+                        nextSetting.pendingSetup = !nextSetting?.enabled || !String(nextSetting?.paramKey || '').trim() || !String(nextSetting?.paramValue || '').trim();
+                        return nextSetting;
+                    })()
+                    : setting
+            );
+        });
     };
 
     const getSampleProductUrlForAffiliateSetting = useCallback((setting = {}) => {
@@ -1023,10 +1025,10 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
         return sanitizeOriginalUrl(
             sampleDeal?.productUrl
             || sampleDeal?.link
-            || dealForm.link
+            || dealForm?.productUrl
             || ''
         );
-    }, [adminDeals, dealForm.link]);
+    }, [adminDeals, dealForm.productUrl]);
 
     const getAffiliatePreviewForSetting = useCallback((setting = {}) => {
         const sampleUrl = getSampleProductUrlForAffiliateSetting(setting);
@@ -1059,7 +1061,8 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                 throw new Error(data.message || 'Failed to save affiliate settings');
             }
 
-            setAffiliateSettings(mergeAffiliateSettings(data.settings, liveAffiliateStoreNames));
+            const safeSettings = Array.isArray(data.settings) ? data.settings : [];
+            setAffiliateSettings(mergeAffiliateSettings(safeSettings, liveAffiliateStoreNames));
             await refreshAdminData({ silent: true });
 
             showToast?.(`Affiliate settings saved. Reapplied to ${data.reapply?.updated || 0} deals.`, 'success');
@@ -1070,148 +1073,6 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
         }
     };
 
-    const resetCouponForm = () => {
-        setCouponForm(DEFAULT_COUPON_FORM);
-        setEditingCouponId(null);
-    };
-
-    const handleCouponFormChange = (field, value) => {
-        setCouponForm(prev => ({
-            ...prev,
-            [field]: value,
-            ...(field === 'landingUrl' && !prev.store && deriveStoreFromUrl(value)
-                ? { store: deriveStoreFromUrl(value) }
-                : {})
-        }));
-    };
-
-    const handleCouponSubmit = async (event) => {
-        event?.preventDefault?.();
-        if (!adminApiBase) return;
-
-        setIsSavingCoupon(true);
-        try {
-            const endpoint = editingCouponId
-                ? `${adminApiBase}/admin/coupons/${editingCouponId}`
-                : `${adminApiBase}/admin/coupons`;
-            const response = await fetch(endpoint, {
-                method: editingCouponId ? 'PUT' : 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'auth-token': token()
-                },
-                body: JSON.stringify(couponForm)
-            });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                throw new Error(data.message || 'Failed to save coupon');
-            }
-            showToast?.(editingCouponId ? 'Coupon updated successfully.' : 'Coupon created successfully.', 'success');
-            resetCouponForm();
-            await refreshCoupons();
-        } catch (error) {
-            showToast?.(error.message || 'Failed to save coupon', 'error');
-        } finally {
-            setIsSavingCoupon(false);
-        }
-    };
-
-    const handleEditCoupon = (coupon) => {
-        const normalized = normalizeCouponForAdmin(coupon);
-        setCouponForm(normalized);
-        setEditingCouponId(normalized._id || normalized.id);
-    };
-
-    const handleDeleteCoupon = async (couponId) => {
-        if (!adminApiBase || !couponId) return;
-        if (!window.confirm('Delete this coupon?')) return;
-
-        try {
-            const response = await fetch(`${adminApiBase}/admin/coupons/${couponId}`, {
-                method: 'DELETE',
-                headers: { 'auth-token': token() }
-            });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                throw new Error(data.message || 'Failed to delete coupon');
-            }
-            showToast?.('Coupon deleted.', 'success');
-            if (editingCouponId === couponId) resetCouponForm();
-            await refreshCoupons();
-        } catch (error) {
-            showToast?.(error.message || 'Failed to delete coupon', 'error');
-        }
-    };
-
-    const handleFetchUrl = async (urlParam) => {
-        const url = sanitizeUrl(urlParam || dealForm.link);
-        if (!url) { setFetchStatus({ type: 'error', msg: 'Enter a URL first' }); return null; }
-        if (!isLikelyHttpUrl(url)) { setFetchStatus({ type: 'error', msg: 'Enter a valid http/https URL' }); return null; }
-        setFetchStatus({ type: 'loading', msg: 'Extracting deal info...' });
-        setIsLoading(true);
-        try {
-            const extractApi = apiBase.replace('/user', '') + '/deals/extract';
-            const r = await fetch(extractApi, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'auth-token': token() },
-                body: JSON.stringify({ url })
-            });
-            let data = {};
-            try {
-                data = await r.json();
-            } catch (parseErr) {
-                data = { message: 'Invalid server response' };
-            }
-
-            if (r.ok) {
-                const fields = ['title', 'image', 'images', 'price', 'originalPrice', 'discount', 'store', 'description'];
-                const populated = new Set();
-                const normalizedPrice = normalizeNumberLike(data.price);
-                const normalizedOriginalPrice = normalizeNumberLike(data.originalPrice);
-                const fallbackStore = data.store || deriveStoreFromUrl(data.link || url);
-                const computedDiscount = (!data.discount && normalizedPrice && normalizedOriginalPrice &&
-                    Number(normalizedOriginalPrice) > Number(normalizedPrice))
-                    ? `${Math.round((1 - Number(normalizedPrice) / Number(normalizedOriginalPrice)) * 100)}%`
-                    : '';
-
-                const nextForm = { ...dealForm };
-                fields.forEach(f => {
-                    if (data[f] != null && data[f] !== '') { nextForm[f] = data[f]; populated.add(f); }
-                });
-                if (normalizedPrice) { nextForm.price = normalizedPrice; populated.add('price'); }
-                if (normalizedOriginalPrice) { nextForm.originalPrice = normalizedOriginalPrice; populated.add('originalPrice'); }
-                if (!nextForm.store && fallbackStore) { nextForm.store = fallbackStore; populated.add('store'); }
-                if (!nextForm.discount && computedDiscount) { nextForm.discount = computedDiscount; populated.add('discount'); }
-                if (data.link) nextForm.link = data.link;
-                if (!data.link) nextForm.link = url;
-                if (data.extractionWarning) nextForm.extractionWarning = data.extractionWarning;
-                else nextForm.extractionWarning = '';
-
-                setDealForm(nextForm);
-                setAutoPopulated(populated);
-                setFetchStatus({ type: 'success', msg: `✓ Extracted ${populated.size} fields` });
-                showToast?.('Smart Extraction Complete!', 'success');
-
-                return nextForm;
-            } else {
-                if (r.status === 401) {
-                    localStorage.removeItem('auth-token');
-                    localStorage.removeItem('user');
-                    window.location.reload();
-                    return null;
-                }
-                let msg = 'Extraction limited';
-                if (r.status === 403) msg = 'Extraction restricted by store';
-                if (r.status === 400) msg = data.message || 'Invalid Request / URL';
-                setFetchStatus({ type: 'error', msg });
-                return null;
-            }
-        } catch (err) {
-            setFetchStatus({ type: 'error', msg: 'Network error or server down' });
-            return null;
-        }
-        finally { setIsLoading(false); }
-    };
 
     const clearAuto = (field) => setAutoPopulated(prev => { const n = new Set(prev); n.delete(field); return n; });
 
@@ -1228,7 +1089,6 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'manage-deals', label: 'Manage Deals', icon: Package },
         { id: 'add-deal', label: 'Add Deal', icon: PlusCircle },
-        { id: 'coupons', label: 'Coupons', icon: BadgePercent },
         { id: 'affiliate-tags', label: 'Affiliate Tags', icon: ExternalLink },
     ];
 
@@ -1261,7 +1121,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
 
                 {/* Logo */}
                 <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100">
-                    <img src="/logo.png" alt="DealSphere" className="h-14 w-auto object-contain bg-white rounded-xl p-1.5 shadow-sm scale-110" />
+                    <img src={logo} alt="DealSphere" className="h-14 w-auto object-contain bg-white rounded-xl p-1.5 shadow-sm scale-110" />
                     <div className="text-xl font-black tracking-tighter flex items-center">
                         <span className="text-[#1E3A8A]">Deal</span>
                         <span className="text-[#F97316]">Sphere</span>
@@ -1382,204 +1242,24 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                     <AnimatePresence mode="wait">
                         {/* ═══════════ DASHBOARD ═══════════ */}
                         {activeTab === 'dashboard' && (
-                            <motion.div key="dashboard" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
-
-                                {/* Stat Cards */}
-                                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                                    {STATS.map((s, i) => (
-                                        <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
-                                            className="bg-white/80 backdrop-blur-2xl rounded-3xl border border-white/60 shadow-2xl shadow-slate-200/50 p-6 transition-all hover:shadow-orange-100/50 hover:bg-white/90 hover:shadow-md hover:-translate-y-0.5">
-                                            {isStatsLoading ? (
-                                                <div className="animate-pulse space-y-3">
-                                                    <div className="w-10 h-10 bg-slate-100 rounded-xl" />
-                                                    <div className="h-7 w-16 bg-slate-100 rounded-lg" />
-                                                    <div className="h-3 w-20 bg-slate-50 rounded" />
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <div className={`w-10 h-10 ${s.light} rounded-xl flex items-center justify-center mb-4`}>
-                                                        <s.icon size={20} className={s.textColor} />
-                                                    </div>
-                                                    <div className="text-2xl font-black text-slate-900">{s.value}</div>
-                                                    <div className="flex items-center justify-between mt-1">
-                                                        <div className="text-xs font-bold text-slate-400">{s.label}</div>
-                                                        <div className="text-[10px] font-black text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">Live</div>
-                                                    </div>
-                                                </>
-                                            )}
-                                        </motion.div>
-                                    ))}
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                                    {[
-                                        {
-                                            label: 'Top Store',
-                                            value: adminInsights.topStore?.store || adminInsights.topStore?.name || 'No store yet',
-                                            detail: adminInsights.topStore ? `${adminInsights.topStore.count || adminInsights.topStore.dealsCount || 0} live deals` : 'Stores appear after deals publish',
-                                            icon: ShoppingCart,
-                                            tone: 'blue'
-                                        },
-                                        {
-                                            label: 'Most Clicked',
-                                            value: adminInsights.topClickedDeals[0]?.title || 'No click data yet',
-                                            detail: adminInsights.topClickedDeals[0] ? `${getDealViews(adminInsights.topClickedDeals[0]).toLocaleString('en-IN')} tracked views` : 'Views update when product pages are opened',
-                                            icon: Activity,
-                                            tone: 'emerald'
-                                        },
-                                        {
-                                            label: 'Best Discount',
-                                            value: adminInsights.topDiscountDeals[0]?.title || 'No discounts yet',
-                                            detail: adminInsights.topDiscountDeals[0] ? `${getNumericDiscount(adminInsights.topDiscountDeals[0])}% OFF · ${adminInsights.topDiscountDeals[0].store}` : 'Add MRP + price to calculate',
-                                            icon: Flame,
-                                            tone: 'orange'
-                                        },
-                                        {
-                                            label: 'Data Health',
-                                            value: adminInsights.incompleteDeals.length ? `${adminInsights.incompleteDeals.length} need review` : 'Catalog clean',
-                                            detail: `${adminInsights.duplicateCount} possible duplicate${adminInsights.duplicateCount === 1 ? '' : 's'} detected`,
-                                            icon: Shield,
-                                            tone: adminInsights.incompleteDeals.length || adminInsights.duplicateCount ? 'amber' : 'emerald'
-                                        }
-                                    ].map(({ label, value, detail, icon: Icon, tone }) => {
-                                        const toneCls = {
-                                            blue: 'bg-blue-50 text-blue-600 border-blue-100',
-                                            emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-                                            orange: 'bg-orange-50 text-orange-600 border-orange-100',
-                                            amber: 'bg-amber-50 text-amber-700 border-amber-100'
-                                        }[tone];
-                                        return (
-                                            <div key={label} className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-                                                <div className="mb-4 flex items-center justify-between gap-3">
-                                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{label}</span>
-                                                    <span className={`flex h-10 w-10 items-center justify-center rounded-2xl border ${toneCls}`}>
-                                                        <Icon size={18} />
-                                                    </span>
-                                                </div>
-                                                <p className="line-clamp-2 min-h-[2.5rem] text-sm font-black leading-snug text-slate-900">{value}</p>
-                                                <p className="mt-3 text-xs font-semibold leading-relaxed text-slate-500">{detail}</p>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-
-                                {/* Category chart + recent deals */}
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                    {/* Category bar chart */}
-                                    <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <div>
-                                                <h3 className="text-base font-black text-slate-900">Deals by Category</h3>
-                                                <p className="text-xs text-slate-400 font-medium mt-0.5">Distribution across all categories</p>
-                                            </div>
-                                        </div>
-                                        {dashboardStats ? (
-                                            <div className="flex items-end gap-3 h-44">
-                                                {Object.entries(dashboardStats.categoryStats ?? {}).slice(0, 8).map(([cat, count], idx) => {
-                                                    const pct = Math.max(8, (count / (dashboardStats.totalDeals || 1)) * 100);
-                                                    const COLORS = ['bg-orange-400', 'bg-blue-400', 'bg-emerald-400', 'bg-purple-400', 'bg-amber-400', 'bg-rose-400', 'bg-cyan-400', 'bg-pink-400'];
-                                                    return (
-                                                        <div key={cat} onClick={() => setSearchQuery(cat)} className="flex-1 flex flex-col items-center gap-1 group h-full justify-end cursor-pointer">
-                                                            <div className="text-[9px] font-black text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">{count}</div>
-                                                            <motion.div
-                                                                initial={{ height: 0 }}
-                                                                animate={{ height: `${pct}%` }}
-                                                                transition={{ delay: 0.3 + idx * 0.05, ease: 'easeOut' }}
-                                                                className={`w-full rounded-t-lg ${COLORS[idx % COLORS.length]} opacity-80 group-hover:opacity-100 transition-opacity`}
-                                                            />
-                                                            <div className="flex flex-col items-center gap-0.5 w-full">
-                                                                {React.createElement(CATEGORY_MAP[cat] || DEFAULT_CAT_ICON, { size: 10, className: "text-slate-300 group-hover:text-orange-400 transition-colors" })}
-                                                                <span className="text-[9px] font-bold text-slate-400 truncate w-full text-center group-hover:text-orange-500 transition-colors">{cat.substring(0, 8)}</span>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        ) : (
-                                            <div className="h-44 flex items-center justify-center">
-                                                <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Recent deals */}
-                                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h3 className="text-base font-black text-slate-900">
-                                                {searchQuery ? `Deals: ${searchQuery}` : 'Recent Deals'}
-                                            </h3>
-                                            {searchQuery && (
-                                                <button onClick={() => setSearchQuery('')} className="text-[10px] font-black uppercase bg-slate-100 text-slate-500 hover:bg-slate-200 px-2 py-1 rounded-md transition-colors">
-                                                    Clear Filter
-                                                </button>
-                                            )}
-                                        </div>
-                                        <div className="space-y-3 overflow-y-auto max-h-[300px] pr-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                                            {(searchQuery ? filteredDeals : (dashboardStats?.recentDeals ?? adminDeals.slice(0, 8))).slice(0, 8).map((deal, i) => (
-                                                <div key={i} className="flex items-center gap-3 group">
-                                                    <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
-                                                        {deal.image ? <img src={optimizeImageUrl(deal.image)} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-orange-100" />}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-xs font-bold text-slate-700 truncate group-hover:text-orange-600 transition-colors">{deal.title}</p>
-                                                        <div className="flex items-center gap-2 mt-0.5">
-                                                            <p className="text-[10px] text-slate-400 font-medium">{deal.store}</p>
-                                                            {deal.category && (
-                                                                <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-slate-50 border border-slate-100 shadow-sm">
-                                                                    {React.createElement(CATEGORY_MAP[deal.category] || DEFAULT_CAT_ICON, { size: 10, className: "text-orange-500" })}
-                                                                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-tighter">{deal.category}</span>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="text-xs font-black text-orange-600">{getDealDisplayPrice(deal)}</div>
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleDeleteDeal(deal._id || deal.id); }}
-                                                            className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                                                            title="Remove Deal">
-                                                            <Trash2 size={14} />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {!searchQuery && (!dashboardStats?.recentDeals?.length && !adminDeals.length) && (
-                                                <div className="text-center py-8 text-sm text-slate-400 font-medium">
-                                                    No deals found yet. Add your first live deal to populate the dashboard.
-                                                </div>
-                                            )}
-                                            {searchQuery && filteredDeals.length === 0 && (
-                                                <div className="text-center py-8 text-sm text-slate-400 font-medium">
-                                                    No deals match "{searchQuery}"
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Store breakdown table */}
-                                {stores.length > 0 && (
-                                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                                        <h3 className="text-base font-black text-slate-900 mb-4">Deals by Store</h3>
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                            {stores.slice(0, 8).map(({ store, count }) => (
-                                                <div key={store}
-                                                    onClick={() => setSearchQuery(store)}
-                                                    className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-orange-50 hover:border-orange-200 transition-all group">
-                                                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-sm font-black text-orange-600 group-hover:bg-orange-500 group-hover:text-white transition-colors">
-                                                        {store[0]}
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-xs font-black text-slate-700 group-hover:text-orange-700 transition-colors">{store}</div>
-                                                        <div className="text-[10px] font-bold text-slate-400 group-hover:text-orange-500 transition-colors">{count} deals</div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
+                            <motion.div key="dashboard" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                                <Dashboard
+                                    stats={dashboardStats}
+                                    adminDeals={adminDeals}
+                                    adminInsights={adminInsights}
+                                    getDealDisplayPrice={getDealDisplayPrice}
+                                    getDealDisplayMrp={getDealDisplayMrp}
+                                    getDealDisplayDiscount={getDealDisplayDiscount}
+                                    getDealViews={getDealViews}
+                                    onEditDeal={handleEditClick}
+                                    navigate={navigate}
+                                    setDuplicateOnly={setDuplicateOnly}
+                                />
                             </motion.div>
                         )}
+
+
+
 
 
                         {/* ═══════════ ADD / EDIT DEAL ═══════════ */}
@@ -1591,7 +1271,9 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                 exit={{ opacity: 0 }}
                                 className="space-y-6"
                             >
-                                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                                <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200/60 shadow-sm p-6 relative overflow-hidden">
+                                    {/* Glassmorphism Gradient */}
+                                    <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-blue-50/60 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
                                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
                                         <div>
                                             <h2 className="text-2xl font-black text-slate-900">All Deals</h2>
@@ -1599,14 +1281,32 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                 Live database data with instant refresh after every admin action.
                                             </p>
                                         </div>
-                                        <div className="flex flex-wrap gap-3 text-sm font-semibold text-slate-500">
-                                            <span className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">{adminDeals.length} total</span>
-                                            <span className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">{filteredDeals.length} visible</span>
-                                            <span className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">{adminDeals.filter((deal) => deal.featured).length} featured</span>
+                                        <div className="flex flex-wrap gap-3 text-sm font-black text-slate-600 relative z-10">
+                                            <span className="px-3.5 py-2 rounded-xl bg-white/70 backdrop-blur-md border border-slate-200 shadow-sm">{totalCount} total</span>
+                                            <span className="px-3.5 py-2 rounded-xl bg-white/70 backdrop-blur-md border border-slate-200 shadow-sm">{filteredDeals.length} visible</span>
+                                            <span className="px-3.5 py-2 rounded-xl bg-orange-50/70 text-[#FF6A00] backdrop-blur-md border border-orange-200/60 shadow-sm">{dashboardStats?.featuredDeals || 0} featured</span>
+                                            <button
+                                                type="button"
+                                                onClick={handleCleanupDeals}
+                                                disabled={isCleaning}
+                                                className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-300 font-bold transition-all flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+                                            >
+                                                {isCleaning ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 animate-spin text-rose-600" />
+                                                        <span>Cleaning...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Trash2 className="w-4 h-4 text-rose-600" />
+                                                        <span>Clean Up Database</span>
+                                                    </>
+                                                )}
+                                            </button>
                                         </div>
                                     </div>
 
-                                    <div className="mb-6 rounded-3xl border border-slate-100 bg-slate-50/80 p-4">
+                                    <div className="mb-6 rounded-3xl border border-slate-200/60 bg-white/60 backdrop-blur-xl p-4 shadow-sm relative z-10">
                                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
                                             <select className={inputCls} value={storeFilter} onChange={(event) => setStoreFilter(event.target.value)}>
                                                 {storeFilterOptions.map((store) => <option key={store} value={store}>{store === 'All' ? 'All stores' : store}</option>)}
@@ -1675,10 +1375,10 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                         </div>
                                     ) : (
                                         <>
-                                            <div className="hidden xl:block overflow-hidden rounded-2xl border border-slate-200">
+                                            <div className="hidden xl:block overflow-hidden rounded-[24px] border border-slate-200/60 shadow-sm bg-white/70 backdrop-blur-xl relative z-10">
                                                 <div className="overflow-x-auto">
-                                                    <table className="min-w-full divide-y divide-slate-200">
-                                                        <thead className="bg-slate-50">
+                                                    <table className="min-w-full divide-y divide-slate-200/60">
+                                                        <thead className="bg-slate-50/50 backdrop-blur-sm">
                                                             <tr>
                                                                 <th className="px-4 py-3 text-left">
                                                                     <input
@@ -1700,186 +1400,224 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                                 <th className="px-4 py-3 text-right text-[11px] font-black uppercase tracking-wider text-slate-500">Actions</th>
                                                             </tr>
                                                         </thead>
-                                                        <tbody className="divide-y divide-slate-100 bg-white">
-                                                            {filteredDeals.map((deal) => (
-                                                                <tr key={deal._id || deal.id} className="hover:bg-slate-50 transition-colors">
-                                                                    <td className="px-4 py-4 align-top">
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={selectedDealIds.includes(getDealId(deal))}
-                                                                            onChange={() => toggleDealSelection(deal)}
-                                                                            className="mt-5 h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
-                                                                            aria-label={`Select ${deal.title || 'deal'}`}
-                                                                        />
-                                                                    </td>
-                                                                    <td className="px-4 py-4">
-                                                                        <div className="flex items-center gap-3 min-w-[280px]">
-                                                                            <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0">
-                                                                                {deal.image ? (
-                                                                                    <img src={optimizeImageUrl(deal.image)} alt={deal.title} className="w-full h-full object-cover" />
-                                                                                ) : (
-                                                                                    <div className="w-full h-full bg-slate-100" />
-                                                                                )}
-                                                                            </div>
-                                                                            <div className="min-w-0">
-                                                                                <div className="flex items-start gap-2">
-                                                                                    <div className="text-sm font-black text-slate-900 line-clamp-2">{deal.title || 'Untitled deal'}</div>
-                                                                                    {duplicateIdSet.has(getDealId(deal)) && (
-                                                                                        <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-800">Dup?</span>
+                                                        <tbody className="divide-y divide-slate-100/60">
+                                                            {safeArray(filteredDeals).map((rawDeal, index) => {
+                                                                const deal = normalizeAdminDeal(rawDeal);
+                                                                const dealId = getDealId(deal);
+                                                                return (
+                                                                    <tr key={deal._id || deal.id} className="hover:bg-slate-50/50 hover:shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] transition-all duration-300">
+                                                                        <td className="px-4 py-4 align-top">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={selectedDealIds.includes(getDealId(deal))}
+                                                                                onChange={() => toggleDealSelection(deal)}
+                                                                                className="mt-5 h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
+                                                                                aria-label={`Select ${deal.title || 'deal'}`}
+                                                                            />
+                                                                        </td>
+                                                                        <td className="px-4 py-4">
+                                                                            <div className="flex items-center gap-3 min-w-[280px]">
+                                                                                <div className="w-14 h-14 rounded-xl overflow-hidden bg-white border border-slate-200/60 flex-shrink-0 shadow-sm">
+                                                                                    {deal.imageUrl ? (
+                                                                                        <div className="w-full h-full relative">
+                                                                                            <img 
+                                                                                                src={optimizeImageUrl(deal.imageUrl)} 
+                                                                                                alt={deal.title} 
+                                                                                                className="w-full h-full object-cover" 
+                                                                                                onError={(e) => {
+                                                                                                    e.target.style.display = 'none';
+                                                                                                    if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex';
+                                                                                                }}
+                                                                                            />
+                                                                                            <div style={{ display: 'none' }} className="w-full h-full items-center justify-center bg-gradient-to-br from-orange-100 to-rose-100 text-orange-600 font-black text-xl uppercase shadow-inner">
+                                                                                                {(deal.store || 'D').charAt(0)}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-100 to-rose-100 text-orange-600 font-black text-xl uppercase shadow-inner">
+                                                                                            {(deal.store || 'D').charAt(0)}
+                                                                                        </div>
                                                                                     )}
                                                                                 </div>
-                                                                                <div className="text-xs text-slate-500 mt-1 truncate max-w-[280px]">{sanitizeOriginalUrl(deal.productUrl || deal.link || '') || 'No product URL'}</div>
+                                                                                <div className="min-w-0">
+                                                                                    <div className="flex items-start gap-2">
+                                                                                        <div className="text-sm font-black text-slate-900 line-clamp-2">{deal?.title || 'Untitled deal'}</div>
+                                                                                        {duplicateIdSet.has(getDealId(deal)) && (
+                                                                                            <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-800">Dup?</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div className="text-xs text-slate-500 mt-1 truncate max-w-[280px]">{sanitizeOriginalUrl(deal?.productUrl || deal?.link || '') || 'No product URL'}</div>
+                                                                                </div>
                                                                             </div>
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="px-4 py-4 text-sm font-bold text-slate-700">{deal.store || 'Online Store'}</td>
-                                                                    <td className="px-4 py-4 text-sm text-slate-600">{deal.category || 'Other'}</td>
-                                                                    <td className="px-4 py-4 text-sm font-black text-slate-900">{getDealDisplayPrice(deal)}</td>
-                                                                    <td className="px-4 py-4 text-sm text-slate-500">{getDealDisplayMrp(deal)}</td>
-                                                                    <td className="px-4 py-4">
-                                                                        <span className="inline-flex px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-black">
-                                                                            {getDealDisplayDiscount(deal)}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-4 py-4">
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => handleFeaturedToggle(deal)}
-                                                                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-black transition-colors ${deal.featured ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                                        >
-                                                                            {deal.featured ? 'Featured' : 'Not featured'}
-                                                                        </button>
-                                                                    </td>
-                                                                    <td className="px-4 py-4 text-sm text-slate-500">{formatDealDate(deal.createdAt)}</td>
-                                                                    <td className="px-4 py-4">
-                                                                        <div className="flex items-center justify-end gap-2">
+                                                                        </td>
+                                                                        <td className="px-4 py-4 text-sm font-bold text-slate-700">{deal?.store || 'Online Store'}</td>
+                                                                        <td className="px-4 py-4 text-sm text-slate-600">{deal?.category || 'Other'}</td>
+                                                                        <td className="px-4 py-4 text-sm font-black text-slate-900">{getDealDisplayPrice(deal)}</td>
+                                                                        <td className="px-4 py-4 text-sm text-slate-500">{getDealDisplayMrp(deal)}</td>
+                                                                        <td className="px-4 py-4">
+                                                                            <span className="inline-flex px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-black">
+                                                                                {getDealDisplayDiscount(deal)}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-4 py-4">
                                                                             <button
                                                                                 type="button"
-                                                                                onClick={() => setQuickEditDeal({
-                                                                                    ...deal,
-                                                                                    price: normalizeNumberLike(deal.dealPrice || deal.price),
-                                                                                    originalPrice: normalizeNumberLike(deal.mrp || deal.originalPrice),
-                                                                                    discount: normalizeNumberLike(deal.discountPercent || deal.discount)
-                                                                                })}
-                                                                                className="inline-flex items-center gap-1 rounded-xl border border-blue-200 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50"
+                                                                                onClick={() => handleFeaturedToggle(deal)}
+                                                                                className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-black transition-colors ${deal?.featured ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                                                                             >
-                                                                                <Edit3 size={13} />
-                                                                                Quick
+                                                                                {deal?.featured ? 'Featured' : 'Not featured'}
                                                                             </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => handleEditClick(deal)}
-                                                                                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
-                                                                            >
-                                                                                <Pencil size={13} />
-                                                                                Edit
-                                                                            </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => handleDeleteDeal(deal._id || deal.id)}
-                                                                                className="inline-flex items-center gap-1 rounded-xl border border-rose-200 px-3 py-2 text-xs font-black text-rose-600 hover:bg-rose-50"
-                                                                            >
-                                                                                <Trash2 size={13} />
-                                                                                Delete
-                                                                            </button>
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
+                                                                        </td>
+                                                                        <td className="px-4 py-4 text-sm text-slate-500">{formatDealDate(deal?.createdAt)}</td>
+                                                                        <td className="px-4 py-4">
+                                                                            <div className="flex items-center justify-end gap-2">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => setQuickEditDeal({
+                                                                                        ...deal,
+                                                                                        price: normalizeNumberLike(deal.dealPrice || deal.price),
+                                                                                        originalPrice: normalizeNumberLike(deal.mrp || deal.originalPrice),
+                                                                                        discount: normalizeNumberLike(deal.discountPercent || deal.discount)
+                                                                                    })}
+                                                                                    className="inline-flex items-center gap-1 rounded-xl border border-blue-200 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50"
+                                                                                >
+                                                                                    <Edit3 size={13} />
+                                                                                    Quick
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleEditClick(deal)}
+                                                                                    className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                                                                                >
+                                                                                    <Pencil size={13} />
+                                                                                    Edit
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleDeleteDeal(deal._id || deal.id)}
+                                                                                    className="inline-flex items-center gap-1 rounded-xl border border-rose-200 px-3 py-2 text-xs font-black text-rose-600 hover:bg-rose-50"
+                                                                                >
+                                                                                    <Trash2 size={13} />
+                                                                                    Delete
+                                                                                </button>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
                                                         </tbody>
                                                     </table>
                                                 </div>
                                             </div>
 
-                                            <div className="xl:hidden space-y-4">
-                                                {filteredDeals.map((deal) => (
-                                                    <div key={deal._id || deal.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                                                        <div className="mb-3 flex items-center justify-between gap-3">
-                                                            <label className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={selectedDealIds.includes(getDealId(deal))}
-                                                                    onChange={() => toggleDealSelection(deal)}
-                                                                    className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
-                                                                />
-                                                                Select
-                                                            </label>
-                                                            {duplicateIdSet.has(getDealId(deal)) && (
-                                                                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-800">Duplicate?</span>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex gap-4">
-                                                            <div className="w-20 h-20 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0">
-                                                                {deal.image ? (
-                                                                    <img src={optimizeImageUrl(deal.image)} alt={deal.title} className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <div className="w-full h-full bg-slate-100" />
+                                            <div className="xl:hidden space-y-4 relative z-10">
+                                                {safeArray(filteredDeals).map((rawDeal, index) => {
+                                                    const deal = normalizeAdminDeal(rawDeal);
+                                                    const dealId = getDealId(deal);
+                                                    return (
+                                                        <div key={dealId || index} className="rounded-2xl border border-slate-200/60 bg-white/70 backdrop-blur-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                                                            <div className="mb-3 flex items-center justify-between gap-3">
+                                                                <label className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={selectedDealIds.includes(getDealId(deal))}
+                                                                        onChange={() => toggleDealSelection(deal)}
+                                                                        className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
+                                                                    />
+                                                                    Select
+                                                                </label>
+                                                                {duplicateIdSet.has(getDealId(deal)) && (
+                                                                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-800">Duplicate?</span>
                                                                 )}
                                                             </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="flex items-start justify-between gap-3">
-                                                                    <div>
-                                                                        <h3 className="text-sm font-black text-slate-900 line-clamp-2">{deal.title || 'Untitled deal'}</h3>
-                                                                        <p className="text-xs text-slate-500 mt-1">{deal.store || 'Online Store'} · {deal.category || 'Other'}</p>
-                                                                    </div>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleFeaturedToggle(deal)}
-                                                                        className={`rounded-full px-2.5 py-1 text-[11px] font-black ${deal.featured ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}
-                                                                    >
-                                                                        {deal.featured ? 'Featured' : 'Standard'}
-                                                                    </button>
+                                                            <div className="flex gap-4">
+                                                                <div className="w-20 h-20 rounded-xl overflow-hidden bg-white border border-slate-200/60 flex-shrink-0 shadow-sm">
+                                                                    {deal.imageUrl ? (
+                                                                        <div className="w-full h-full relative">
+                                                                            <img 
+                                                                                src={optimizeImageUrl(deal.imageUrl)} 
+                                                                                alt={deal.title} 
+                                                                                className="w-full h-full object-cover" 
+                                                                                onError={(e) => {
+                                                                                    e.target.style.display = 'none';
+                                                                                    if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex';
+                                                                                }}
+                                                                            />
+                                                                            <div style={{ display: 'none' }} className="w-full h-full items-center justify-center bg-gradient-to-br from-orange-100 to-rose-100 text-orange-600 font-black text-2xl uppercase shadow-inner">
+                                                                                {(deal.store || 'D').charAt(0)}
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-100 to-rose-100 text-orange-600 font-black text-2xl uppercase shadow-inner">
+                                                                            {(deal.store || 'D').charAt(0)}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                                                                    <div>
-                                                                        <div className="text-slate-400 font-semibold">Deal</div>
-                                                                        <div className="text-slate-900 font-black">{getDealDisplayPrice(deal)}</div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-start justify-between gap-3">
+                                                                        <div>
+                                                                            <h3 className="text-sm font-black text-slate-900 line-clamp-2">{deal?.title || 'Untitled deal'}</h3>
+                                                                            <p className="text-xs text-slate-500 mt-1">{deal?.store || 'Online Store'} · {deal?.category || 'Other'}</p>
+                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleFeaturedToggle(deal)}
+                                                                            className={`rounded-full px-2.5 py-1 text-[11px] font-black ${deal?.featured ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}
+                                                                        >
+                                                                            {deal?.featured ? 'Featured' : 'Standard'}
+                                                                        </button>
                                                                     </div>
-                                                                    <div>
-                                                                        <div className="text-slate-400 font-semibold">MRP</div>
-                                                                        <div className="text-slate-700 font-bold">{getDealDisplayMrp(deal)}</div>
+                                                                    <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                                                                        <div>
+                                                                            <div className="text-slate-400 font-semibold">Deal</div>
+                                                                            <div className="text-slate-900 font-black">{getDealDisplayPrice(deal)}</div>
+                                                                        </div>
+                                                                        <div>
+                                                                            <div className="text-slate-400 font-semibold">MRP</div>
+                                                                            <div className="text-slate-700 font-bold">{getDealDisplayMrp(deal)}</div>
+                                                                        </div>
+                                                                        <div>
+                                                                            <div className="text-slate-400 font-semibold">Discount</div>
+                                                                            <div className="text-emerald-700 font-black">{getDealDisplayDiscount(deal)}</div>
+                                                                        </div>
                                                                     </div>
-                                                                    <div>
-                                                                        <div className="text-slate-400 font-semibold">Discount</div>
-                                                                        <div className="text-emerald-700 font-black">{getDealDisplayDiscount(deal)}</div>
-                                                                    </div>
+                                                                    <div className="mt-3 text-xs text-slate-400">Created {formatDealDate(deal?.createdAt)}</div>
                                                                 </div>
-                                                                <div className="mt-3 text-xs text-slate-400">Created {formatDealDate(deal.createdAt)}</div>
+                                                            </div>
+                                                            <div className="mt-4 flex items-center gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setQuickEditDeal({
+                                                                        ...deal,
+                                                                        price: normalizeNumberLike(deal.dealPrice || deal.price),
+                                                                        originalPrice: normalizeNumberLike(deal.mrp || deal.originalPrice),
+                                                                        discount: normalizeNumberLike(deal.discountPercent || deal.discount)
+                                                                    })}
+                                                                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 px-3 py-2 text-sm font-black text-blue-700 hover:bg-blue-50"
+                                                                >
+                                                                    <Edit3 size={14} />
+                                                                    Quick
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleEditClick(deal)}
+                                                                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+                                                                >
+                                                                    <Pencil size={14} />
+                                                                    Edit
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDeleteDeal(deal._id || deal.id)}
+                                                                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm font-black text-rose-600 hover:bg-rose-50"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                    Delete
+                                                                </button>
                                                             </div>
                                                         </div>
-                                                        <div className="mt-4 flex items-center gap-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setQuickEditDeal({
-                                                                    ...deal,
-                                                                    price: normalizeNumberLike(deal.dealPrice || deal.price),
-                                                                    originalPrice: normalizeNumberLike(deal.mrp || deal.originalPrice),
-                                                                    discount: normalizeNumberLike(deal.discountPercent || deal.discount)
-                                                                })}
-                                                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 px-3 py-2 text-sm font-black text-blue-700 hover:bg-blue-50"
-                                                            >
-                                                                <Edit3 size={14} />
-                                                                Quick
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleEditClick(deal)}
-                                                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
-                                                            >
-                                                                <Pencil size={14} />
-                                                                Edit
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleDeleteDeal(deal._id || deal.id)}
-                                                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm font-black text-rose-600 hover:bg-rose-50"
-                                                            >
-                                                                <Trash2 size={14} />
-                                                                Delete
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
 
                                             {filteredDeals.length === 0 && (
@@ -1887,6 +1625,111 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                     No deals matched the current search / filter settings.
                                                 </div>
                                             )}
+
+                                            {/* Pagination UI */}
+                                            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-200/60 pt-6 relative z-10">
+                                                <div className="text-sm font-semibold text-slate-500 bg-white/70 backdrop-blur-md px-4 py-2 rounded-2xl border border-slate-200/60 shadow-sm">
+                                                    Showing <span className="text-slate-900 font-black">{totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1}</span> to <span className="text-slate-900 font-black">{Math.min(currentPage * pageSize, totalCount)}</span> of <span className="text-slate-900 font-black">{totalCount}</span> deals
+                                                </div>
+                                                
+                                                <div className="flex flex-wrap items-center gap-3">
+                                                    <div className="flex items-center gap-2 bg-white/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200/60 shadow-sm">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Per page</span>
+                                                        <select
+                                                            value={pageSize}
+                                                            onChange={(e) => {
+                                                                setPageSize(Number(e.target.value));
+                                                                setCurrentPage(1);
+                                                            }}
+                                                            className="bg-transparent text-sm font-bold text-slate-700 focus:outline-none focus:text-orange-600 transition-colors cursor-pointer"
+                                                        >
+                                                            <option value={20}>20</option>
+                                                            <option value={50}>50</option>
+                                                            <option value={100}>100</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                                            disabled={currentPage === 1}
+                                                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:hover:bg-transparent transition-all"
+                                                            aria-label="Previous page"
+                                                        >
+                                                            <ChevronLeft size={16} />
+                                                        </button>
+                                                        
+                                                        {(() => {
+                                                            const pages = [];
+                                                            const maxVisible = 5;
+                                                            let startPage = Math.max(1, currentPage - 2);
+                                                            let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+                                                            
+                                                            if (endPage - startPage + 1 < maxVisible) {
+                                                                startPage = Math.max(1, endPage - maxVisible + 1);
+                                                            }
+
+                                                            if (startPage > 1) {
+                                                                pages.push(
+                                                                    <button
+                                                                        key={1}
+                                                                        type="button"
+                                                                        onClick={() => setCurrentPage(1)}
+                                                                        className={`w-9 h-9 rounded-xl text-sm font-bold transition-all ${currentPage === 1 ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-600 hover:bg-slate-50'}`}
+                                                                    >
+                                                                        1
+                                                                    </button>
+                                                                );
+                                                                if (startPage > 2) {
+                                                                    pages.push(<span key="dots-start" className="text-slate-400 px-1 font-bold">...</span>);
+                                                                }
+                                                            }
+
+                                                            for (let i = startPage; i <= endPage; i++) {
+                                                                pages.push(
+                                                                    <button
+                                                                        key={i}
+                                                                        type="button"
+                                                                        onClick={() => setCurrentPage(i)}
+                                                                        className={`w-9 h-9 rounded-xl text-sm font-bold transition-all ${currentPage === i ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-600 hover:bg-slate-50'}`}
+                                                                    >
+                                                                        {i}
+                                                                    </button>
+                                                                );
+                                                            }
+
+                                                            if (endPage < totalPages) {
+                                                                if (endPage < totalPages - 1) {
+                                                                    pages.push(<span key="dots-end" className="text-slate-400 px-1 font-bold">...</span>);
+                                                                }
+                                                                pages.push(
+                                                                    <button
+                                                                        key={totalPages}
+                                                                        type="button"
+                                                                        onClick={() => setCurrentPage(totalPages)}
+                                                                        className={`w-9 h-9 rounded-xl text-sm font-bold transition-all ${currentPage === totalPages ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-slate-600 hover:bg-slate-50'}`}
+                                                                    >
+                                                                        {totalPages}
+                                                                    </button>
+                                                                );
+                                                            }
+
+                                                            return pages;
+                                                        })()}
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                                            disabled={currentPage === totalPages}
+                                                            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:hover:bg-transparent transition-all"
+                                                            aria-label="Next page"
+                                                        >
+                                                            <ChevronRight size={16} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </>
                                     )}
                                 </div>
@@ -1907,8 +1750,9 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                 {editMode ? <Pencil size={20} /> : <Zap size={20} fill="currentColor" />}
                                             </div>
                                             <h2 className="text-3xl font-black text-slate-900 tracking-tight">{editMode ? 'Edit Deal' : 'Add New Deal'}</h2>
+
                                         </div>
-                                        <p className="text-sm text-slate-500 font-semibold pl-14">{editMode ? 'Update an existing deal' : 'Paste a product URL to automatically extract details'}</p>
+                                        <p className="text-sm text-slate-500 font-semibold pl-14">{editMode ? 'Update an existing deal' : 'Fill in the details below to create a new deal'}</p>
                                     </div>
                                     {editMode && (
                                         <button onClick={() => { setEditMode(false); setDealForm(DEFAULT_DEAL_FORM); }}
@@ -1918,59 +1762,49 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                     )}
                                 </div>
 
-                                {/* ════ HERO LINK BAR (AI SEARCH AESTHETIC) ════ */}
-                                <div className="mb-10 relative group">
-                                    <div className="absolute -inset-1 bg-gradient-to-r from-orange-400 to-rose-400 rounded-full blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200" />
-                                    <div className="relative bg-white/80 backdrop-blur-2xl rounded-full border border-white max-w-5xl mx-auto shadow-2xl shadow-slate-200/50 flex items-center p-2 focus-within:ring-4 focus-within:ring-orange-500/20 transition-all duration-500">
-
-                                        <div className="pl-4 sm:pl-6 flex items-center pointer-events-none">
-                                            <div className="relative w-10 h-10 flex items-center justify-center">
-                                                <div className="absolute inset-0 bg-gradient-to-tr from-orange-500 to-rose-500 rounded-full blur-[6px] opacity-70 animate-pulse" />
-                                                <div className="w-10 h-10 bg-gradient-to-tr from-orange-500 to-rose-500 rounded-full flex items-center justify-center text-white relative z-10 shadow-inner">
-                                                    <Sparkles size={18} className="text-white" />
+                                <div className="mb-8 space-y-6">
+                                    {/* Step 4: Perfect Product Fetching UI (Magic Fetch) */}
+                                    <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] border border-white p-2 shadow-xl shadow-slate-200/40 relative hover:shadow-2xl hover:shadow-slate-200/50 transition-all">
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 relative">
+                                                    <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400">
+                                                        <Sparkles size={20} className={isFetching ? 'animate-pulse text-orange-500' : ''} />
+                                                    </div>
+                                                    <input
+                                                        id="autoFetchUrl"
+                                                        type="text"
+                                                        className="w-full bg-transparent py-6 pl-16 pr-6 text-sm font-black placeholder:text-slate-400 focus:outline-none"
+                                                        placeholder="Paste any Amazon, Flipkart, Myntra, Croma, Reliance Digital, Nykaa, FirstCry, Tata CLiQ or Snapdeal link to fetch perfectly..."
+                                                        value={autoFetchUrl}
+                                                        onChange={e => setAutoFetchUrl(e.target.value)}
+                                                        onKeyDown={e => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault();
+                                                                handleFetchDeal(autoFetchUrl);
+                                                            }
+                                                        }}
+                                                    />
                                                 </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleFetchDeal(autoFetchUrl)}
+                                                    disabled={isFetching || !autoFetchUrl}
+                                                    className="bg-[#0F172A] hover:bg-[#FF6A00] disabled:bg-slate-200 text-white h-[64px] px-10 rounded-[2rem] text-sm font-black uppercase tracking-[0.2em] transition-all flex items-center gap-3 shadow-lg shadow-slate-900/10"
+                                                >
+                                                    {isFetching ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} fill="currentColor" />}
+                                                    {isFetching ? 'Fetching...' : 'Magic Fetch'}
+                                                </button>
                                             </div>
-                                        </div>
-
-                                        <input
-                                            type="url"
-                                            className="w-full bg-transparent border-none py-4 px-4 sm:px-6 text-base sm:text-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0 font-bold tracking-tight"
-                                            placeholder="Paste a product URL here for automatic extraction..."
-                                            value={dealForm.link}
-                                            onChange={e => { setDealForm({ ...dealForm, link: e.target.value }); clearAuto('link'); }}
-                                            onKeyDown={e => { if (e.key === 'Enter' && !isLoading) { e.preventDefault(); handleFetchUrl(e.currentTarget.value); } }}
-                                            onPaste={(e) => {
-                                                const text = e.clipboardData.getData('text');
-                                                if (text && !isLoading) {
-                                                    // Trigger fetch with pasted content
-                                                    setTimeout(() => handleFetchUrl(text), 50);
-                                                }
-                                            }}
-                                            required
-                                        />
-
-                                        <div className="pr-4 sm:pr-6 flex items-center gap-3">
-                                            {isLoading && fetchStatus?.type === 'loading' ? (
-                                                <div className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-600 rounded-full border border-orange-100 whitespace-nowrap">
-                                                    <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                                                    <span className="hidden sm:inline text-xs font-black tracking-wide">Extracting...</span>
+                                            {fetchError && (
+                                                <div className="px-6 pb-4 pt-2">
+                                                    <div className="bg-red-50 border border-red-100 text-red-600 text-[11px] font-black px-4 py-2 rounded-xl flex items-center gap-2">
+                                                        <AlertCircle size={14} />
+                                                        {fetchError}
+                                                    </div>
                                                 </div>
-                                            ) : fetchStatus.type ? (
-                                                <div className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full border whitespace-nowrap shadow-sm backdrop-blur-md ${fetchStatus.type === 'success' ? 'bg-green-50/90 text-green-700 border-green-200' : 'bg-red-50/90 text-red-700 border-red-200'}`}>
-                                                    {fetchStatus.type === 'success' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
-                                                    <span className="hidden sm:inline text-xs font-black tracking-wide">{fetchStatus.msg}</span>
-                                                </div>
-                                            ) : null}
-                                        </div>
+                                            )}
                                     </div>
-
-                                    {dealForm.extractionWarning && (
-                                        <div className="mt-4 flex items-center justify-center gap-2 text-[10px] sm:text-xs font-bold px-4 py-2 rounded-full bg-amber-50 text-amber-600 border border-amber-200 shadow-sm relative z-10 w-fit mx-auto text-center">
-                                            <AlertCircle size={14} className="flex-shrink-0" /> {dealForm.extractionWarning}
-                                        </div>
-                                    )}
                                 </div>
-
                                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                                     {/* LEFT: Form */}
                                     <div className="lg:col-span-3 space-y-5">
@@ -1982,89 +1816,122 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                 <span className="text-xs font-black text-slate-500 uppercase tracking-wider">Product Info</span>
                                             </div>
                                             <div className="space-y-4">
-                                                <div>
-                                                    <div className="flex items-center justify-between mb-1.5">
-                                                        <label className="text-xs font-black text-slate-600 uppercase tracking-wide">Title *</label>
-                                                        <AutoBadge field="title" />
-                                                    </div>
-                                                    <input type="text" className={inputCls} placeholder="e.g. Samsung Galaxy S24 Ultra..."
-                                                        value={dealForm.title} onChange={e => { setDealForm({ ...dealForm, title: e.target.value }); clearAuto('title'); }} required />
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <div className="flex items-center justify-between mb-1.5">
-                                                            <label className="text-xs font-black text-slate-600 uppercase tracking-wide">Store *</label>
-                                                            <AutoBadge field="store" />
-                                                        </div>
-                                                        <input type="text" className={inputCls} placeholder="Amazon, Flipkart..."
-                                                            value={dealForm.store} onChange={e => { setDealForm({ ...dealForm, store: e.target.value }); clearAuto('store'); }} required />
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center justify-between mb-1.5">
-                                                            <label className="text-xs font-black text-slate-600 uppercase tracking-wide">Category *</label>
-                                                            <AutoBadge field="category" />
-                                                        </div>
-                                                        <select
-                                className={inputCls + " cursor-pointer"}
-                                value={dealForm.category}
-                                onChange={e => { setDealForm({ ...dealForm, category: e.target.value }); clearAuto('category'); }}
-                                required
-                            >
-                                <option value="">Select Category</option>
-                                {formCategories.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                ))}
-                            </select>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center justify-between mb-1.5">
-                                                        <label className="text-xs font-black text-slate-600 uppercase tracking-wide">Description</label>
-                                                        <AutoBadge field="description" />
-                                                    </div>
-                                                    <textarea className={`${inputCls} min-h-[80px] resize-none`} placeholder="Short product description..."
-                                                        value={dealForm.description} onChange={e => { setDealForm({ ...dealForm, description: e.target.value }); clearAuto('description'); }} />
-                                                </div>
+                                                 <div>
+                                                     <div className="flex items-center justify-between mb-1.5">
+                                                         <label className="text-xs font-black text-slate-600 uppercase tracking-wide">Title *</label>
+                                                     </div>
+                                                     <input type="text" name="title" className={inputCls} placeholder="e.g. Samsung Galaxy S24 Ultra..."
+                                                         value={dealForm.title} onChange={handleChange} required />
+                                                 </div>
+                                                 <div className="grid grid-cols-2 gap-4">
+                                                     <div>
+                                                         <div className="flex items-center justify-between mb-1.5">
+                                                             <label className="text-xs font-black text-slate-600 uppercase tracking-wide">Store *</label>
+                                                         </div>
+                                                         <input type="text" name="store" className={inputCls} placeholder="Amazon, Flipkart..."
+                                                             value={dealForm.store} onChange={handleChange} required />
+                                                     </div>
+                                                     <div>
+                                                         <div className="flex items-center justify-between mb-1.5">
+                                                             <label className="text-xs font-black text-slate-600 uppercase tracking-wide">Category *</label>
+                                                         </div>
+                                                         <input
+                                                             type="text"
+                                                             list="category-options"
+                                                             name="category"
+                                                             className={inputCls}
+                                                             placeholder="Select or type a category..."
+                                                             value={dealForm.category || ''}
+                                                             onChange={handleChange}
+                                                             required
+                                                         />
+                                                         <datalist id="category-options">
+                                                             {safeArray(formCategories).map((cat, idx) => (
+                                                                 <option key={cat || idx} value={cat} />
+                                                             ))}
+                                                         </datalist>
+                                                     </div>
+                                                 </div>
+                                                 <div>
+                                                     <div className="flex items-center justify-between mb-1.5">
+                                                         <label className="text-xs font-black text-slate-600 uppercase tracking-wide">Description</label>
+                                                     </div>
+                                                     <textarea name="description" className={`${inputCls} min-h-[80px] resize-none`} placeholder="Short product description..."
+                                                         value={dealForm.description} onChange={handleChange} />
+                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Pricing */}
-                                        <div className="bg-white/80 backdrop-blur-2xl rounded-[2rem] border border-white shadow-xl shadow-slate-200/40 p-6 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50">
-                                            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
-                                                <DollarSign size={14} className="text-emerald-500" />
-                                                <span className="text-xs font-black text-slate-500 uppercase tracking-wider">Pricing</span>
-                                            </div>
-                                            <div className="grid grid-cols-3 gap-4">
-                                                {[
-                                                    { label: 'Deal Price *', field: 'price', prefix: '₹', type: 'number', required: true },
-                                                    { label: 'MRP', field: 'originalPrice', prefix: '₹', type: 'number' },
-                                                    { label: 'Discount', field: 'discount', placeholder: '50%' },
-                                                ].map(({ label, field, prefix, type = 'text', required, placeholder }) => (
-                                                    <div key={field}>
-                                                        <div className="flex items-center justify-between mb-1.5">
-                                                            <label className="text-xs font-black text-slate-600 uppercase tracking-wide">{label}</label>
-                                                            <AutoBadge field={field} />
-                                                        </div>
-                                                        <div className="relative">
-                                                            {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-black text-sm">{prefix}</span>}
-                                                            <input type={type} className={`${inputCls} ${prefix ? 'pl-7' : ''}`}
-                                                                placeholder={placeholder || '0'}
-                                                                value={dealForm[field] ?? ''}
-                                                                onChange={e => { setDealForm({ ...dealForm, [field]: e.target.value }); clearAuto(field); }}
-                                                                required={required} />
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            {dealForm.price && dealForm.originalPrice && Number(dealForm.originalPrice) > Number(dealForm.price) && (
-                                                <div className="mt-4 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
-                                                    <TrendingUp size={14} className="text-emerald-600" />
-                                                    <span className="text-xs font-black text-emerald-700">
-                                                        Saving ₹{(Number(dealForm.originalPrice) - Number(dealForm.price)).toLocaleString('en-IN')} · {Math.round((1 - Number(dealForm.price) / Number(dealForm.originalPrice)) * 100)}% OFF
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
+                                         {/* Pricing Section */}
+                                         <div className="bg-white/80 backdrop-blur-2xl rounded-[2rem] border border-white shadow-xl shadow-slate-200/40 p-6 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50 space-y-4">
+                                             <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                                                 <DollarSign size={14} className="text-emerald-500" />
+                                                 <span className="text-xs font-black text-slate-500 uppercase tracking-wider">Pricing</span>
+                                             </div>
+
+                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                 {/* MRP */}
+                                                 <div>
+                                                     <label className="text-xs font-black text-slate-600 uppercase tracking-wide block mb-1.5">
+                                                         MRP
+                                                     </label>
+                                                     <div className="relative">
+                                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-black text-sm">₹</span>
+                                                         <input
+                                                             type="number"
+                                                             name="mrp"
+                                                             value={dealForm.mrp || ""}
+                                                             onChange={handleChange}
+                                                             placeholder="Enter MRP"
+                                                             className={inputCls + " pl-7"}
+                                                         />
+                                                     </div>
+                                                 </div>
+
+                                                 {/* Deal Price */}
+                                                 <div>
+                                                     <label className="text-xs font-black text-slate-600 uppercase tracking-wide block mb-1.5">
+                                                         Deal Price
+                                                     </label>
+                                                     <div className="relative">
+                                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-black text-sm">₹</span>
+                                                         <input
+                                                             type="number"
+                                                             name="dealPrice"
+                                                             value={dealForm.dealPrice || ""}
+                                                             onChange={handleChange}
+                                                             placeholder="Enter Deal Price"
+                                                             className={inputCls + " pl-7"}
+                                                             required
+                                                         />
+                                                     </div>
+                                                 </div>
+
+                                                 {/* Discount */}
+                                                 <div>
+                                                     <label className="text-xs font-black text-slate-600 uppercase tracking-wide block mb-1.5">
+                                                         Discount %
+                                                     </label>
+                                                     <input
+                                                         type="number"
+                                                         name="discount"
+                                                         value={dealForm.discount || ""}
+                                                         onChange={handleChange}
+                                                         placeholder="Discount %"
+                                                         className={inputCls}
+                                                     />
+                                                 </div>
+                                             </div>
+
+                                             {dealForm.dealPrice && dealForm.mrp && Number(dealForm.mrp) > Number(dealForm.dealPrice) && (
+                                                 <div className="mt-4 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                                                     <TrendingUp size={14} className="text-emerald-600" />
+                                                     <span className="text-xs font-black text-emerald-700">
+                                                         Saving ₹{(Number(dealForm.mrp) - Number(dealForm.dealPrice)).toLocaleString('en-IN')} · {dealForm.discount}% OFF
+                                                     </span>
+                                                 </div>
+                                             )}
+                                         </div>
 
                                         {/* Media & link */}
                                         <div className="bg-white/80 backdrop-blur-2xl rounded-[2rem] border border-white shadow-xl shadow-slate-200/40 p-6 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50">
@@ -2073,28 +1940,70 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                 <span className="text-xs font-black text-slate-500 uppercase tracking-wider">Media & Link</span>
                                             </div>
                                             <div className="space-y-4">
-                                                <div>
-                                                    <label className="text-xs font-black text-slate-600 uppercase tracking-wide mb-1.5 block">Product URL *</label>
-                                                    <input
-                                                        type="url"
-                                                        className={inputCls}
-                                                        placeholder="https://www.amazon.in/dp/..."
-                                                        value={dealForm.link}
-                                                        onChange={e => { setDealForm({ ...dealForm, link: e.target.value }); clearAuto('link'); }}
-                                                        required
-                                                    />
+                                                 <div>
+                                                     <div className="flex items-center justify-between mb-1.5">
+                                                         <label className="text-xs font-black text-slate-600 uppercase tracking-wide block">Product URL *</label>
+                                                         {dealForm.productUrl && (
+                                                             <button
+                                                                 type="button"
+                                                                 onClick={handleFetchDeal}
+                                                                 disabled={isFetching}
+                                                                 className="text-[10px] font-black text-orange-600 uppercase tracking-widest hover:text-orange-700 transition-colors flex items-center gap-1.5"
+                                                             >
+                                                                 {isFetching ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} fill="currentColor" />}
+                                                                 {isFetching ? 'Fetching...' : 'Fetch Deal Details'}
+                                                             </button>
+                                                         )}
+                                                     </div>
+                                                     <input
+                                                         id="productUrl"
+                                                         type="url"
+                                                         name="productUrl"
+                                                         className={inputCls}
+                                                         placeholder="https://www.amazon.in/dp/..."
+                                                         value={dealForm.productUrl}
+                                                         onChange={handleChange}
+                                                         onKeyDown={e => {
+                                                             if (e.key === 'Enter') {
+                                                                 e.preventDefault();
+                                                                 handleFetchDeal(dealForm.productUrl);
+                                                             }
+                                                         }}
+                                                         required
+                                                     />
                                                     <p className="mt-2 text-[11px] text-slate-500 font-medium">This stays as the original product URL used for extraction and canonical storage.</p>
                                                 </div>
 
                                                 <div>
-                                                    <label className="text-xs font-black text-slate-600 uppercase tracking-wide mb-1.5 block">Affiliate URL Override</label>
-                                                    <input
-                                                        type="url"
-                                                        className={inputCls}
-                                                        placeholder="Optional manual affiliate URL"
-                                                        value={dealForm.affiliateOverrideLink || ''}
-                                                        onChange={e => setDealForm({ ...dealForm, affiliateOverrideLink: e.target.value })}
-                                                    />
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <label className="text-xs font-black text-slate-600 uppercase tracking-wide block">Affiliate URL Override</label>
+                                                        {dealForm.productUrl && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const generated = buildAffiliateUrl({
+                                                                        url: dealForm.productUrl,
+                                                                        store: dealForm.store,
+                                                                        settings: affiliateSettings,
+                                                                        manualOverride: ''
+                                                                    });
+                                                                    setDealForm(prev => ({ ...prev, affiliateOverrideLink: generated }));
+                                                                    showToast?.('Affiliate link generated from settings.', 'success');
+                                                                }}
+                                                                className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-700 transition-colors flex items-center gap-1"
+                                                            >
+                                                                <Zap size={10} fill="currentColor" /> Auto-Generate
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                     <input
+                                                         type="url"
+                                                         name="affiliateOverrideLink"
+                                                         className={inputCls}
+                                                         placeholder="Optional manual affiliate URL"
+                                                         value={dealForm.affiliateOverrideLink || ''}
+                                                         onChange={handleChange}
+                                                     />
                                                     <p className="mt-2 text-[11px] text-slate-500 font-medium">Leave blank to auto-build the affiliate link from the selected store rule.</p>
                                                 </div>
 
@@ -2108,13 +2017,25 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                 <div>
                                                     <div className="flex items-center justify-between mb-1.5">
                                                         <label className="text-xs font-black text-slate-600 uppercase tracking-wide">Image URL *</label>
-                                                        <AutoBadge field="image" />
                                                     </div>
-                                                    <div className="relative mb-4">
-                                                        <ImageIcon size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                                                        <input type="url" className={`${inputCls} pl-10`} placeholder="https://cdn.example.com/product.jpg"
-                                                            value={dealForm.image} onChange={e => { setDealForm({ ...dealForm, image: e.target.value }); clearAuto('image'); }} required />
-                                                    </div>
+                                                     <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                                                         <div className="relative flex-1">
+                                                             <ImageIcon size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                             <input type="url" name="imageUrl" className={`${inputCls} pl-10`} placeholder="https://cdn.example.com/product.jpg"
+                                                                 value={dealForm.imageUrl} onChange={handleChange} required />
+                                                         </div>
+                                                         <button 
+                                                             type="button" 
+                                                             onClick={() => {
+                                                                 if (dealForm.imageUrl && !dealForm.images?.includes(dealForm.imageUrl)) {
+                                                                     setDealForm(prev => ({ ...prev, images: [dealForm.imageUrl, ...(safeArray(prev.images))] }));
+                                                                 }
+                                                             }}
+                                                             className="px-4 py-3 sm:py-0 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-black uppercase tracking-wider rounded-xl whitespace-nowrap transition-colors shadow-sm flex items-center justify-center gap-2"
+                                                         >
+                                                             <PlusCircle size={14} /> Add to Selection
+                                                         </button>
+                                                     </div>
 
                                                     {dealForm.images && dealForm.images.length > 0 && (
                                                         <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-500">
@@ -2125,8 +2046,8 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                                 {dealForm.images.map((imgUrl, idx) => (
                                                                     <div
                                                                         key={idx}
-                                                                        className={`relative group/img flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden snap-center cursor-pointer transition-all ${dealForm.image === imgUrl ? 'ring-4 ring-orange-500 shadow-md scale-105' : 'bg-slate-50 border border-slate-200 hover:border-orange-300'}`}
-                                                                        onClick={() => setDealForm({ ...dealForm, image: imgUrl })}
+                                                                        className={`relative group/img flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden snap-center cursor-pointer transition-all ${dealForm.imageUrl === imgUrl ? 'ring-4 ring-orange-500 shadow-md scale-105' : 'bg-slate-50 border border-slate-200 hover:border-orange-300'}`}
+                                                                        onClick={() => setDealForm({ ...dealForm, imageUrl: imgUrl })}
                                                                     >
                                                                         <img
                                                                             src={optimizeImageUrl(imgUrl)}
@@ -2135,7 +2056,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                                             loading="lazy"
                                                                             onError={(e) => { e.target.style.display = 'none'; }}
                                                                         />
-                                                                        
+
                                                                         {/* Delete Button */}
                                                                         <button
                                                                             type="button"
@@ -2145,7 +2066,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                                                 setDealForm({
                                                                                     ...dealForm,
                                                                                     images: newImages,
-                                                                                    image: dealForm.image === imgUrl ? (newImages[0] || '') : dealForm.image
+                                                                                    imageUrl: dealForm.imageUrl === imgUrl ? (newImages[0] || '') : dealForm.imageUrl
                                                                                 });
                                                                             }}
                                                                             className="absolute top-1 right-1 bg-red-500/90 hover:bg-red-600 text-white p-1 rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity z-30 shadow-lg"
@@ -2154,7 +2075,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                                             <X size={12} strokeWidth={3} />
                                                                         </button>
 
-                                                                        {dealForm.image === imgUrl && (
+                                                                        {dealForm.imageUrl === imgUrl && (
                                                                             <div className="absolute inset-0 bg-orange-500/20 z-20 flex items-center justify-center pointer-events-none">
                                                                                 <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-sm">
                                                                                     <CheckCircle size={14} />
@@ -2184,7 +2105,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                         checked={dealForm.featured || false}
                                                         onChange={e => setDealForm({ ...dealForm, featured: e.target.checked })}
                                                     />
-                                                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                                                 </label>
                                             </div>
 
@@ -2214,7 +2135,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
                                                 <div className="relative z-10 flex items-center gap-2">
                                                     {isLoading
-                                                        ? <><div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {fetchStatus?.type === 'loading' ? 'Extracting...' : 'Publishing...'}</>
+                                                        ? <><div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Publishing...</>
                                                         : editMode
                                                             ? <><Pencil size={18} /> Update Deal</>
                                                             : <><Zap size={18} fill="currentColor" /> Publish Deal</>
@@ -2233,21 +2154,21 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
 
                                     {/* RIGHT: Live Preview */}
                                     <div className="lg:col-span-2">
-                                        <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] border border-white shadow-2xl shadow-slate-200/50 p-6 sticky top-24 overflow-hidden group">
+                                        <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] border border-white shadow-2xl shadow-slate-200/50 p-6 lg:sticky lg:top-24 max-h-[calc(100vh-8rem)] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent group">
                                             <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
                                             <div className="flex items-center gap-2 mb-5 pb-4 border-b border-slate-100/50 relative z-10">
                                                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                                                 <span className="text-xs font-black text-slate-500 uppercase tracking-wider">Live Preview</span>
                                             </div>
 
-                                            {dealForm.image ? (
+                                            {dealForm.imageUrl ? (
                                                 <div className="rounded-3xl overflow-hidden bg-white shadow-xl shadow-slate-200/50 border border-slate-100 group/card relative transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
                                                     <div className="relative bg-white h-60 flex items-center justify-center p-8 overflow-hidden">
                                                         <div className="absolute inset-0 bg-gradient-to-b from-slate-50/80 to-transparent pointer-events-none" />
-                                                        <img src={optimizeImageUrl(dealForm.image)} alt="Preview" className="max-h-full max-w-full object-contain mix-blend-multiply drop-shadow-md z-10 transition-transform duration-500 group-hover/card:scale-105" />
+                                                        <img src={optimizeImageUrl(dealForm.imageUrl || dealForm.images?.[0])} alt="Preview" className="max-h-full max-w-full object-contain mix-blend-multiply drop-shadow-md z-10 transition-transform duration-500 group-hover/card:scale-105" />
                                                         {dealForm.discount && (
                                                             <div className="absolute top-4 left-4 bg-gradient-to-r from-orange-500 to-rose-500 text-white text-[11px] font-black px-3 py-1.5 rounded-full shadow-lg shadow-orange-500/30 z-20">
-                                                                {dealForm.discount} OFF
+                                                                {String(dealForm.discount).endsWith('%') ? dealForm.discount : `${dealForm.discount}%`} OFF
                                                             </div>
                                                         )}
                                                     </div>
@@ -2267,11 +2188,11 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                                         <p className="text-base font-bold text-slate-800 line-clamp-2 leading-snug">{dealForm.title || 'Product Title'}</p>
                                                         <div className="flex items-end gap-3 pt-1">
                                                             <span className="text-3xl font-black text-slate-900 tracking-tight">
-                                                                {dealForm.price ? `₹${Number(dealForm.price).toLocaleString('en-IN')}` : '₹0'}
+                                                                {dealForm.dealPrice ? `₹${Number(dealForm.dealPrice).toLocaleString('en-IN')}` : '₹0'}
                                                             </span>
-                                                            {dealForm.originalPrice && (
+                                                            {dealForm.mrp && (
                                                                 <span className="text-sm font-semibold text-slate-400 line-through mb-1.5">
-                                                                    ₹{Number(dealForm.originalPrice).toLocaleString('en-IN')}
+                                                                    ₹{Number(dealForm.mrp).toLocaleString('en-IN')}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -2291,10 +2212,20 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                             )}
 
                                             {/* Scanner Enrichment Sections */}
-                                            {dealForm.link && !isLoading && (
+                                            {dealForm.productUrl && !isLoading && (
                                                 <div className="mt-6 space-y-4">
-                                                    <DealAutomationChecklist form={{ ...dealForm, affiliateLink: affiliatePreviewUrl }} />
-                                                    <DuplicateCandidatesPanel candidates={duplicateCandidatesForForm} onEdit={handleEditClick} />
+                                                    <DealAutomationChecklist
+                                                        form={{ ...dealForm, affiliateLink: affiliatePreviewUrl }}
+                                                        isLikelyHttpUrl={isLikelyHttpUrl}
+                                                        sanitizeUrl={sanitizeUrl}
+                                                        normalizeNumberLike={normalizeNumberLike}
+                                                    />
+                                                    <DuplicateCandidatesPanel
+                                                        candidates={duplicateCandidates}
+                                                        onEdit={handleEditClick}
+                                                        getDealId={getDealId}
+                                                        getDealDisplayPrice={getDealDisplayPrice}
+                                                    />
                                                 </div>
                                             )}
                                         </div>
@@ -2303,61 +2234,6 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                             </motion.div>
                         )}
 
-                        {activeTab === 'coupons' && (
-                            <motion.div
-                                key="coupons"
-                                initial={{ opacity: 0, y: 16 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0 }}
-                                className="relative z-10"
-                            >
-                                <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                                    <div>
-                                        <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-orange-50 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-orange-600">
-                                            <BadgePercent size={14} />
-                                            Coupons + offers
-                                        </div>
-                                        <h2 className="text-4xl font-black tracking-tight text-slate-950">Coupon Management</h2>
-                                        <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-500">
-                                            Create verified coupon codes, instant deals, cashback, bank offers and store promotions that appear on public coupon pages.
-                                        </p>
-                                    </div>
-                                    <Link
-                                        to="/coupons"
-                                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-4 text-xs font-black uppercase tracking-widest text-white shadow-lg active:scale-95"
-                                    >
-                                        <ExternalLink size={15} />
-                                        View Coupons Page
-                                    </Link>
-                                </div>
-
-                                <AdminCouponManager
-                                    coupons={coupons}
-                                    filteredCoupons={filteredCoupons}
-                                    couponForm={couponForm}
-                                    couponSearch={couponSearch}
-                                    couponTypeFilter={couponTypeFilter}
-                                    couponStoreOptions={couponStoreOptions}
-                                    offerTypes={COUPON_OFFER_TYPES}
-                                    inputCls={inputCls}
-                                    isSavingCoupon={isSavingCoupon}
-                                    couponsLoading={couponsLoading}
-                                    isScanningCoupons={isScanningCoupons}
-                                    couponScanStatus={couponScanStatus}
-                                    editingCouponId={editingCouponId}
-                                    onSearchChange={setCouponSearch}
-                                    onTypeFilterChange={setCouponTypeFilter}
-                                    onFormChange={handleCouponFormChange}
-                                    onSubmit={handleCouponSubmit}
-                                    onReset={resetCouponForm}
-                                    onEdit={handleEditCoupon}
-                                    onDelete={handleDeleteCoupon}
-                                    onRefresh={refreshCoupons}
-                                    onScan={handleCouponScan}
-                                    showToast={showToast}
-                                />
-                            </motion.div>
-                        )}
 
                         {activeTab === 'affiliate-tags' && (
                             <motion.div
@@ -2377,7 +2253,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                         </div>
                                         <p className="text-sm text-slate-500 font-semibold pl-14">Manage store-wise affiliate parameters and auto-apply them to Buy Now links.</p>
                                         <p className="text-xs text-slate-400 font-bold pl-14 mt-2">
-                                            {affiliateSettings.length} synced store{affiliateSettings.length === 1 ? '' : 's'} · new stores appear here automatically.
+                                            {(Array.isArray(affiliateSettings) ? affiliateSettings.length : 0)} synced store{(Array.isArray(affiliateSettings) ? affiliateSettings.length : 0) === 1 ? '' : 's'} · new stores appear here automatically.
                                         </p>
                                     </div>
                                     <button
@@ -2400,8 +2276,8 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                     </button>
                                 </div>
 
-                                <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 mb-6">
-                                    {affiliateSettings.length === 0 ? (
+                                <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] border border-white shadow-xl shadow-slate-200/40 p-6 mb-6">
+                                    {(!Array.isArray(affiliateSettings) || affiliateSettings.length === 0) ? (
                                         <div className="rounded-[2rem] border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
                                             <ExternalLink size={28} className="mx-auto mb-4 text-slate-300" />
                                             <h3 className="text-xl font-black text-slate-900">No live stores found yet</h3>
@@ -2410,133 +2286,147 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                             </p>
                                         </div>
                                     ) : (
-                                    <div className="grid gap-5">
-                                        {affiliateSettings.map((setting) => (
-                                            <div key={setting.storeSlug || setting.store} className="rounded-[2rem] border border-slate-200 bg-slate-50 p-5">
-                                                <div className="mb-5 flex flex-col gap-4 border-b border-slate-200/70 pb-5 lg:flex-row lg:items-center lg:justify-between">
-                                                    <div className="min-w-0">
-                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Store</label>
-                                                        <div className="flex min-h-12 items-center gap-3 rounded-xl bg-white px-4 py-3 text-sm font-black text-slate-900 border border-slate-200">
-                                                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-                                                                {setting.store?.charAt(0) || 'S'}
-                                                            </span>
+                                        <div className="grid gap-5">
+                                            {(Array.isArray(affiliateSettings) ? affiliateSettings : []).map((setting) => (
+                                                <div key={setting.storeSlug || setting.store} className="rounded-[2.5rem] border border-slate-200 bg-white shadow-xl shadow-slate-200/20 p-6 transition-all hover:shadow-2xl hover:shadow-slate-200/40 hover:-translate-y-1">
+                                                    <div className="mb-6 flex flex-col gap-6 border-b border-slate-100 pb-6 lg:flex-row lg:items-center lg:justify-between">
+                                                        <div className="flex items-center gap-5">
+                                                            <div className="relative group">
+                                                                <div className="absolute inset-0 bg-blue-500/10 rounded-2xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                                                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg border border-slate-100 relative z-10 overflow-hidden p-2">
+                                                                    <img
+                                                                        src={getStoreLogoUrl(setting.store)}
+                                                                        alt={setting.store}
+                                                                        className="w-full h-full object-contain"
+                                                                        onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${setting.store}&background=random`; }}
+                                                                    />
+                                                                </div>
+                                                            </div>
                                                             <div className="min-w-0">
-                                                                <p className="truncate">{setting.store}</p>
-                                                                <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400">{setting.storeSlug}</p>
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <h4 className="text-xl font-black text-slate-900 truncate">{setting.store}</h4>
+                                                                    {setting.enabled && !setting.pendingSetup && (
+                                                                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 flex items-center gap-2">
+                                                                    <Layers size={10} /> {setting.storeSlug}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex flex-wrap items-center gap-3">
+                                                            <span className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${setting.enabled && !setting.pendingSetup ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>
+                                                                {setting.enabled && !setting.pendingSetup ? 'Configured' : 'Pending setup'}
+                                                            </span>
+                                                            <div className="flex flex-col items-end lg:items-start justify-center gap-1.5">
+                                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Enabled</label>
+                                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="sr-only peer"
+                                                                        checked={Boolean(setting.enabled)}
+                                                                        onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'enabled', e.target.checked)}
+                                                                    />
+                                                                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                                                    <span className="ml-3 text-sm font-bold text-slate-700">{setting.enabled ? 'On' : 'Off'}</span>
+                                                                </label>
                                                             </div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex flex-wrap items-center gap-3">
-                                                        <span className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${setting.enabled && !setting.pendingSetup ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>
-                                                            {setting.enabled && !setting.pendingSetup ? 'Configured' : 'Pending setup'}
-                                                        </span>
-                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Enabled</label>
-                                                        <label className="h-12 flex items-center justify-between px-4 rounded-xl bg-white border border-slate-200 cursor-pointer relative">
-                                                            <span className="text-sm font-bold text-slate-700">{setting.enabled ? 'On' : 'Off'}</span>
+                                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-end">
+
+                                                        <div>
+                                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Parameter Key</label>
                                                             <input
-                                                                type="checkbox"
-                                                                className="sr-only peer"
-                                                                checked={Boolean(setting.enabled)}
-                                                                onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'enabled', e.target.checked)}
+                                                                type="text"
+                                                                className={inputCls}
+                                                                placeholder="tag"
+                                                                value={setting.paramKey}
+                                                                onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'paramKey', e.target.value)}
                                                             />
-                                                            <div className="w-9 h-5 bg-slate-200 rounded-full peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[16px] after:right-[34px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                                                        </label>
-                                                    </div>
-                                                </div>
-
-                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-end">
-
-                                                    <div>
-                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Parameter Key</label>
-                                                        <input
-                                                            type="text"
-                                                            className={inputCls}
-                                                            placeholder="tag"
-                                                            value={setting.paramKey}
-                                                            onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'paramKey', e.target.value)}
-                                                        />
-                                                    </div>
-
-                                                    <div>
-                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Parameter Value</label>
-                                                        <input
-                                                            type="text"
-                                                            className={inputCls}
-                                                            placeholder="mytag-21"
-                                                            value={setting.paramValue}
-                                                            onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'paramValue', e.target.value)}
-                                                        />
-                                                    </div>
-
-                                                    <div>
-                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Optional URL Pattern</label>
-                                                        <input
-                                                            type="text"
-                                                            className={inputCls}
-                                                            placeholder="amazon.in or /dp/"
-                                                            value={setting.urlPattern || ''}
-                                                            onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'urlPattern', e.target.value)}
-                                                        />
-                                                    </div>
-
-                                                    <div>
-                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Admin Notes</label>
-                                                        <input
-                                                            type="text"
-                                                            className={inputCls}
-                                                            placeholder="Program ID, approval notes, payout rules..."
-                                                            value={setting.notes || ''}
-                                                            onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'notes', e.target.value)}
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                <div className="mt-5 grid gap-4 rounded-[1.5rem] border border-slate-200 bg-white p-4 lg:grid-cols-[1fr_auto] lg:items-center">
-                                                    <div className="min-w-0 space-y-3">
-                                                        <div>
-                                                            <p className="mb-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Sample original URL</p>
-                                                            <p className="break-all text-xs font-semibold text-slate-600">{getSampleProductUrlForAffiliateSetting(setting) || 'No product URL sample available for this store yet.'}</p>
                                                         </div>
+
                                                         <div>
-                                                            <p className="mb-1 text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">Current final Buy Now URL</p>
-                                                            <p className="break-all text-xs font-black text-slate-900">{getAffiliatePreviewForSetting(setting) || 'Enable rule + add key/value to generate a preview.'}</p>
+                                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Parameter Value</label>
+                                                            <input
+                                                                type="text"
+                                                                className={inputCls}
+                                                                placeholder="mytag-21"
+                                                                value={setting.paramValue}
+                                                                onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'paramValue', e.target.value)}
+                                                            />
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Optional URL Pattern</label>
+                                                            <input
+                                                                type="text"
+                                                                className={inputCls}
+                                                                placeholder="amazon.in or /dp/"
+                                                                value={setting.urlPattern || ''}
+                                                                onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'urlPattern', e.target.value)}
+                                                            />
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Admin Notes</label>
+                                                            <input
+                                                                type="text"
+                                                                className={inputCls}
+                                                                placeholder="Program ID, approval notes, payout rules..."
+                                                                value={setting.notes || ''}
+                                                                onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'notes', e.target.value)}
+                                                            />
                                                         </div>
                                                     </div>
-                                                    <div className="flex flex-wrap gap-3 lg:flex-col">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const preview = getAffiliatePreviewForSetting(setting);
-                                                                if (!preview) {
-                                                                    showToast?.('No preview URL available for this store yet.', 'info');
-                                                                    return;
-                                                                }
-                                                                window.open(preview, '_blank', 'noopener,noreferrer');
-                                                            }}
-                                                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg active:scale-95"
-                                                        >
-                                                            <ExternalLink size={14} />
-                                                            Test
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const preview = getAffiliatePreviewForSetting(setting);
-                                                                if (!preview) return;
-                                                                navigator.clipboard.writeText(preview);
-                                                                showToast?.(`${setting.store} preview copied.`, 'success');
-                                                            }}
-                                                            disabled={!getAffiliatePreviewForSetting(setting)}
-                                                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-700 disabled:opacity-50"
-                                                        >
-                                                            Copy
-                                                        </button>
+
+                                                    <div className="mt-5 grid gap-4 rounded-[1.5rem] border border-slate-200 bg-white p-4 lg:grid-cols-[1fr_auto] lg:items-center">
+                                                        <div className="min-w-0 space-y-3">
+                                                            <div>
+                                                                <p className="mb-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Sample original URL</p>
+                                                                <p className="break-all text-xs font-semibold text-slate-600">{getSampleProductUrlForAffiliateSetting(setting) || 'No product URL sample available for this store yet.'}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="mb-1 text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">Current final Buy Now URL</p>
+                                                                <p className="break-all text-xs font-black text-slate-900">{getAffiliatePreviewForSetting(setting) || 'Enable rule + add key/value to generate a preview.'}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-3 lg:flex-col">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const preview = getAffiliatePreviewForSetting(setting);
+                                                                    if (!preview) {
+                                                                        showToast?.('No preview URL available for this store yet.', 'info');
+                                                                        return;
+                                                                    }
+                                                                    window.open(preview, '_blank', 'noopener,noreferrer');
+                                                                }}
+                                                                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg active:scale-95"
+                                                            >
+                                                                <ExternalLink size={14} />
+                                                                Test
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const preview = getAffiliatePreviewForSetting(setting);
+                                                                    if (!preview) return;
+                                                                    navigator.clipboard.writeText(preview);
+                                                                    showToast?.(`${setting.store} preview copied.`, 'success');
+                                                                }}
+                                                                disabled={!getAffiliatePreviewForSetting(setting)}
+                                                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-700 disabled:opacity-50"
+                                                            >
+                                                                Copy
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                            ))}
+                                        </div>
                                     )}
                                 </div>
 
@@ -2549,7 +2439,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                         <div>
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Original Product URL</label>
                                             <div className="min-h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 break-all">
-                                                {dealForm.link || 'Go to Add Deal and paste a product URL to preview the final affiliate link.'}
+                                                {dealForm.productUrl || 'Go to Add Deal and paste a product URL to preview the final affiliate link.'}
                                             </div>
                                         </div>
                                         <div>
@@ -2641,8 +2531,8 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm, setDealFor
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                 <input className={inputCls} value={quickEditDeal.store || ''} onChange={(event) => setQuickEditDeal(prev => ({ ...prev, store: event.target.value, storeName: event.target.value }))} placeholder="Store" />
                                                 <input className={inputCls} value={quickEditDeal.category || ''} onChange={(event) => setQuickEditDeal(prev => ({ ...prev, category: event.target.value }))} placeholder="Category" />
-                                                <input type="number" className={inputCls} value={quickEditDeal.price || ''} onChange={(event) => setQuickEditDeal(prev => ({ ...prev, price: event.target.value, dealPrice: Number(event.target.value) || 0 }))} placeholder="Deal price" />
-                                                <input type="number" className={inputCls} value={quickEditDeal.originalPrice || ''} onChange={(event) => setQuickEditDeal(prev => ({ ...prev, originalPrice: event.target.value, mrp: Number(event.target.value) || 0 }))} placeholder="MRP" />
+                                                <input type="number" className={inputCls} value={quickEditDeal.dealPrice || ''} onChange={(event) => setQuickEditDeal(prev => ({ ...prev, dealPrice: Number(event.target.value) || 0 }))} placeholder="Deal price" />
+                                                <input type="number" className={inputCls} value={quickEditDeal.price || ''} onChange={(event) => setQuickEditDeal(prev => ({ ...prev, price: Number(event.target.value) || 0, mrp: Number(event.target.value) || 0 }))} placeholder="MRP" />
                                             </div>
                                             <input className={inputCls} value={quickEditDeal.image || ''} onChange={(event) => setQuickEditDeal(prev => ({ ...prev, image: event.target.value }))} placeholder="Image URL" />
                                             <div className="flex flex-col gap-3 sm:flex-row">

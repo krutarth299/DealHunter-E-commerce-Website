@@ -8,20 +8,23 @@
         "start": "node index.js",
         "dev": "nodemon index.js",
         "repair:pricing": "node scripts/repair-deal-pricing.js",
-        "repair:pricing:reextract": "node scripts/reextract-invalid-pricing.js"
+        "db:cleanup": "node scripts/cleanup-db.js",
+        "db:clear": "node scripts/cleanup-db.js --all"
+    },
+    "engines": {
+        "node": ">=20 <26"
     },
     "keywords": [],
     "author": "",
     "license": "ISC",
     "dependencies": {
-        "axios": "^1.13.6",
+        "axios": "^1.16.1",
         "cheerio": "^1.2.0",
         "cors": "^2.8.5",
         "dotenv": "^16.4.5",
         "express": "^4.19.2",
         "mongoose": "^8.3.2",
-        "node-fetch": "^2.7.0",
-        "puppeteer": "^24.37.5",
+        "puppeteer": "^24.43.1",
         "puppeteer-extra": "^3.3.6",
         "puppeteer-extra-plugin-stealth": "^2.11.2",
         "socket.io": "^4.8.3"

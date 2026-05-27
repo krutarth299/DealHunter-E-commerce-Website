@@ -5,7 +5,6 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Star, Heart, ShoppingBag, ShieldCheck, Clock, Info, ExternalLink, TrendingDown, CheckCircle2, X, Share2, PlayCircle, Store, Eye, BarChart3, Sparkles, Maximize2, Zap } from 'lucide-react';
 import DealsGrid from '../components/DealsGrid';
-import ProductCouponStrip from '../components/ProductCouponStrip';
 import { useWishlistAnimation } from '../context/wishlistAnimationContextDefinition';
 import SEO from '../components/SEO';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,13 +13,14 @@ import { resolveBuyLink } from '../utils/affiliateLinks';
 import { useRecentlyViewed } from '../context/RecentlyViewedContext';
 import { resetProductRouteScroll } from '../utils/scroll';
 import { getDisplayTitle } from '../utils/productTitles';
+import { productMatchesParam } from '../utils/productUrls';
 import useHasHydrated from '../hooks/useHasHydrated';
+import { formatPriceDisplay, parsePriceNumber } from '../utils/dealUi';
 
-// ── Currency Detection Utilities ──────────────────────────────────
 const getCurrencySymbol = (price, store, link) => {
     const p = String(price || '');
     if (p.includes('$')) return '$';
-    if (p.includes('₹')) return '₹';
+    if (/^rs\.?/i.test(p) || p.includes('₹')) return '₹';
     if (p.includes('€')) return '€';
     if (p.includes('£')) return '£';
     if (p.includes('¥')) return '¥';
@@ -29,13 +29,13 @@ const getCurrencySymbol = (price, store, link) => {
     if (src.includes('amazon.co.uk') || src.includes('ebay.co.uk') || src.includes('argos')) return '£';
     if (src.includes('.de') || src.includes('.fr') || src.includes('.es') || src.includes('.it') || src.includes('.nl')) return '€';
     if (src.includes('amazon.co.jp') || src.includes('.jp')) return '¥';
-    return '₹'; // Default: Indian Rupee
+    return '₹';
 };
 
 const formatProductPrice = (price, store, link) => {
     if (!price && price !== 0) return null;
     const p = String(price).trim();
-    if (/^[$₹€£¥]/.test(p)) return p; // Already formatted
+    if (/^[₹$€£]/.test(p)) return p; // Already formatted
     const numStr = p.replace(/[^0-9.]/g, '');
     if (!numStr) return p;
     const symbol = getCurrencySymbol(p, store, link);
@@ -53,8 +53,7 @@ const parsePriceValue = (value) => {
 
 const getReviewCount = (product = {}, reviews = []) => {
     if (Array.isArray(reviews) && reviews.length > 0) return reviews.length;
-    if (Array.isArray(product.reviews)) return product.reviews.length;
-    return Number(product.reviewCount || product.reviewsCount || 0) || 0;
+    return Number(product.reviewCount || 0) || 0;
 };
 
 const formatCompactCount = (count = 0) => {
@@ -120,7 +119,7 @@ const getStoreLogoUrl = (product = {}) => {
 const createProductHighlights = (product = {}, title = '') => {
     const rawDescription = String(product.description || '').replace(/\s+/g, ' ').trim();
     const descriptionPoints = rawDescription
-        .split(/(?:\.\s+|•|\n|;)/)
+        .split(/(?:\.\s+||\n|;)/)
         .map((point) => point.trim().replace(/^[-*]\s*/, ''))
         .filter((point) => point.length >= 18 && point.length <= 180)
         .slice(0, 5);
@@ -135,8 +134,9 @@ const createProductHighlights = (product = {}, title = '') => {
 };
 
 const buildPriceInsight = (product = {}, alternatives = []) => {
-    const current = parsePriceValue(product.dealPrice || product.price);
-    const mrp = parsePriceValue(product.mrp || product.originalPrice);
+    const current = parsePriceValue(product.dealPrice);
+    const mrp = parsePriceValue(product.mrp || product.price || product.originalPrice);
+    const isFlipkartStore = String(product.store || product.storeName || '').toLowerCase().includes('flipkart');
     const historyPrices = (Array.isArray(product.priceHistory) ? product.priceHistory : [])
         .map((point) => parsePriceValue(point?.price || point?.dealPrice || point))
         .filter((price) => price > 0);
@@ -166,6 +166,7 @@ const buildPriceInsight = (product = {}, alternatives = []) => {
         lowest,
         average,
         discountPercent,
+        showZeroDiscount: isFlipkartStore && current > 0 && mrp > 0 && discountPercent === 0,
         quality,
         liveComparisonCount: comparisonPrices.length,
         hasPriceHistory: historyPrices.length > 0
@@ -333,10 +334,10 @@ const MobileFloatingBar = ({ product, brand, buyLink }) => {
             className="fixed bottom-[6.1rem] left-4 right-4 z-40 bg-white/95 backdrop-blur-2xl border border-slate-200 px-4 py-3.5 flex items-center justify-between gap-3 md:hidden shadow-[0_24px_60px_-22px_rgba(2,6,23,0.55)] rounded-[2rem]"
         >
             <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Buy from {product.store}</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Buy from {product?.store || 'Store'}</p>
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <span className="text-2xl font-black leading-none text-slate-900 tracking-tighter">{formatProductPrice(product.price, product.store, buyLink || product.link)}</span>
-                    {product.originalPrice && (
+                    <span className="text-2xl font-black leading-none text-slate-900 tracking-tighter">{formatProductPrice(product?.price, product?.store, buyLink || product?.link)}</span>
+                    {product?.originalPrice && (
                         <span className="text-xs text-slate-400 line-through font-bold opacity-60">{formatProductPrice(product.originalPrice, product.store, buyLink || product.link)}</span>
                     )}
                 </div>
@@ -363,7 +364,6 @@ const MobileFloatingBar = ({ product, brand, buyLink }) => {
 };
 
 const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSearch, setIsAddDealOpen, apiBase }) => {
-    // ... params & hooks
     const { id } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
@@ -379,10 +379,9 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
         resetProductRouteScroll(getProductEntryAnchor());
     }, [id, location.key]);
 
-    // Synchronous initialization for SSR support
     const initialProduct = useMemo(() => {
         if (!deals || !id) return null;
-        return deals.find(d => (d.id || d._id || d.dealId)?.toString() === id);
+        return deals.find((d) => productMatchesParam(d, id)) || null;
     }, [id, deals]);
 
     const [product, setProduct] = useState(initialProduct);
@@ -396,7 +395,6 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
     const [viewCount, setViewCount] = useState(Number(initialProduct?.views || 0) || 0);
     const [selectedVariantKey, setSelectedVariantKey] = useState('');
 
-    // Populate reviews when product loads
     useEffect(() => {
         if (product && product.reviews) {
             setReviews(product.reviews);
@@ -410,11 +408,6 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
         const prodId = product.id || product._id;
         return itemId && prodId && String(itemId) === String(prodId);
     });
-
-    // ... useEffects
-    // (omitted for brevity, keep existing useEffects)
-
-
 
     const variantOptions = React.useMemo(() => {
         const variants = Array.isArray(product?.variants) ? product.variants : [];
@@ -442,7 +435,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
             displayTitle: selectedVariant.displayTitle || undefined,
             cardTitle: selectedVariant.cardTitle || undefined,
             image: selectedVariant.image || product.image,
-            images: selectedVariant.images?.length ? selectedVariant.images : product.images,
+            images: selectedVariant.images?.length ? selectedVariant.images : (product.images || []),
             price: selectedVariant.price || product.price,
             dealPrice: selectedVariant.dealPrice || product.dealPrice,
             originalPrice: selectedVariant.originalPrice || product.originalPrice,
@@ -463,7 +456,6 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
     const productMainImage = React.useMemo(() => displayProduct ? getMainProductImage(displayProduct) : '', [displayProduct]);
     const productImages = React.useMemo(() => getProductImageGallery(displayProduct), [displayProduct]);
 
-    // Unified media array (videos then trusted product images)
     const media = React.useMemo(() => {
         if (!displayProduct) return [];
         return [...(displayProduct.videos || []), ...productImages];
@@ -483,7 +475,6 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
         setActiveImage(media[prevIdx]);
     };
 
-    // Keyboard navigation
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (media.length <= 1) return;
@@ -500,7 +491,6 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [activeImage, media]);
 
-    // Derived state for similar deals
     const similarDeals = product && deals
         ? deals.filter(d => {
             const dId = d.id || d._id;
@@ -509,18 +499,74 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
         }).slice(0, 5)
         : [];
 
-    // Real-time View Tracking & Sync
+    useEffect(() => {
+        let cancelled = false;
+
+        if (!id) {
+            setProduct(null);
+            setLoading(false);
+            return undefined;
+        }
+
+        const localMatch = Array.isArray(deals)
+            ? deals.find((deal) => productMatchesParam(deal, id))
+            : null;
+
+        if (localMatch) {
+            setProduct(localMatch);
+            setLoading(false);
+            return undefined;
+        }
+
+        if (!apiBase) {
+            setProduct(null);
+            setLoading(false);
+            return undefined;
+        }
+
+        setLoading(true);
+        const api = apiBase.replace('/user', '') || '/api';
+
+        fetch(`${api}/deals/${encodeURIComponent(id)}`, { cache: 'no-store' })
+            .then(async (response) => {
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data?.message || 'Product not found');
+                }
+                return data;
+            })
+            .then((data) => {
+                if (cancelled) return;
+                setProduct(data || null);
+            })
+            .catch((error) => {
+                if (cancelled) return;
+                console.error('[PRODUCT_DETAILS_FETCH_FAIL]', {
+                    id,
+                    message: error.message || error
+                });
+                setProduct(null);
+            })
+            .finally(() => {
+                if (cancelled) return;
+                setLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [apiBase, deals, id]);
+
     useEffect(() => {
         if (deals && deals.length > 0) {
-            const foundProduct = deals.find(d => (d.id || d._id || d.dealId)?.toString() === id);
+            const foundProduct = deals.find((d) => productMatchesParam(d, id));
             if (foundProduct) {
                 setProduct(foundProduct);
                 setLoading(false);
 
-                // Track view in background (client only)
                 if (typeof window !== 'undefined') {
                     const nid = foundProduct._id || foundProduct.id;
-                    const api = apiBase?.replace('/user', '') || 'http://localhost:5000/api';
+                    const api = apiBase?.replace('/user', '') || '/api';
                     fetch(`${api}/deals/${nid}/view`, { method: 'POST' })
                         .then(res => res.json())
                         .then(data => { if (data.views) setViewCount(data.views); })
@@ -568,14 +614,11 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
         );
     }
 
-    // Brand color map
     const getBrandColor = (store) => {
         const s = store?.toLowerCase() || '';
         if (s.includes('amazon')) return { bg: 'bg-[#FF9900]', hover: 'hover:bg-[#e68a00]', shadow: 'shadow-[#FF9900]/30', text: 'Amazon' };
         if (s.includes('flipkart')) return { bg: 'bg-[#2874f0]', hover: 'hover:bg-[#1260e0]', shadow: 'shadow-[#2874f0]/30', text: 'Flipkart' };
-        if (s.includes('meesho')) return { bg: 'bg-[#F43397]', hover: 'hover:bg-[#d82a85]', shadow: 'shadow-[#F43397]/30', text: 'Meesho' };
         if (s.includes('myntra')) return { bg: 'bg-[#ff3e6c]', hover: 'hover:bg-[#e6355f]', shadow: 'shadow-[#ff3e6c]/30', text: 'Myntra' };
-        if (s.includes('ajio')) return { bg: 'bg-[#2c4152]', hover: 'hover:bg-[#1f2d3a]', shadow: 'shadow-[#2c4152]/30', text: 'Ajio' };
         return { bg: 'bg-slate-900', hover: 'hover:bg-black', shadow: 'shadow-slate-900/30', text: store || 'Store' };
     };
 
@@ -600,6 +643,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
     const availabilityLabel = activeProduct.availability || (activeProduct.isExpired ? 'Unavailable' : 'Check on store');
     const popularityLabel = getPopularityLabel(activeProduct);
     const lowStockLabel = getLowStockLabel(activeProduct);
+
     const handleShareDeal = async () => {
         if (typeof window === 'undefined') return;
 
@@ -626,8 +670,6 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
     return (
         <div ref={pageTopRef} className="product-route-page min-h-screen bg-slate-50 text-slate-900 selection:bg-indigo-100">
             <SEO
-                title={activeDisplayTitle}
-                description={activeProduct.description || `Get the best deal on ${activeDisplayTitle} at ${activeProduct.store}. Check out the latest offers and coupons on DealSphere.`}
                 image={productImages[0]}
                 type="product"
                 product={{
@@ -731,10 +773,10 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                             </motion.div>
 
                             {/* Thumbnail Gallery */}
-                            {(productImages.length > 0 || (activeProduct.videos && activeProduct.videos.length > 0)) && (
+                            {(productImages.length > 0 || (activeProduct?.videos && activeProduct.videos.length > 0)) && (
                                 <div className="flex gap-4 overflow-x-auto max-w-full pb-4 px-2 snap-x no-scrollbar">
                                     {/* Video Thumbnails First */}
-                                    {activeProduct.videos && activeProduct.videos.map((vid, idx) => (
+                                    {(activeProduct?.videos || []).map((vid, idx) => (
                                         <button
                                             key={`vid-${idx}`}
                                             onClick={() => setActiveImage(vid)}
@@ -771,9 +813,9 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                     <span className="text-[10px] font-black bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-full flex items-center gap-1 border border-emerald-100">
                                         <CheckCircle2 size={12} /> VERIFIED DEAL
                                     </span>
-                                    {parseInt(activeProduct.discount) > 40 && (
+                                    {parseInt(activeProduct?.discount || "0") > 40 && (
                                         <span className="text-[10px] font-black bg-indigo-50 text-[#4f46e5] px-2.5 py-1 rounded-full flex items-center gap-1 animate-pulse border border-indigo-100">
-                                            🔥 BEST PRICE
+                                            ?? BEST PRICE
                                         </span>
                                     )}
                                 </div>
@@ -785,7 +827,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                         onClick={() => {
                                             if (!isWishlisted && imageRef.current) {
                                                 const rect = imageRef.current.getBoundingClientRect();
-                                                flyToWishlist(activeProduct.image, rect);
+                                                flyToWishlist(activeProduct?.image || NO_PRODUCT_IMAGE, rect);
                                             }
                                             toggleWishlist(activeProduct);
                                         }}
@@ -796,16 +838,11 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                 </div>
                             </div>
 
-                            <motion.h1
-                                initial={hasHydrated ? { opacity: 0, y: 10 } : false}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="text-xl md:text-3xl font-extrabold text-slate-900 mb-3 leading-snug tracking-tight"
-                            >
-                                {activeDisplayTitle}
-                            </motion.h1>
-
-                            <div className="mb-6 rounded-[2rem] border border-slate-100 bg-slate-50 p-4 sm:p-5">
-                                <div className="flex flex-wrap items-center gap-4">
+                            <div className="mb-4">
+                                <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight leading-[1.15] mb-4">
+                                    {activeDisplayTitle}
+                                </h1>
+                                <div className="flex items-center gap-4">
                                     {storeLogoUrl && (
                                         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
                                             <img src={storeLogoUrl} alt="" className="h-full w-full object-contain" />
@@ -845,11 +882,11 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                     <span className="inline-flex items-center gap-1.5 text-emerald-600">
                                         <ShieldCheck size={13} /> Store link verified
                                     </span>
-                                    <span className="text-slate-300">•</span>
+                                    <span className="text-slate-300"></span>
                                     <span className="inline-flex items-center gap-1.5">
                                         <Clock size={13} /> {updatedLabel}
                                     </span>
-                                    <span className="text-slate-300">•</span>
+                                    <span className="text-slate-300"></span>
                                     <span>{availabilityLabel}</span>
                                 </div>
                             </div>
@@ -857,22 +894,22 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                             <div className="mb-6 rounded-[2rem] border border-orange-100 bg-gradient-to-br from-orange-50/80 via-white to-white p-5 shadow-sm">
                                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                                     <p className="text-[10px] font-black uppercase tracking-[0.22em] text-orange-600">Deal Price</p>
-                                    {priceInsight.discountPercent > 0 && (
+                                    {(priceInsight.discountPercent > 0 || priceInsight.showZeroDiscount) && (
                                         <span className="rounded-2xl bg-orange-600 px-3 py-2 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-orange-500/20">
-                                            Save {priceInsight.discountPercent}%
+                                            Save {priceInsight.discountPercent || 0}%
                                         </span>
                                     )}
                                 </div>
                                 <div className="flex flex-wrap items-end gap-3">
                                     <span className="font-black text-slate-950 tracking-tighter leading-none text-5xl md:text-7xl">
-                                        {formatProductPrice(activeProduct.price, activeProduct.store, buyLink || activeProduct.link)}
+                                        {formatProductPrice(activeProduct.dealPrice, activeProduct.store, buyLink || activeProduct.link)}
                                     </span>
-                                    {activeProduct.originalPrice && (
-                                        <span className="pb-1 text-xl text-slate-400 line-through decoration-2 font-black opacity-80 tracking-tight">{formatProductPrice(activeProduct.originalPrice, activeProduct.store, buyLink || activeProduct.link)}</span>
+                                    {(activeProduct.mrp || activeProduct.price) && (
+                                        <span className="pb-1 text-xl text-slate-400 line-through decoration-2 font-black opacity-80 tracking-tight">{formatProductPrice(activeProduct.mrp || activeProduct.price, activeProduct.store, buyLink || activeProduct.link)}</span>
                                     )}
-                                    {priceInsight.discountPercent > 0 && (
+                                    {(priceInsight.discountPercent > 0 || priceInsight.showZeroDiscount) && (
                                         <span className="mb-1 rounded-2xl bg-red-600 px-3 py-2 text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-red-500/20">
-                                            {priceInsight.discountPercent}% OFF
+                                            {priceInsight.discountPercent || 0}% OFF
                                         </span>
                                     )}
                                 </div>
@@ -884,7 +921,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                             <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-3">
                                 {[
                                     {
-                                        show: priceInsight.discountPercent > 0,
+                                        show: priceInsight.discountPercent > 0 || priceInsight.showZeroDiscount,
                                         icon: <Zap size={14} fill="currentColor" />,
                                         label: 'Limited Time Deal',
                                         className: 'bg-orange-50 text-orange-700 border-orange-100'
@@ -976,7 +1013,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                                                 onClick={() => setSelectedVariantKey(isActive ? '' : variantKey)}
                                                                 className={`flex min-h-12 max-w-full items-center gap-2 rounded-2xl border px-3 py-2 text-left transition-all ${isActive ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50'}`}
                                                             >
-                                                                {variant.image && (
+                                                                {variant?.image && (
                                                                     <img
                                                                         src={optimizeImageUrl(variant.image)}
                                                                         alt=""
@@ -1029,8 +1066,6 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                             onShare={handleShareDeal}
                         />
                     </div>
-
-                    <ProductCouponStrip store={activeProduct.store || activeProduct.storeName} apiBase={apiBase} onToast={showToast} />
                 </div>
 
                 {/* Compact Sections: Specs & Description */}
@@ -1259,7 +1294,8 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                                 };
 
                                                 try {
-                                                    const res = await fetch(`http://localhost:5000/api/deals/${product._id || product.id}/reviews`, {
+                                                    const api = apiBase?.replace('/user', '') || '/api';
+                                                    const res = await fetch(`${api}/deals/${product._id || product.id}/reviews`, {
                                                         method: 'POST',
                                                         headers: { 'Content-Type': 'application/json' },
                                                         body: JSON.stringify(newEntry)
@@ -1306,23 +1342,23 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                         similarDeals.length > 0 ? (
                             <>
                                 <div className="flex gap-4 overflow-x-auto pb-4 md:hidden snap-x no-scrollbar">
-                                    {similarDeals.map((deal) => (
+                                    {(similarDeals || []).map((deal) => (
                                         <Link
-                                            key={deal.id || deal._id || deal.productUrl}
-                                            to={`/product/${deal.id || deal._id}`}
+                                            key={deal?.id || deal?._id || deal?.productUrl}
+                                            to={`/product/${deal?.id || deal?._id}`}
                                             className="w-64 shrink-0 snap-start rounded-[2rem] border border-slate-100 bg-white p-4 shadow-sm no-underline"
                                         >
                                             <div className="mb-4 flex h-44 items-center justify-center rounded-[1.5rem] bg-slate-50 p-4">
                                                 <img
                                                     src={getMainProductImage(deal)}
-                                                    alt={deal.cardTitle || deal.title}
+                                                    alt={deal?.cardTitle || deal?.title || 'Deal'}
                                                     className="h-full w-full object-contain"
                                                     loading="lazy"
                                                 />
                                             </div>
-                                            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-blue-600">{deal.store || deal.storeName}</p>
-                                            <h4 className="line-clamp-2 text-sm font-black leading-tight text-slate-950">{deal.cardTitle || getDisplayTitle(deal.title)}</h4>
-                                            <p className="mt-3 text-xl font-black text-slate-950">{formatProductPrice(deal.price || deal.dealPrice, deal.store, deal.link)}</p>
+                                            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-blue-600">{deal?.store || deal?.storeName || 'Store'}</p>
+                                            <h4 className="line-clamp-2 text-sm font-black leading-tight text-slate-950">{deal?.cardTitle || getDisplayTitle(deal?.title)}</h4>
+                                            <p className="mt-3 text-xl font-black text-slate-950">{formatProductPrice(deal?.price || deal?.dealPrice, deal?.store, deal?.link)}</p>
                                         </Link>
                                     ))}
                                 </div>

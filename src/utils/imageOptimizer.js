@@ -4,9 +4,24 @@ const STORE_IMAGE_CDNS = {
     amazon: ['m.media-amazon.com/images/i/', 'images-eu.ssl-images-amazon.com/images/i/', 'images-na.ssl-images-amazon.com/images/i/', 'images-na.ssl-images-amazon.com/images/p/'],
     flipkart: ['rukminim2.flixcart.com/image/', 'rukminim1.flixcart.com/image/', 'rukminim.flixcart.com/image/', 'rukmini1.flixcart.com/image/'],
     myntra: ['assets.myntassets.com/', 'myntra.myntassets.com/'],
-    ajio: ['assets.ajio.com/'],
-    meesho: ['images.meesho.com/images/products/'],
-    blinkit: ['cdn.grofers.com/', 'cdn.blinkit.com/']
+    blinkit: ['cdn.grofers.com/', 'cdn.blinkit.com/'],
+    nykaa: ['images-static.nykaa.com/', 'adn-static1.nykaa.com/', 'www.nykaa.com/media/'],
+    tatacliq: ['img.tatacliq.com/images/i', 'assets.tatacliq.com/'],
+    croma: ['media-ik.croma.com/prod/https://media.croma.com/image/upload/', 'media.croma.com/image/upload/'],
+    reliancedigital: ['www.reliancedigital.in/medias/', 'reliancedigital.in/medias/'],
+    firstcry: ['cdn.fcglcdn.com/brainbees/images/products/', 'cdn.fcglcdn.com/brainbees/images/boutique/'],
+    purplle: ['media6.ppl-media.com/mediafiles/', 'media6.purplle.com/'],
+    lenskart: ['static1.lenskart.com/media/catalog/product/', 'static.lenskart.com/media/catalog/product/'],
+    snapdeal: ['n1.sdlcdn.com/imgs/', 'n2.sdlcdn.com/imgs/', 'n3.sdlcdn.com/imgs/', 'n4.sdlcdn.com/imgs/'],
+    tata1mg: ['onemg.gumlet.io/', 'res.cloudinary.com/du8msdgbj/image/upload/'],
+    pharmeasy: ['cdn01.pharmeasy.in/dam/products_otc/', 'cdn01.pharmeasy.in/dam/products/'],
+    bigbasket: ['www.bigbasket.com/media/uploads/p/', 'bbassets.com/media/uploads/p/'],
+    pepperfry: ['ii1.pepperfry.com/media/catalog/product/', 'ii2.pepperfry.com/media/catalog/product/'],
+    urbanladder: ['www.ulcdn.net/images/products/', 'ulcdn.net/images/products/'],
+    ikea: ['www.ikea.com/in/en/images/products/', 'www.ikea.com/images/'],
+    jiomart: ['www.jiomart.com/images/product/', 'jmd-asp.jiomart.com/images/product/'],
+    zepto: ['cdn.zeptonow.com/production/'],
+    travel: ['promos.makemytrip.com/', 'gos3.ibcdn.com/', 'images.ixigo.com/', 'www.yatra.com/']
 };
 
 export const optimizeImageUrl = (url) => {
@@ -49,9 +64,21 @@ export const optimizeImageUrl = (url) => {
                 .replace('w_360', 'w_1080');
         }
 
-        // Ajio: Ensure high resolution
-        if (url.includes('ajio.com')) {
-            optimized = url.replace(/w_\d+/, 'w_800').replace(/h_\d+/, 'h_800');
+        if (url.includes('croma.com/image/upload')) {
+            optimized = optimized
+                .replace(/\/w_\d+,h_\d+/, '/w_1200,h_1200')
+                .replace(/\/w_\d+/i, '/w_1200')
+                .replace(/\/h_\d+/i, '/h_1200');
+        }
+
+        if (url.includes('tatacliq.com/images/i')) {
+            // Tata Cliq uses formats like /437Wx649H/ or _437Wx649H_
+            // It's safest to leave the original extracted size to prevent 404s,
+            // as their backend doesn't support arbitrary dimension scaling.
+        }
+
+        if (url.includes('bigbasket.com/media/uploads/p/')) {
+            optimized = optimized.replace(/\/s\/|\/m\//i, '/l/');
         }
     } catch (e) {
         return url;
@@ -67,24 +94,42 @@ const AMAZON_NON_PRODUCT_IMAGE_REGEX = /\/images\/s\/|aplus-media|aplus|amazon-a
 const FLIPKART_NON_PRODUCT_IMAGE_REGEX = /static-assets|fk-cp-zion|navigation|header|footer|login|seller|plus/i;
 const MYNTRA_NON_PRODUCT_IMAGE_REGEX = /sprite|logo|desktop-banner|app-download|studio|giftcard/i;
 
-const getStoreKey = (deal = {}) => {
-    const haystack = `${deal.storeName || ''} ${deal.store || ''} ${deal.productUrl || ''} ${deal.link || ''}`.toLowerCase();
+const getStoreKey = (deal) => {
+    if (!deal) return '';
+    const haystack = `${deal?.storeName || ''} ${deal?.store || ''} ${deal?.productUrl || ''} ${deal?.link || ''}`.toLowerCase();
     if (haystack.includes('amazon.')) return 'amazon';
     if (haystack.includes('flipkart.')) return 'flipkart';
     if (haystack.includes('myntra.')) return 'myntra';
-    if (haystack.includes('ajio.')) return 'ajio';
-    if (haystack.includes('meesho.')) return 'meesho';
     if (haystack.includes('blinkit.') || haystack.includes('grofers.')) return 'blinkit';
+    if (haystack.includes('nykaa.')) return 'nykaa';
+    if (haystack.includes('tatacliq.')) return 'tatacliq';
+    if (haystack.includes('croma.')) return 'croma';
+    if (haystack.includes('reliancedigital.')) return 'reliancedigital';
+    if (haystack.includes('firstcry.')) return 'firstcry';
+    if (haystack.includes('purplle.')) return 'purplle';
+    if (haystack.includes('lenskart.')) return 'lenskart';
+    if (haystack.includes('snapdeal.')) return 'snapdeal';
+    if (haystack.includes('1mg.')) return 'tata1mg';
+    if (haystack.includes('pharmeasy.')) return 'pharmeasy';
+    if (haystack.includes('bigbasket.')) return 'bigbasket';
+    if (haystack.includes('pepperfry.')) return 'pepperfry';
+    if (haystack.includes('urbanladder.')) return 'urbanladder';
+    if (haystack.includes('ikea.')) return 'ikea';
+    if (haystack.includes('jiomart.')) return 'jiomart';
+    if (haystack.includes('zepto')) return 'zepto';
+    if (haystack.includes('makemytrip.') || haystack.includes('ixigo.') || haystack.includes('yatra.')) return 'travel';
     return '';
 };
 
-const getAmazonAsin = (deal = {}) => {
-    const productUrl = String(deal.productUrl || deal.link || '');
+const getAmazonAsin = (deal) => {
+    if (!deal) return '';
+    const productUrl = String(deal?.productUrl || deal?.link || '');
     const match = productUrl.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
     return match?.[1]?.toUpperCase() || '';
 };
 
-const getProductOwnedImageCandidates = (deal = {}) => {
+const getProductOwnedImageCandidates = (deal) => {
+    if (!deal) return [];
     const storeKey = getStoreKey(deal);
     if (storeKey !== 'amazon') return [];
 
@@ -94,7 +139,7 @@ const getProductOwnedImageCandidates = (deal = {}) => {
         : [];
 };
 
-export const isLikelyProductImage = (url, deal = {}) => {
+export const isLikelyProductImage = (url, deal) => {
     if (!url || typeof url !== 'string') return false;
     const optimized = optimizeImageUrl(url);
     const lower = optimized.toLowerCase();
@@ -102,22 +147,22 @@ export const isLikelyProductImage = (url, deal = {}) => {
     if (!/^https?:\/\//i.test(optimized) && !optimized.startsWith('data:image/')) return false;
     if (JUNK_IMAGE_REGEX.test(lower)) return false;
 
-    const storeKey = getStoreKey(deal);
-    const allowedCdns = STORE_IMAGE_CDNS[storeKey];
+    const storeKey = deal ? getStoreKey(deal) : '';
+    const allowedCdns = storeKey ? STORE_IMAGE_CDNS[storeKey] : null;
 
     if (storeKey === 'amazon') {
         if (AMAZON_NON_PRODUCT_IMAGE_REGEX.test(lower)) return false;
-        return allowedCdns.some((cdn) => lower.includes(cdn));
+        return (allowedCdns || []).some((cdn) => lower.includes(cdn));
     }
 
     if (storeKey === 'flipkart') {
         if (FLIPKART_NON_PRODUCT_IMAGE_REGEX.test(lower)) return false;
-        return allowedCdns.some((cdn) => lower.includes(cdn));
+        return (allowedCdns || []).some((cdn) => lower.includes(cdn));
     }
 
     if (storeKey === 'myntra') {
         if (MYNTRA_NON_PRODUCT_IMAGE_REGEX.test(lower)) return false;
-        return allowedCdns.some((cdn) => lower.includes(cdn));
+        return (allowedCdns || []).some((cdn) => lower.includes(cdn));
     }
 
     if (allowedCdns) return allowedCdns.some((cdn) => lower.includes(cdn));
@@ -125,14 +170,16 @@ export const isLikelyProductImage = (url, deal = {}) => {
     return /\.(jpg|jpeg|png|webp|avif)(?:[?#].*)?$/i.test(lower);
 };
 
-const getImageScore = (url, deal = {}) => {
+const getImageScore = (url, deal) => {
+    if (!url) return 0;
     const optimized = optimizeImageUrl(url);
     const lower = optimized.toLowerCase();
-    const storeKey = getStoreKey(deal);
+    const storeKey = deal ? getStoreKey(deal) : '';
     const amazonAsin = storeKey === 'amazon' ? getAmazonAsin(deal) : '';
     let score = 0;
 
-    if (STORE_IMAGE_CDNS[storeKey]?.some((cdn) => lower.includes(cdn))) score += 60;
+    const cdnList = storeKey ? STORE_IMAGE_CDNS[storeKey] : null;
+    if (cdnList?.some((cdn) => lower.includes(cdn))) score += 60;
     if (lower.includes('/images/i/') || lower.includes('/images/p/')) score += 30;
     if (amazonAsin && lower.includes(`/images/p/${amazonAsin.toLowerCase()}.`)) score += 55;
     if (lower.includes('/image/1200/1200/') || lower.includes('/image/1500/1500/')) score += 25;
@@ -144,10 +191,26 @@ const getImageScore = (url, deal = {}) => {
     return score;
 };
 
-export const getProductImageGallery = (deal = {}, maxImages = 8) => {
+export const getProductImageGallery = (deal, maxImages = 8) => {
+    if (!deal) return [NO_PRODUCT_IMAGE];
+
+    // Safe fallback: Ensure we have at least the main image in the gallery array
+    const gallerySource = Array.isArray(deal?.images) && deal.images.length > 0 
+        ? deal.images 
+        : (deal?.image ? [deal.image] : []);
+
+    // Dev-only logging
+    if (process.env.NODE_ENV === 'development') {
+        console.log("[IMAGE_GALLERY_INPUT]", {
+            id: deal?._id || deal?.id,
+            title: deal?.title,
+            totalImages: gallerySource.length,
+            hasImagesArray: Array.isArray(deal?.images)
+        });
+    }
+
     const candidates = [
-        deal.image,
-        ...(Array.isArray(deal.images) ? deal.images : []),
+        ...gallerySource,
         ...getProductOwnedImageCandidates(deal)
     ]
         .map(optimizeImageUrl)
@@ -158,7 +221,8 @@ export const getProductImageGallery = (deal = {}, maxImages = 8) => {
         .sort((a, b) => b.score - a.score || a.sourceIndex - b.sourceIndex)
         .map(({ url }) => url);
 
-    return candidates.slice(0, maxImages);
+    const gallery = candidates.slice(0, maxImages);
+    return gallery.length > 0 ? gallery : [deal?.image ? optimizeImageUrl(deal.image) : NO_PRODUCT_IMAGE];
 };
 
 /**

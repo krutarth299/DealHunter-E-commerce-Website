@@ -1,4 +1,3 @@
-import { StrictMode } from 'react'
 import { hydrateRoot, createRoot } from 'react-dom/client'
 import { App, AppContent } from './App.jsx'
 import { BrowserRouter } from 'react-router-dom'
@@ -15,17 +14,15 @@ const initialData = window.__INITIAL_DATA__;
 const initialCategories = window.__INITIAL_CATEGORIES__;
 
 const app = (
-  <StrictMode>
-    <HelmetProvider>
-      <ErrorBoundary>
-        <App>
-          <BrowserRouter>
-            <AppContent preloadedDeals={initialData} preloadedCategories={initialCategories} />
-          </BrowserRouter>
-        </App>
-      </ErrorBoundary>
-    </HelmetProvider>
-  </StrictMode>
+  <HelmetProvider>
+    <ErrorBoundary>
+      <App>
+        <BrowserRouter>
+          <AppContent preloadedDeals={initialData} preloadedCategories={initialCategories} />
+        </BrowserRouter>
+      </App>
+    </ErrorBoundary>
+  </HelmetProvider>
 );
 
 if (initialData && rootElement.hasChildNodes()) {

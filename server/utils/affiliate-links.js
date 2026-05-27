@@ -1,4 +1,5 @@
 import { detectStoreName } from './deal-normalizer.js';
+import { AFFILIATE_STORE_SOURCES } from '../config/storeSources.js';
 
 const KNOWN_AFFILIATE_KEYS = [
     'tag',
@@ -58,15 +59,31 @@ export const getMockAffiliateSettings = (appLocals) => {
     return appLocals.affiliateSettings;
 };
 
+let settingsCache = null;
+let settingsCacheTime = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export const getAffiliateSettings = async (AffiliateSettingModel, isMockMode, appLocals) => {
     if (isMockMode) {
         return getMockAffiliateSettings(appLocals);
     }
 
+    const now = Date.now();
+    if (settingsCache && (now - settingsCacheTime < CACHE_TTL) && !appLocals?.affiliateSettingsSyncMeta?.forceRefresh) {
+        return settingsCache;
+    }
+
     const stored = await AffiliateSettingModel.find().lean();
-    return stored
+    settingsCache = stored
         .map(normalizeAffiliateSetting)
         .sort((a, b) => a.store.localeCompare(b.store));
+    settingsCacheTime = now;
+    
+    if (appLocals?.affiliateSettingsSyncMeta) {
+         appLocals.affiliateSettingsSyncMeta.forceRefresh = false;
+    }
+    
+    return settingsCache;
 };
 
 export const sanitizeOriginalUrl = (rawUrl = '') => {
@@ -95,12 +112,21 @@ export const isValidHttpUrl = (rawUrl = '') => {
     }
 };
 
-const findAffiliateRule = (store, settings = []) => {
-    const storeName = normalizeStoreName(store);
-    const normalizedSettings = settings.map(normalizeAffiliateSetting);
-    return normalizedSettings.find((setting) => setting.store === storeName)
-        || normalizedSettings.find((setting) => setting.store === 'Generic')
-        || null;
+const findAffiliateRule = (store, settings = [], productUrl = '') => {
+    const safeSettings = Array.isArray(settings) ? settings : [];
+    const storeName = normalizeStoreName(store) || detectStoreName('', productUrl);
+    const normalizedSettings = safeSettings.map(normalizeAffiliateSetting);
+    
+    // Exact match
+    let rule = normalizedSettings.find((setting) => setting.store === storeName);
+    
+    // Fallback match by slug
+    if (!rule) {
+        const slug = getStoreSlug(storeName);
+        rule = normalizedSettings.find((setting) => setting.storeSlug === slug);
+    }
+    
+    return rule || normalizedSettings.find((setting) => setting.store === 'Generic') || null;
 };
 
 const patternMatchesUrl = (pattern = '', originalUrl = '') => {
@@ -109,35 +135,76 @@ const patternMatchesUrl = (pattern = '', originalUrl = '') => {
     return String(originalUrl || '').toLowerCase().includes(safePattern);
 };
 
-export const buildAffiliateLink = ({ originalUrl = '', store = '', settings = [], manualOverride = '' }) => {
-    const original = sanitizeOriginalUrl(originalUrl);
+/**
+ * Builds an affiliate link by appending the correct parameter to the product URL.
+ * Handles existing query parameters and prevents duplicates.
+ */
+export const generateAffiliateUrl = (productUrl = '', store = '', settings = []) => {
+    // 1. Sanitize the URL (removes existing known affiliate tags)
+    const original = sanitizeOriginalUrl(productUrl);
     if (!original) return '';
 
+    // 2. Find matching rule for this store
+    const safeSettings = Array.isArray(settings) ? settings : [];
+    const rule = findAffiliateRule(store, safeSettings, original);
+    
+    // 3. If no rule found or rule is disabled, return sanitized original
+    if (!rule?.enabled || !rule.paramKey || !rule.paramValue) {
+        return original;
+    }
+
+    // 4. Amazon Specific: Force "tag" if it's Amazon
+    const storeName = String(store || '').toLowerCase();
+    const isAmazon = storeName.includes('amazon');
+    const finalParamKey = isAmazon ? 'tag' : rule.paramKey;
+
+    try {
+        const url = new URL(original);
+        
+        // 5. Clean existing occurrences of THIS specific param to avoid duplicates
+        const lowerKey = finalParamKey.toLowerCase();
+        [...url.searchParams.keys()].forEach((key) => {
+            if (key.toLowerCase() === lowerKey) {
+                url.searchParams.delete(key);
+            }
+        });
+
+        // 6. Set the new affiliate parameter
+        url.searchParams.set(finalParamKey, rule.paramValue);
+        
+        return url.toString();
+    } catch (err) {
+        console.error('[AffiliateLinks] URL parsing failed:', err.message);
+        // Fallback to manual string manipulation
+        const separator = original.includes('?') ? '&' : '?';
+        return `${original}${separator}${finalParamKey}=${rule.paramValue}`;
+    }
+};
+
+// Maintain buildAffiliateLink as an alias for backward compatibility
+export const buildAffiliateLink = ({ originalUrl = '', store = '', settings = [], manualOverride = '' }) => {
     const override = String(manualOverride || '').trim();
     if (override && isValidHttpUrl(override)) {
         return override;
     }
-
-    const rule = findAffiliateRule(store, settings);
-    if (!rule?.enabled || !rule.paramKey || !rule.paramValue || !patternMatchesUrl(rule.urlPattern, original)) {
-        return original;
-    }
-
-    try {
-        const url = new URL(original);
-        [...url.searchParams.keys()].forEach((key) => {
-            if (key.toLowerCase() === rule.paramKey.toLowerCase()) {
-                url.searchParams.delete(key);
-            }
-        });
-        url.searchParams.set(rule.paramKey, rule.paramValue);
-        return url.toString();
-    } catch {
-        return original;
-    }
+    return generateAffiliateUrl(originalUrl, store, settings);
 };
 
 export const syncAffiliateSettingsWithStores = async (AffiliateSettingModel, DealModel, isMockMode, appLocals) => {
+    const now = Date.now();
+    const ttlMs = Number(process.env.AFFILIATE_SYNC_TTL_MS || 5 * 60 * 1000);
+    const lastSyncAt = Number(appLocals?.affiliateSettingsSyncMeta?.lastCompletedAt || 0);
+    const forceSync = Boolean(appLocals?.affiliateSettingsSyncMeta?.forceRefresh);
+
+    if (!forceSync && lastSyncAt && now - lastSyncAt < ttlMs) {
+        return {
+            discoveredStores: appLocals?.affiliateSettingsSyncMeta?.discoveredStores || [],
+            created: 0,
+            skipped: true,
+            lastCompletedAt: lastSyncAt
+        };
+    }
+
     const existingSettings = isMockMode
         ? getMockAffiliateSettings(appLocals)
         : await AffiliateSettingModel.find().lean();
@@ -181,12 +248,16 @@ export const syncAffiliateSettingsWithStores = async (AffiliateSettingModel, Dea
         rawStoreNames = [...storeNames, ...stores];
     }
 
+    // Append predefined store names to ensure all supported platforms are synced
+    const predefinedStoreNames = AFFILIATE_STORE_SOURCES.map((source) => source.store);
+    rawStoreNames = [...rawStoreNames, ...predefinedStoreNames];
+
     const discoveredStores = [...new Set(rawStoreNames
         .map((store) => normalizeStoreName(store))
         .filter((store) => store && store !== 'Generic' && store !== 'Online Store')
     )].sort((a, b) => a.localeCompare(b));
 
-    const now = new Date();
+    const syncTimestamp = new Date();
     const missingSettings = discoveredStores
         .map((store) => buildDefaultAffiliateSetting(store))
         .filter((setting) => !bySlug.has(setting.storeSlug));
@@ -203,7 +274,7 @@ export const syncAffiliateSettingsWithStores = async (AffiliateSettingModel, Dea
                 {
                     $setOnInsert: {
                         ...setting,
-                        lastSyncedAt: now
+                        lastSyncedAt: syncTimestamp
                     }
                 },
                 { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -211,9 +282,24 @@ export const syncAffiliateSettingsWithStores = async (AffiliateSettingModel, Dea
         ));
     }
 
+    if (appLocals) {
+        appLocals.affiliateSettingsSyncMeta = {
+            lastCompletedAt: Date.now(),
+            discoveredStores,
+            forceRefresh: false
+        };
+    }
+
     return {
         discoveredStores,
         created: missingSettings.length
+    };
+};
+
+export const markAffiliateSettingsSyncDirty = (appLocals = {}) => {
+    appLocals.affiliateSettingsSyncMeta = {
+        ...(appLocals.affiliateSettingsSyncMeta || {}),
+        forceRefresh: true
     };
 };
 

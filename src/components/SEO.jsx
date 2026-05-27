@@ -1,6 +1,7 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useLocation } from 'react-router-dom';
+import { generateSeoTitle, generateSeoDescription, generateSeoKeywords } from '../utils/seoBuilder';
 import {
     makePageTitle,
     SITE_DESCRIPTION,
@@ -12,6 +13,7 @@ import {
     SITE_TITLE,
     SITE_TWITTER_HANDLE
 } from '../config/brand';
+import { slugifyProductTitle } from '../utils/productUrls';
 
 const cleanPathname = (pathname = '/') => {
     const clean = `/${String(pathname).split('#')[0].split('?')[0].replace(/^\/+/, '')}`;
@@ -54,6 +56,7 @@ const cleanMetaDescription = (value) => {
 
 const getProductImages = (product = {}, fallbackImage = '') => {
     const images = [
+        product.thumbnail,
         fallbackImage,
         product.image,
         product.mainImage,
@@ -129,14 +132,22 @@ const createProductSchema = ({ product, canonicalUrl, image, description, title 
     const productUrl = toAbsoluteUrl(product.productUrl || product.link || product.affiliateLink || canonicalUrl);
     const images = getProductImages(product, image);
     const storeName = product.storeName || product.store || SITE_NAME;
+    const productName = product.fullTitle || title;
+    const alternateName = product.shortTitle || product.cardTitle || '';
+    const reviewCount = Number(product.reviewCount || product.ratingCount || 0);
+    const ratingValue = Number(product.rating || product.aggregateRating || 0);
+    const specifications = product.specifications && typeof product.specifications === 'object' ? product.specifications : null;
+    const highlights = Array.isArray(product.highlights) ? product.highlights.filter(Boolean).slice(0, 8) : [];
     const productSchema = {
         '@context': 'https://schema.org',
         '@type': 'Product',
-        name: title,
-        description,
+        name: productName,
+        alternateName: alternateName || undefined,
+        description: product.shortDescription || description,
         image: images.length > 0 ? images : [toAbsoluteUrl(SITE_SOCIAL_IMAGE)],
         url: canonicalUrl,
         category: product.category || undefined,
+        productID: product.slug || product.sourceProductId || product.productId || product.asin || product._id || product.id || undefined,
         sku: product.sourceProductId || product.productId || product.asin || product._id || product.id || undefined,
         brand: {
             '@type': 'Brand',
@@ -148,6 +159,8 @@ const createProductSchema = ({ product, canonicalUrl, image, description, title 
             priceCurrency: product.currency || 'INR',
             price: dealPrice,
             highPrice: mrp && mrp >= dealPrice ? mrp : undefined,
+            priceValidUntil: product.priceCheckedAt ? new Date(product.priceCheckedAt).toISOString().slice(0, 10) : undefined,
+            itemCondition: 'https://schema.org/NewCondition',
             availability: product.isExpired ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
             seller: {
                 '@type': 'Organization',
@@ -156,12 +169,32 @@ const createProductSchema = ({ product, canonicalUrl, image, description, title 
         } : undefined
     };
 
-    const rating = Number(product.rating || product.aggregateRating || 0);
-    const reviewCount = Number(product.reviewCount || product.reviewsCount || 0);
-    if (rating > 0 && reviewCount > 0) {
+    if (Array.isArray(highlights) && highlights.length > 0) {
+        productSchema.additionalProperty = highlights.map((text) => ({
+            '@type': 'PropertyValue',
+            name: 'Highlight',
+            value: text
+        }));
+    }
+
+    if (specifications) {
+        const specEntries = Object.entries(specifications).slice(0, 12);
+        if (specEntries.length > 0) {
+            productSchema.additionalProperty = [
+                ...(productSchema.additionalProperty || []),
+                ...specEntries.map(([key, value]) => ({
+                    '@type': 'PropertyValue',
+                    name: key,
+                    value: Array.isArray(value) ? value.join(', ') : String(value)
+                }))
+            ];
+        }
+    }
+
+    if (ratingValue > 0 && reviewCount > 0) {
         productSchema.aggregateRating = {
             '@type': 'AggregateRating',
-            ratingValue: Math.min(5, Math.max(1, rating)),
+            ratingValue: Math.min(5, Math.max(1, ratingValue)),
             reviewCount
         };
     }
@@ -175,7 +208,8 @@ const createItemListSchema = ({ items = [], canonicalUrl }) => {
         .slice(0, 24)
         .map((item, index) => {
             const id = item._id || item.id;
-            const url = item.url || item.pageUrl || (id ? `/product/${id}` : '');
+            const slug = item.slug || item.pageSlug || slugifyProductTitle(item.displayTitle || item.fullTitle || item.title || item.name || '');
+            const url = item.url || item.pageUrl || item.canonicalUrl || (id ? `/product/${slug}-${id}` : (slug ? `/product/${slug}` : ''));
             return {
                 '@type': 'ListItem',
                 position: index + 1,
@@ -215,11 +249,23 @@ const SEO = ({
     structuredData
 }) => {
     const location = useLocation();
-    const finalTitle = makePageTitle(title);
-    const finalDescription = cleanMetaDescription(description);
+    
+    const productData = React.useMemo(() => product ? {
+        title: product.displayTitle || product.title || '',
+        store: product.store || '',
+        category: product.category || '',
+        discount: product.discount || 0
+    } : null, [product]);
+
+    const finalTitle = title || generateSeoTitle(productData);
+    const finalDescription = description || generateSeoDescription(productData);
     const canonicalPath = canonical || resolveCanonicalPath(location.pathname, location.search);
     const canonicalUrl = toAbsoluteUrl(canonicalPath);
     const finalImage = toAbsoluteUrl(image || SITE_SOCIAL_IMAGE);
+    
+    // SEO Step 5: Auto Keyword Generation
+    const metaKeywords = React.useMemo(() => generateSeoKeywords(productData), [productData]);
+
     const robotsContent = noindex ? 'noindex, nofollow, noarchive' : robots;
     const productSchema = createProductSchema({
         product,
@@ -254,6 +300,7 @@ const SEO = ({
         >
             <title>{finalTitle || SITE_TITLE}</title>
             <meta name="description" content={finalDescription} />
+            <meta name="keywords" content={metaKeywords} />
             <meta name="robots" content={robotsContent} />
             <meta name="theme-color" content={SITE_THEME_COLOR} />
             <meta name="application-name" content={SITE_NAME} />

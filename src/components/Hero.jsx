@@ -1,177 +1,240 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, TrendingDown, Zap, ShieldCheck, Clock, ExternalLink, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
+import {
+    ArrowRight,
+    Clock,
+    ChevronLeft,
+    ChevronRight,
+    ExternalLink,
+    ShieldCheck,
+    ShoppingBag,
+    Sparkles,
+    Zap,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { formatPriceDisplay, parsePriceNumber } from '../utils/dealUi';
 import { getMainProductImage, NO_PRODUCT_IMAGE } from '../utils/imageOptimizer';
 import { getDisplayTitle } from '../utils/productTitles';
+import { getProductPath } from '../utils/productUrls';
 import useHasHydrated from '../hooks/useHasHydrated';
 
-/* ─── helpers ─────────────────────────────────────── */
-const formatPrice = (p) => {
-    if (!p && p !== 0) return null;
-    const num = parseFloat(String(p).replace(/[^0-9.]/g, ''));
-    return isNaN(num) ? null : `₹${num.toLocaleString('en-IN')}`;
+const HERO_GRADIENT = 'linear-gradient(135deg, #FF9B54 0%, #FFC989 48%, #FF8A3D 100%)';
+
+const getDiscountNum = (discount) => {
+    if (!discount) return null;
+    const match = String(discount).match(/(\d+)/);
+    return match ? parseInt(match[1], 10) : null;
 };
 
-const getDiscountNum = (d) => {
-    if (!d) return null;
-    const match = String(d).match(/(\d+)/);
-    return match ? parseInt(match[1]) : null;
+const getDealNumbers = (deal) => {
+    const dealPrice = parsePriceNumber(deal?.dealPrice || deal?.price || deal?.pricing?.dealPrice || deal?.pricing?.price);
+    const mrp = parsePriceNumber(
+        deal?.originalPrice ||
+            deal?.mrp ||
+            deal?.pricing?.mrp ||
+            deal?.pricing?.originalPrice ||
+            deal?.listPrice ||
+            deal?.compareAtPrice
+    );
+    const hasExplicitMrp = [
+        deal?.originalPrice,
+        deal?.mrp,
+        deal?.pricing?.mrp,
+        deal?.pricing?.originalPrice,
+        deal?.listPrice,
+        deal?.compareAtPrice
+    ].some((value) => (parsePriceNumber(value) || 0) > 0);
+    const discount = mrp > dealPrice && dealPrice > 0 ? Math.round(((mrp - dealPrice) / mrp) * 100) : getDiscountNum(deal?.discount);
+    return {
+        dealPrice,
+        mrp,
+        hasExplicitMrp,
+        discount: Number.isFinite(discount) ? discount : null,
+    };
 };
 
-/* Category → gradient color mapping */
-const CATEGORY_BG = {
-    Electronics: 'from-orange-500 to-red-600',
-    Fashion: 'from-violet-600 to-purple-700',
-    Gaming: 'from-blue-600 to-indigo-700',
-    Grocery: 'from-emerald-600 to-teal-700',
-    Food: 'from-amber-500 to-orange-600',
-    Travel: 'from-sky-500 to-blue-600',
-    Audio: 'from-rose-500 to-pink-600',
-    Default: 'from-slate-700 to-slate-900',
-};
-
-const getBg = (category) => {
-    if (!category) return CATEGORY_BG.Default;
-    const key = Object.keys(CATEGORY_BG).find(k => category.toLowerCase().includes(k.toLowerCase()));
-    return key ? CATEGORY_BG[key] : CATEGORY_BG.Default;
-};
-
-/* ─── Fallback static slides (used only when no deals present) ─── */
-const FALLBACK_SLIDES = [
-    {
-        badge: '🔥 Today\'s Hot Deal',
-        title: 'Save Big on Electronics',
-        sub: 'Up to 80% off on laptops, phones & accessories from top brands.',
-        cta: 'Shop Electronics',
-        href: '/deals?category=Electronics',
-        bg: 'from-orange-500 to-red-600',
-        image: null,
-        emoji: '💻',
-        stat: '60+ fresh drops today',
-        price: null,
-        mrp: null,
-        discount: null,
-        store: null,
-    },
-    {
-        badge: '⚡ Flash Sale',
-        title: 'Premium Fashion Deals',
-        sub: 'Designer brands slashed up to 70%. New arrivals every hour.',
-        cta: 'Browse Fashion',
-        href: '/deals?category=Fashion',
-        bg: 'from-violet-600 to-purple-700',
-        image: null,
-        emoji: '👗',
-        stat: '200+ styles on sale',
-        price: null,
-        mrp: null,
-        discount: null,
-        store: null,
-    },
-];
-
-/* ─── Component ───────────────────────────────────── */
 const HeroStickyContent = ({ slide, label }) => (
     <>
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/10 p-1.5 ring-1 ring-white/10">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/15 p-1.5 ring-1 ring-white/15">
             {slide.image ? (
-                <img src={slide.image} alt="" className="h-full w-full object-contain" />
+                <img src={slide.image} alt="" className="h-full w-full object-contain" loading="lazy" decoding="async" />
             ) : (
-                <ShoppingBag size={22} className="text-orange-300" />
+                <ShoppingBag size={20} className="text-white/80" />
             )}
         </div>
         <div className="min-w-0 flex-1">
             <p className="truncate text-[9px] font-black uppercase tracking-[0.2em] text-white/45">
                 {slide.store || 'DealSphere'}
             </p>
-            <div className="mt-1 flex items-baseline gap-2">
-                <span className="text-xl font-black leading-none tracking-tight text-white">
-                    {slide.price || 'Live Deal'}
-                </span>
-                {slide.discountNum && (
-                    <span className="rounded-lg bg-emerald-400/15 px-2 py-0.5 text-[9px] font-black text-emerald-200">
-                        {slide.discountNum}% OFF
-                    </span>
-                )}
-            </div>
+            <p className="mt-1 truncate text-[10px] font-black leading-none tracking-tight text-white">
+                {slide.title || 'Mega Deals - Save More Today'}
+            </p>
         </div>
-        <div className="flex h-12 shrink-0 items-center gap-2 rounded-2xl bg-white px-4 text-[10px] font-black uppercase tracking-widest text-slate-950 shadow-lg">
+        <div className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-gradient-to-r from-[#FF6A00] to-[#FF8C42] px-4 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-orange-500/20">
             {label}
             <ArrowRight size={14} strokeWidth={3} />
         </div>
     </>
 );
 
-const Hero = ({ deals = [] }) => {
+const HeroSkeleton = () => (
+    <section className="w-full overflow-hidden border-b border-[#E2E8F0] bg-white">
+        <div className="relative overflow-hidden" style={{ backgroundImage: HERO_GRADIENT }}>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.25),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.12),transparent_28%)]" />
+            <div className="relative mx-auto flex min-h-[430px] max-w-7xl flex-col justify-center gap-8 px-4 py-10 sm:min-h-[560px] sm:px-8 lg:flex-row lg:items-center lg:justify-between">
+                <div className="max-w-2xl animate-pulse space-y-4">
+                    <div className="h-7 w-40 rounded-full bg-white/20" />
+                    <div className="h-14 w-full max-w-xl rounded-3xl bg-white/20" />
+                    <div className="h-6 w-4/5 rounded-2xl bg-white/15" />
+                    <div className="flex flex-wrap gap-3 pt-2">
+                        <div className="h-16 w-32 rounded-2xl bg-white/15" />
+                        <div className="h-16 w-32 rounded-2xl bg-white/15" />
+                    </div>
+                </div>
+                <div className="h-[280px] w-full max-w-[460px] animate-pulse rounded-[2.3rem] border border-white/10 bg-white/12 p-4 sm:h-[360px]" />
+            </div>
+        </div>
+    </section>
+);
+
+const Hero = ({ deals = [], isLoading = false }) => {
     const [current, setCurrent] = useState(0);
+    const [isPaused, setIsPaused] = useState(false);
     const hasHydrated = useHasHydrated();
     const shouldRunEntryAnimation = hasHydrated || current > 0;
-
-    /* Pick the top deals with images to feature in the slider.
-       Prioritise deals that have an image, a price, and a good discount. */
-    const featuredDeals = React.useMemo(() => {
-        if (!Array.isArray(deals) || deals.length === 0) return null;
-
-        const withImages = deals.filter(d => d && (d.image || (d.images && d.images.length > 0)));
-        // Sort: hot discount first, then just take up to 5
-        const sorted = [...withImages].sort((a, b) => {
-            const da = getDiscountNum(a.discount) || 0;
-            const db = getDiscountNum(b.discount) || 0;
-            return db - da;
-        });
-
-        return sorted.slice(0, 5).length > 0 ? sorted.slice(0, 5) : null;
-    }, [deals]);
-
-    const slides = featuredDeals
-        ? featuredDeals.map(deal => ({
-            badge: getDiscountNum(deal.discount) >= 50 ? 'Hot Deal' : 'Best Pick',
-            title: getDisplayTitle(deal.displayTitle || deal.title),
-            rawTitle: deal.originalTitle || deal.rawTitle || deal.title,
-            sub: `Available at ${deal.store || 'Top Stores'} · Verified price drop`,
-            cta: 'Grab Deal',
-            href: (deal.id || deal._id) ? `/product/${deal.id || deal._id}` : '/deals',
-            isExternal: false,
-            bg: getBg(deal.category),
-            image: getMainProductImage(deal),
-            emoji: null,
-            stat: deal.store ? `Verified on ${deal.store}` : 'Verified deal',
-            price: formatPrice(deal.price),
-            mrp: formatPrice(deal.originalPrice),
-            discount: deal.discount ? String(deal.discount) : null,
-            discountNum: getDiscountNum(deal.discount),
-            store: deal.store,
-            category: deal.category,
-        }))
-        : FALLBACK_SLIDES;
-
-    const [isPaused, setIsPaused] = useState(false);
+    const loadStartRef = useRef(0);
 
     useEffect(() => {
-        if (slides.length <= 1 || isPaused) return;
-        const t = setInterval(() => {
-            setCurrent(p => (p + 1) % slides.length);
-        }, 5500);
-        return () => clearInterval(t);
+        if (!loadStartRef.current) {
+            loadStartRef.current = typeof performance !== 'undefined' ? performance.now() : 1;
+        }
+    }, []);
+
+    const slides = useMemo(() => {
+        const featuredDeals = (Array.isArray(deals) ? deals : [])
+            .filter((deal) => deal && (deal.image || (Array.isArray(deal.images) && deal.images.length > 0)) && (deal.price || deal.dealPrice))
+            .sort((a, b) => {
+                const aFeatured = Boolean(a.featured || a.isTrending);
+                const bFeatured = Boolean(b.featured || b.isTrending);
+                if (aFeatured && !bFeatured) return -1;
+                if (!aFeatured && bFeatured) return 1;
+                return (getDiscountNum(b.discount) || 0) - (getDiscountNum(a.discount) || 0);
+            })
+            .slice(0, 5);
+
+        return featuredDeals.map((deal) => {
+            const { dealPrice, mrp, hasExplicitMrp, discount } = getDealNumbers(deal);
+            const discountLabel = discount && discount > 0 ? `${discount}% OFF` : 'Live Offer';
+            const priceLabel = dealPrice > 0 ? formatPriceDisplay(dealPrice) : '';
+            const trustLine = deal.store ? `Verified live deal at ${deal.store}` : 'Verified live deal';
+            const image = getMainProductImage(deal);
+
+            return {
+                badge: discount >= 50 ? 'Hot Deal' : 'Best Pick',
+                title: getDisplayTitle(deal.displayTitle || deal.title),
+                rawTitle: deal.originalTitle || deal.rawTitle || deal.title,
+                discountLabel,
+                priceLabel,
+                trustLine,
+                cta: 'Grab Deal',
+                href: (deal.id || deal._id) ? getProductPath(deal) : '/deals',
+                isExternal: false,
+                image,
+                stat: deal.store ? `Verified on ${deal.store}` : 'Verified deal',
+                store: deal.store,
+                mrpLabel: mrp > 0 && dealPrice > 0 && (mrp > dealPrice || (mrp === dealPrice && hasExplicitMrp)) ? formatPriceDisplay(mrp) : '',
+            };
+        });
+    }, [deals]);
+
+    const storeCount = useMemo(() => new Set(slides.map((item) => item.store).filter(Boolean)).size, [slides]);
+
+    useEffect(() => {
+        if (!slides.length) return;
+        const durationMs = loadStartRef.current
+            ? Math.round((typeof performance !== 'undefined' ? performance.now() : loadStartRef.current) - loadStartRef.current)
+            : 0;
+        console.log(`[SLIDER_LOAD] ${JSON.stringify({
+            slideCount: slides.length,
+            firstSlideTitle: slides[0]?.title || '',
+            durationMs
+        })}`);
+    }, [slides]);
+
+    useEffect(() => {
+        if (slides.length <= 1 || isPaused) return undefined;
+        const timer = setInterval(() => setCurrent((prev) => (prev + 1) % slides.length), 5500);
+        return () => clearInterval(timer);
     }, [slides.length, isPaused]);
 
-    const nextSlide = () => setCurrent(p => (p + 1) % slides.length);
-    const prevSlide = () => setCurrent(p => (p - 1 + slides.length) % slides.length);
+    useEffect(() => {
+        const firstImage = slides[0]?.image;
+        if (!firstImage || typeof window === 'undefined') return;
+        const preload = new window.Image();
+        preload.decoding = 'async';
+        preload.fetchPriority = 'high';
+        preload.src = firstImage;
+    }, [slides]);
+
+    const nextSlide = () => setCurrent((prev) => (prev + 1) % slides.length);
+    const prevSlide = () => setCurrent((prev) => (prev - 1 + slides.length) % slides.length);
 
     const slide = slides[current] || slides[0];
-    const showMobileStickyCta = Boolean(slide && (slide.price || slide.href));
-    const mobileCtaLabel = slide?.price ? 'Grab Deal' : slide?.cta || 'Grab Deal';
+    const showMobileStickyCta = Boolean(slide);
+
+    if (isLoading && !slides.length) {
+        return <HeroSkeleton />;
+    }
+
+    if (!slides.length) {
+        return (
+            <section className="w-full overflow-hidden border-b border-[#E2E8F0] bg-white">
+                <div className="relative overflow-hidden" style={{ backgroundImage: HERO_GRADIENT }}>
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.25),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.12),transparent_28%)]" />
+                    <div className="relative mx-auto flex min-h-[430px] max-w-7xl flex-col items-center justify-center px-4 py-16 text-center text-white sm:min-h-[560px] sm:px-8">
+                        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.24em] text-white/85">
+                            <Zap size={13} fill="currentColor" />
+                            Mega Deals
+                        </div>
+                        <h1 className="max-w-4xl text-[clamp(2.05rem,6vw,4.2rem)] font-[1000] leading-[0.98] tracking-[-0.06em]">
+                            Mega Deals - Save More Today
+                        </h1>
+                        <p className="mt-4 max-w-2xl text-sm font-semibold leading-relaxed text-white/80 sm:text-base">
+                            Fresh verified offers from live stores, styled cleanly and updated in real time.
+                        </p>
+                        <Link to="/deals" className="btn-primary mt-8 h-12 rounded-2xl px-7 text-[11px] font-black uppercase tracking-[0.18em]">
+                            Browse Live Deals
+                            <ArrowRight size={14} strokeWidth={3} />
+                        </Link>
+                    </div>
+                </div>
+                <div className="border-b border-[#E2E8F0] bg-white">
+                    <div className="mx-auto grid max-w-7xl grid-cols-2 gap-2 px-3 py-3 text-sm font-semibold text-[#64748B] md:flex md:flex-wrap md:items-center md:justify-center md:gap-6 md:px-6 md:py-4 lg:px-8">
+                        {[
+                            { icon: ShieldCheck, label: 'Real catalog only', color: 'text-[#22C55E]' },
+                            { icon: Zap, label: 'No placeholder promos', color: 'text-[#FF6A00]' },
+                            { icon: Sparkles, label: 'Connected to live deals', color: 'text-[#64748B]' },
+                            { icon: Clock, label: 'Updates when deals go live', color: 'text-[#64748B]' },
+                        ].map(({ icon: Icon, label, color }) => (
+                            <div key={label} className="flex items-center gap-1.5 rounded-xl bg-[#F8FAFC] px-2.5 py-2 md:bg-transparent md:px-0 md:py-0">
+                                <Icon size={15} className={color} />
+                                <span className="text-[9px] font-bold leading-tight md:text-xs">{label}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+        );
+    }
 
     return (
-        <section 
-            className="w-full bg-white overflow-hidden pt-0 group select-none relative"
+        <section
+            className="group relative w-full select-none overflow-hidden bg-white pt-0"
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
         >
-            {/* ── Main Slide Banner ── */}
-            <div className="relative overflow-hidden min-h-[500px] sm:min-h-[620px] md:min-h-[560px] lg:min-h-[620px]">
-                <AnimatePresence>
+            <div className="relative min-h-[560px] overflow-hidden sm:min-h-[640px] lg:min-h-[680px]">
+                <AnimatePresence mode="wait">
                     <motion.div
                         key={current}
                         initial={shouldRunEntryAnimation ? { opacity: 0 } : false}
@@ -181,297 +244,272 @@ const Hero = ({ deals = [] }) => {
                         drag="x"
                         dragConstraints={{ left: 0, right: 0 }}
                         dragElastic={0.2}
-                        onDragEnd={(e, { offset, velocity }) => {
-                            const swipe = offset.x;
-                            if (swipe < -50) nextSlide();
-                            else if (swipe > 50) prevSlide();
+                        onDragEnd={(e, { offset }) => {
+                            if (offset.x < -50) nextSlide();
+                            if (offset.x > 50) prevSlide();
                         }}
-                        className={`absolute inset-0 bg-gradient-to-br ${slide.bg} flex items-start sm:items-center overflow-hidden cursor-grab active:cursor-grabbing`}
+                        className="absolute inset-0 cursor-grab overflow-hidden active:cursor-grabbing"
+                        style={{ backgroundImage: HERO_GRADIENT }}
                     >
-                        {/* Mesh Gradients */}
-                        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 animate-pulse" />
-                        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-black/10 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/3" />
-                        
-                        {/* Grid noise fallback */}
-                        <div className="absolute inset-0 opacity-[0.1] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] mix-blend-overlay" />
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.26),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.16),transparent_28%)]" />
+                        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))]" />
 
-                        <div className="max-w-7xl mx-auto px-5 sm:px-10 lg:px-12 pt-10 pb-16 sm:pt-20 md:pt-20 md:pb-20 lg:pt-24 flex flex-col md:flex-row items-center justify-center md:justify-between gap-5 sm:gap-8 md:gap-12 lg:gap-16 relative z-10 w-full min-h-[500px] sm:min-h-[620px] md:min-h-[560px] lg:min-h-[620px]">
-                            {/* ── Text side ── */}
-                            <div className="w-full flex-[1.35] text-white space-y-3.5 md:space-y-5 lg:space-y-6 text-center md:text-left md:min-w-0">
-                                <motion.div
-                                    initial={shouldRunEntryAnimation ? { x: -20, opacity: 0 } : false}
-                                    animate={{ x: 0, opacity: 1 }}
-                                    className="flex items-center gap-2 justify-center md:justify-start"
-                                >
-                                    <span className="bg-white/12 backdrop-blur-lg text-white text-[8px] md:text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-[0.2em] border border-white/20 shadow-xl inline-flex items-center gap-1.5">
-                                        <Zap size={12} fill="currentColor" />
-                                        {slide.badge}
-                                    </span>
-                                    <div className="flex items-center gap-1.5 bg-emerald-500/20 px-2 py-1 rounded-md border border-emerald-500/30">
-                                        <div className="w-1 h-1 rounded-full bg-emerald-400 animate-ping" />
-                                        <span className="text-[8px] font-black uppercase tracking-widest text-emerald-50">Pulse Live</span>
-                                    </div>
-                                </motion.div>
-
-                                <motion.h1
-                                    initial={shouldRunEntryAnimation ? { y: 20, opacity: 0 } : false}
-                                    animate={{ y: 0, opacity: 1 }}
-                                    transition={{ delay: 0.1 }}
-                                    title={slide.rawTitle || slide.title}
-                                    className="line-clamp-2 mx-auto md:mx-0 w-full max-w-[24ch] text-[clamp(1.75rem,7.4vw,3.25rem)] md:text-[clamp(2.6rem,4.9vw,4.9rem)] font-[1000] leading-[1.16] tracking-[-0.055em] py-1 text-balance"
-                                >
-                                    {slide.title}
-                                </motion.h1>
-
-                                {slide.store && (
+                        <div className="relative z-10 mx-auto flex min-h-[560px] w-full max-w-7xl items-center px-4 py-8 sm:px-8 lg:px-12">
+                            <div className="grid w-full items-center gap-10 lg:grid-cols-[1.08fr,0.92fr] lg:gap-12">
+                                {/* Left */}
+                                <div className="text-center text-white lg:text-left">
                                     <motion.div
-                                        initial={shouldRunEntryAnimation ? { y: 10, opacity: 0 } : false}
+                                        initial={shouldRunEntryAnimation ? { y: -14, opacity: 0 } : false}
                                         animate={{ y: 0, opacity: 1 }}
-                                        transition={{ delay: 0.15 }}
-                                        className="mx-auto flex w-fit items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-white ring-1 ring-white/15 md:hidden"
+                                        className="mb-5 flex flex-wrap items-center justify-center gap-3 lg:justify-start"
                                     >
-                                        <span className="text-[8px] font-black uppercase tracking-[0.22em] text-white/50">Marketplace</span>
-                                        <span className="text-[10px] font-black uppercase tracking-widest">{slide.store}</span>
+                                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/12 px-4 py-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-white backdrop-blur-lg shadow-xl">
+                                            <Zap size={12} fill="currentColor" />
+                                            Live Deal
+                                        </span>
+                                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/18 px-3 py-1 text-[8px] font-black uppercase tracking-widest text-emerald-50">
+                                            <div className="h-1.5 w-1.5 animate-ping rounded-full bg-emerald-300" />
+                                            Verified deal
+                                        </span>
                                     </motion.div>
-                                )}
 
-                                <motion.p
-                                    initial={shouldRunEntryAnimation ? { y: 20, opacity: 0 } : false}
-                                    animate={{ y: 0, opacity: 1 }}
-                                    transition={{ delay: 0.2 }}
-                                    className="line-clamp-2 text-white/75 text-xs sm:text-sm md:text-base max-w-xl mx-auto md:mx-0 font-semibold leading-relaxed"
-                                >
-                                    {slide.sub}
-                                </motion.p>
-
-                                {/* Price Row */}
-                                {(slide.price || slide.discount) && (
-                                    <motion.div
-                                        initial={shouldRunEntryAnimation ? { y: 20, opacity: 0 } : false}
+                                    <motion.h1
+                                        initial={shouldRunEntryAnimation ? { y: 18, opacity: 0 } : false}
                                         animate={{ y: 0, opacity: 1 }}
-                                        transition={{ delay: 0.3 }}
-                                        className="flex flex-wrap items-center gap-4 justify-center md:justify-start"
+                                        transition={{ delay: 0.08 }}
+                                        className="mx-auto max-w-[16ch] text-[clamp(2rem,5.5vw,4rem)] font-[1000] leading-[0.98] tracking-[-0.06em] text-balance lg:mx-0"
                                     >
-                                        <div className="flex flex-col">
-                                            <span className="text-white/45 text-[7px] md:text-[8px] font-black uppercase tracking-widest mb-1">Deal Price</span>
-                                            <div className="flex items-baseline gap-2">
-                                                <span className="text-3xl md:text-4xl font-black text-white tracking-tighter">{slide.price}</span>
-                                                {slide.mrp && (
-                                                    <span className="text-sm md:text-lg font-bold text-white/30 line-through decoration-white/40">{slide.mrp}</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        
-                                        {slide.discountNum && (
-                                            <div className="bg-yellow-400 rotate-3 px-3 py-1.5 rounded-xl shadow-lg shadow-yellow-500/20">
-                                                <span className="text-yellow-900 font-black text-lg md:text-xl tracking-tighter">
-                                                    -{slide.discountNum}%
-                                                </span>
-                                            </div>
-                                        )}
-                                    </motion.div>
-                                )}
+                                        Mega Deals - Save More Today
+                                    </motion.h1>
 
-                                <motion.div
-                                    initial={shouldRunEntryAnimation ? { y: 30, opacity: 0 } : false}
-                                    animate={{ y: 0, opacity: 1 }}
-                                    transition={{ delay: 0.4 }}
-                                    className="flex flex-wrap gap-2.5 items-center justify-center md:justify-start pt-0 md:pt-1"
-                                >
-                                    {slide.isExternal ? (
-                                        <a
-                                            href={slide.href}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="h-12 px-7 md:h-14 md:px-9 bg-white rounded-2xl text-slate-950 font-black text-[10px] md:text-xs uppercase tracking-[0.16em] flex items-center gap-2.5 hover:translate-y-[-3px] active:translate-y-[0] transition-all shadow-2xl shadow-black/20 group/cta overflow-hidden relative no-underline"
-                                        >
-                                            <div className="absolute inset-0 bg-slate-950 translate-y-full group-hover/cta:translate-y-0 transition-transform duration-500" />
-                                            <span className="relative z-10 group-hover/cta:text-white transition-colors">{slide.cta}</span>
-                                            <ExternalLink size={14} className="relative z-10 group-hover/cta:text-white transition-colors group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5" />
-                                        </a>
-                                    ) : (
-                                        <Link
-                                            to={slide.href}
-                                            className="h-12 px-7 md:h-14 md:px-9 bg-white rounded-2xl text-slate-950 font-black text-[10px] md:text-xs uppercase tracking-[0.16em] flex items-center gap-2.5 hover:translate-y-[-3px] active:translate-y-[0] transition-all shadow-2xl shadow-black/20 group/cta overflow-hidden relative"
-                                        >
-                                            <div className="absolute inset-0 bg-slate-950 translate-y-full group-hover/cta:translate-y-0 transition-transform duration-500" />
-                                            <span className="relative z-10 group-hover/cta:text-white transition-colors">{slide.cta}</span>
-                                            <ArrowRight size={14} className="relative z-10 group-hover/cta:text-white transition-colors group-hover/cta:translate-x-1" />
-                                        </Link>
-                                    )}
-                                    
-                                    <div className="h-11 md:h-14 px-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl hidden sm:flex items-center gap-2.5">
-                                        <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center">
-                                            <ShieldCheck size={13} className="text-white opacity-60" />
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-white/40 text-[7px] font-black uppercase tracking-widest leading-none mb-0.5">Authenticity</span>
-                                            <span className="text-white text-[9px] font-black tracking-tight">{slide.stat}</span>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            </div>
-
-                            {/* ── Visual side ── */}
-                            <motion.div
-                                initial={shouldRunEntryAnimation ? { x: 50, opacity: 0 } : false}
-                                animate={{ x: 0, opacity: 1 }}
-                                transition={{ delay: 0.3, duration: 0.8 }}
-                                className="flex-[0.95] w-full md:w-auto flex justify-center mt-0 relative md:min-w-0"
-                            >
-                                {/* Decorative elements */}
-                                <div className="absolute -inset-8 bg-white/20 blur-[80px] rounded-full opacity-30 animate-pulse" />
-                                
-                                {slide.image ? (
                                     <motion.div
-                                        animate={{ 
-                                            y: [0, -15, 0],
-                                            rotate: [-0.5, 0.5, -0.5]
-                                        }}
-                                        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-                                        className="relative group"
+                                        initial={shouldRunEntryAnimation ? { y: 18, opacity: 0 } : false}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        transition={{ delay: 0.14 }}
+                                        className="mx-auto mt-4 max-w-[36rem] lg:mx-0"
                                     >
-                                        <div className="relative w-44 h-44 xs:w-52 xs:h-52 sm:w-72 sm:h-72 md:w-72 md:h-72 lg:w-[380px] lg:h-[380px] xl:w-[420px] xl:h-[420px] rounded-[2rem] md:rounded-[3rem] bg-gradient-to-br from-white/25 to-white/5 border border-white/30 backdrop-blur-2xl flex items-center justify-center p-5 sm:p-7 md:p-10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4)]">
-                                            <img
-                                                src={slide.image}
-                                                alt={slide.title}
-                                                className="w-full h-full object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] transform group-hover:scale-110 transition-transform duration-700"
-                                                onError={(e) => { 
-                                                    e.target.onerror = null; 
-                                                    e.target.src = NO_PRODUCT_IMAGE;
-                                                }}
-                                            />
+                                        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/55">
+                                            Featured product
+                                        </p>
+                                        <h2
+                                            title={slide.rawTitle || slide.title}
+                                            className="mt-2 line-clamp-2 max-w-[16ch] text-[clamp(1.3rem,3.7vw,2.5rem)] font-[1000] leading-[1.1] tracking-[-0.045em] text-balance text-white"
+                                        >
+                                            {slide.title}
+                                        </h2>
+                                    </motion.div>
+
+                                    <motion.div
+                                        initial={shouldRunEntryAnimation ? { y: 18, opacity: 0 } : false}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        transition={{ delay: 0.2 }}
+                                        className="mx-auto mt-5 max-w-[36rem] lg:mx-0"
+                                    >
+                                        <div className="mb-4 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
+                                            <div className="rounded-xl border border-white/14 bg-white/8 px-3 py-2 text-left backdrop-blur-xl">
+                                                <p className="text-[7px] font-black uppercase tracking-[0.22em] text-white/52">
+                                                    Discount
+                                                </p>
+                                                <p className="mt-1 text-sm font-black tracking-tight text-white sm:text-base">
+                                                    {slide.discountLabel}
+                                                </p>
+                                            </div>
+                                            <div className="rounded-xl border border-white/14 bg-white/8 px-3 py-2 text-left backdrop-blur-xl">
+                                                <p className="text-[7px] font-black uppercase tracking-[0.22em] text-white/52">
+                                                    Deal price
+                                                </p>
+                                                <p className="mt-1 text-sm font-black tracking-tight text-white sm:text-base">
+                                                    {slide.priceLabel || 'Price live on product page'}
+                                                </p>
+                                            </div>
+                                            {slide.mrpLabel && (
+                                                <div className="rounded-xl border border-white/14 bg-white/8 px-3 py-2 text-left backdrop-blur-xl">
+                                                    <p className="text-[7px] font-black uppercase tracking-[0.22em] text-white/52">
+                                                        MRP
+                                                    </p>
+                                                    <p className="mt-1 text-sm font-black tracking-tight text-white/76 line-through sm:text-base">
+                                                        {slide.mrpLabel}
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
-                                        
-                                        {/* Store Float Badge */}
-                                        {slide.store && (
-                                            <motion.div 
-                                                animate={{ y: [0, 8, 0] }}
-                                                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
-                                                className="absolute bottom-0 -right-2 md:-bottom-4 md:-right-4 lg:-bottom-6 lg:-right-6 bg-white p-2.5 md:p-4 rounded-2xl md:rounded-[1.5rem] shadow-2xl border border-slate-100 flex items-center gap-2"
+
+                                        <p className="text-sm font-semibold leading-relaxed text-white/80 md:text-base">
+                                            {slide.trustLine}
+                                        </p>
+                                    </motion.div>
+
+                                    <motion.div
+                                        initial={shouldRunEntryAnimation ? { y: 22, opacity: 0 } : false}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        transition={{ delay: 0.26 }}
+                                        className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start"
+                                    >
+                                        {slide.isExternal ? (
+                                            <a
+                                                href={slide.href}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="btn-primary h-12 rounded-2xl px-8 text-[11px] font-black uppercase tracking-[0.18em]"
                                             >
-                                                <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-50 flex items-center justify-center p-1 md:p-1.5">
-                                                    <img 
-                                                        src={`https://www.google.com/s2/favicons?domain=${slide.store?.toLowerCase() || 'amazon'}.com&sz=64`} 
-                                                        alt="" 
-                                                        className="w-full h-full object-contain"
+                                                {slide.cta}
+                                                <ExternalLink size={14} />
+                                            </a>
+                                        ) : (
+                                            <Link
+                                                to={slide.href}
+                                                className="btn-primary h-12 rounded-2xl px-8 text-[11px] font-black uppercase tracking-[0.18em]"
+                                            >
+                                                {slide.cta}
+                                                <ArrowRight size={14} />
+                                            </Link>
+                                        )}
+                                        <Link
+                                            to="/deals"
+                                            className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/22 bg-white/6 px-8 text-[11px] font-black uppercase tracking-[0.18em] text-white backdrop-blur-lg transition-all hover:bg-white/12 hover:translate-y-[-1px]"
+                                        >
+                                            View Details
+                                        </Link>
+                                    </motion.div>
+                                </div>
+
+                                {/* Right */}
+                                <motion.div
+                                    initial={shouldRunEntryAnimation ? { x: 40, opacity: 0 } : false}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    transition={{ delay: 0.24, duration: 0.8 }}
+                                    className="relative flex justify-center"
+                                >
+                                    <div className="relative w-full max-w-[490px] rounded-[2rem] border border-white/14 bg-white/10 p-3 shadow-[0_22px_42px_-28px_rgba(0,0,0,0.32)] backdrop-blur-xl sm:rounded-[2.5rem] sm:p-4 lg:p-5">
+                                        <div className="relative overflow-hidden rounded-[1.6rem] border border-white/14 bg-white/8 p-3 sm:rounded-[1.85rem] sm:p-4">
+                                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.1),transparent_42%)]" />
+                                            <div className="flex min-h-[290px] items-center justify-center sm:min-h-[360px]">
+                                                <img
+                                                    src={slide.image}
+                                                    alt={slide.title}
+                                                    className="max-h-[310px] w-full object-contain drop-shadow-[0_18px_38px_rgba(0,0,0,0.28)] transition-transform duration-700 group-hover:scale-[1.02] sm:max-h-[420px]"
+                                                    loading={current === 0 ? 'eager' : 'lazy'}
+                                                    fetchPriority={current === 0 ? 'high' : 'auto'}
+                                                    decoding="async"
+                                                    onError={(e) => {
+                                                        e.target.onerror = null;
+                                                        e.target.src = NO_PRODUCT_IMAGE;
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {slide.store && (
+                                            <div className="absolute -bottom-2.5 right-2.5 flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-2.5 py-1.5 shadow-md shadow-slate-200/50 sm:-bottom-3 sm:right-3 sm:rounded-[1rem]">
+                                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#F8FAFC] p-1">
+                                                    <img
+                                                        src={`https://www.google.com/s2/favicons?domain=${slide.store?.toLowerCase() || 'amazon'}.com&sz=64`}
+                                                        alt=""
+                                                        className="h-full w-full object-contain"
                                                     />
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Marketplace</span>
-                                                    <span className="text-[10px] md:text-xs font-[1000] text-slate-900">{slide.store}</span>
+                                                    <span className="text-[7px] font-black uppercase tracking-[0.16em] leading-none text-[#94A3B8]">
+                                                        Marketplace
+                                                    </span>
+                                                    <span className="text-[10px] font-[1000] leading-tight text-[#0F172A] sm:text-[10px]">
+                                                        {slide.store}
+                                                    </span>
                                                 </div>
-                                            </motion.div>
+                                            </div>
                                         )}
-                                    </motion.div>
-                                ) : (
-                                    <motion.div
-                                        animate={{ y: [0, -15, 0] }}
-                                        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                                        className="w-64 h-64 rounded-[3rem] bg-white/10 border border-white/20 backdrop-blur-2xl flex flex-col items-center justify-center gap-6 shadow-2xl"
-                                    >
-                                        <span className="text-[90px] drop-shadow-2xl">{slide.emoji || '🛍️'}</span>
-                                        <div className="flex items-center gap-2 bg-white/20 px-5 py-2 rounded-xl">
-                                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
-                                            <span className="text-white text-[11px] font-black uppercase tracking-widest">Live Updates</span>
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </motion.div>
+                                    </div>
+                                </motion.div>
+                            </div>
                         </div>
                     </motion.div>
                 </AnimatePresence>
 
-                {/* ── Navigation Arrows ── */}
                 {slides.length > 1 && (
                     <>
                         <button
-                            onClick={(e) => { e.preventDefault(); prevSlide(); }}
-                            className="absolute left-4 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 text-white flex items-center justify-center hover:bg-white/20 transition-all opacity-0 group-hover:opacity-100 hidden sm:flex"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                prevSlide();
+                            }}
+                            className="absolute left-4 top-1/2 z-30 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/18 bg-white/10 text-white/85 opacity-0 backdrop-blur-md transition-all hover:bg-white/18 group-hover:opacity-100 sm:flex"
                             aria-label="Previous slide"
                         >
-                            <ChevronLeft size={24} />
+                            <ChevronLeft size={18} />
                         </button>
                         <button
-                            onClick={(e) => { e.preventDefault(); nextSlide(); }}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 text-white flex items-center justify-center hover:bg-white/20 transition-all opacity-0 group-hover:opacity-100 hidden sm:flex"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                nextSlide();
+                            }}
+                            className="absolute right-4 top-1/2 z-30 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/18 bg-white/10 text-white/85 opacity-0 backdrop-blur-md transition-all hover:bg-white/18 group-hover:opacity-100 sm:flex"
                             aria-label="Next slide"
                         >
-                            <ChevronRight size={24} />
+                            <ChevronRight size={18} />
                         </button>
                     </>
                 )}
 
-                {/* ── Slide dots ── */}
                 {slides.length > 1 && (
-                    <div 
-                        className="absolute left-1/2 -translate-x-1/2 flex z-20" 
-                        style={{ bottom: '16px', gap: '8px' }}
-                    >
-                        {slides.map((_, i) => (
+                    <div className="absolute left-1/2 z-20 flex -translate-x-1/2 gap-2" style={{ bottom: '13px' }}>
+                        {slides.map((_, index) => (
                             <button
-                                key={i}
+                                key={index}
                                 onClick={() => {
-                                    setCurrent(i);
-                                    setIsPaused(true); // Pause auto-rotation when user manually interacts
+                                    setCurrent(index);
+                                    setIsPaused(true);
                                 }}
-                                className="group/dot relative p-3 -m-1" // Increased hit area
-                                aria-label={`Go to slide ${i + 1}`}
+                                className="group/dot relative -m-1 p-2"
+                                aria-label={`Go to slide ${index + 1}`}
                             >
-                                <div 
-                                    className={`h-2 rounded-full transition-all duration-500 ${i === current ? 'w-8 bg-white' : 'w-2 bg-white/30 group-hover/dot:bg-white/60'}`}
-                                    style={{ 
-                                        boxShadow: i === current ? '0 0 15px rgba(255,255,255,0.8)' : 'none',
-                                        transform: i === current ? 'scale(1.1)' : 'scale(1)'
+                                <div
+                                    className={`h-2 rounded-full transition-all duration-500 ${
+                                        index === current ? 'w-6.5 bg-white' : 'w-2 bg-white/28 group-hover/dot:bg-white/55'
+                                    }`}
+                                    style={{
+                                        boxShadow: index === current ? '0 0 10px rgba(255,255,255,0.6)' : 'none',
+                                        transform: index === current ? 'scale(1.03)' : 'scale(1)',
                                     }}
                                 />
-                                {i === current && (
-                                    <motion.div 
-                                        layoutId="activeDot"
-                                        className="absolute inset-0 rounded-full border border-white/40 scale-150"
-                                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                                    />
-                                )}
                             </button>
                         ))}
                     </div>
                 )}
             </div>
 
-            {/* ── Trust Strip ── */}
             {showMobileStickyCta && (
-                <div className="fixed inset-x-0 bottom-[6.1rem] z-40 px-4 md:hidden pointer-events-none">
+                <div className="pointer-events-none fixed inset-x-0 bottom-[5.45rem] z-40 px-3 md:hidden">
                     {slide.isExternal ? (
                         <a
                             href={slide.href}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="pointer-events-auto mx-auto flex h-[4.35rem] max-w-md items-center gap-3 rounded-[1.75rem] border border-white/10 bg-slate-950 px-3.5 text-white shadow-[0_24px_60px_-22px_rgba(2,6,23,0.95)] no-underline transition-transform active:scale-[0.98]"
+                            className="pointer-events-auto mx-auto flex h-[3.9rem] max-w-md items-center gap-3 rounded-[1.55rem] border border-white/10 bg-slate-950 px-3 text-white no-underline shadow-[0_22px_52px_-22px_rgba(2,6,23,0.95)] transition-transform active:scale-[0.98]"
                         >
-                            <HeroStickyContent slide={slide} label={mobileCtaLabel} />
+                            <HeroStickyContent slide={slide} label="Grab Deal" />
                         </a>
                     ) : (
                         <Link
                             to={slide.href}
-                            className="pointer-events-auto mx-auto flex h-[4.35rem] max-w-md items-center gap-3 rounded-[1.75rem] border border-white/10 bg-slate-950 px-3.5 text-white shadow-[0_24px_60px_-22px_rgba(2,6,23,0.95)] transition-transform active:scale-[0.98]"
+                            className="pointer-events-auto mx-auto flex h-[3.9rem] max-w-md items-center gap-3 rounded-[1.55rem] border border-white/10 bg-slate-950 px-3 text-white shadow-[0_22px_52px_-22px_rgba(2,6,23,0.95)] transition-transform active:scale-[0.98]"
                         >
-                            <HeroStickyContent slide={slide} label={mobileCtaLabel} />
+                            <HeroStickyContent slide={slide} label="Grab Deal" />
                         </Link>
                     )}
                 </div>
             )}
 
-            <div className="border-b border-slate-100 bg-white">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 grid grid-cols-2 md:flex md:flex-wrap items-center justify-center md:justify-between gap-3 md:gap-6 text-sm font-semibold text-slate-500">
+            <div className="border-b border-[#E2E8F0] bg-white">
+                <div className="mx-auto grid max-w-7xl grid-cols-2 items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-[#64748B] md:flex md:flex-wrap md:justify-between md:gap-6 md:px-6 md:py-4 lg:px-8">
                     {[
-                        { icon: ShieldCheck, label: '100% Verified Deals', color: 'text-emerald-500' },
-                        { icon: Zap, label: 'Real-time Price Sync', color: 'text-orange-500' },
-                        { icon: TrendingDown, label: 'Best Price Guarantee', color: 'text-blue-500' },
-                        { icon: Clock, label: 'Updated Every 5 Min', color: 'text-violet-500' },
+                        { icon: ShieldCheck, label: `${slides.length} live hero deals`, color: 'text-[#22C55E]' },
+                        { icon: Zap, label: `${storeCount || 1} active stores`, color: 'text-[#FF6A00]' },
+                        { icon: Sparkles, label: 'Top discounts first', color: 'text-[#64748B]' },
+                        { icon: Clock, label: 'Backed by current catalog', color: 'text-[#64748B]' },
                     ].map(({ icon: Icon, label, color }) => (
-                        <div key={label} className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2 md:bg-transparent md:px-0 md:py-0">
-                            <Icon size={18} className={color} />
-                            <span className="text-[10px] leading-tight md:text-xs font-bold">{label}</span>
+                        <div key={label} className="flex items-center gap-1.5 rounded-xl bg-[#F8FAFC] px-2.5 py-2 md:bg-transparent md:px-0 md:py-0">
+                            <Icon size={15} className={color} />
+                            <span className="text-[9px] font-bold leading-tight md:text-xs">{label}</span>
                         </div>
                     ))}
                 </div>

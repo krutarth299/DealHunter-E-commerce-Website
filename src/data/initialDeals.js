@@ -28,14 +28,14 @@ export const INITIAL_DEALS = [
     {
         id: "hot_3",
         title: "PLIX - Guava Glow Regime with 10% Vitamin C Face Mini Serum (10ml) & Juicy Mini Cleanser",
-        store: "Meesho",
+        store: "Nykaa",
         price: "₹230",
         originalPrice: "₹399",
         discount: "42% OFF",
-        image: "https://images.meesho.com/images/products/527678977/wstx7_1024.avif?width=512",
+        image: "https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=800&auto=format&fit=crop&q=80",
         rating: 4.4,
         category: "Beauty",
-        link: "https://meesho.com",
+        link: "https://nykaa.com",
         expiry: Date.now() + 16200000
     },
     {
@@ -54,14 +54,14 @@ export const INITIAL_DEALS = [
     {
         id: "hot_5",
         title: "Muuchstac Ocean Face Wash for Men",
-        store: "Meesho",
+        store: "Nykaa",
         price: "₹281",
         originalPrice: "₹450",
         discount: "38% OFF",
-        image: "https://images.meesho.com/images/products/199994486/y67cv_1024.avif?width=512",
+        image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800&auto=format&fit=crop&q=80",
         rating: 4.3,
         category: "Beauty",
-        link: "https://meesho.com",
+        link: "https://nykaa.com",
         expiry: Date.now() + 16200000
     },
     {

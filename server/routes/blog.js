@@ -1,62 +1,14 @@
 import express from 'express';
+import { getBlogPosts, getBlogPost, saveBlogPost } from '../controllers/blogController.js';
+
 const router = express.Router();
-import Comment from '../models/Comment.js';
-import { blogComments } from '../mockStore.js';
 
-// Get comments for a blog post
-router.get('/:slug/comments', async (req, res) => {
-    try {
-        if (req.app.locals.isMockMode) {
-            const filtered = blogComments
-                .filter(c => c.blogSlug === req.params.slug)
-                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            return res.json(filtered);
-        }
+// Public Routes
+router.get('/', getBlogPosts);
+router.get('/:slug', getBlogPost);
 
-        const comments = await Comment.find({ blogSlug: req.params.slug }).sort({ createdAt: -1 });
-        res.json(comments);
-    } catch (err) {
-        console.error('Error fetching comments:', err);
-        res.status(500).json({ message: 'Error fetching comments' });
-    }
-});
-
-// ssrEngine requirement removed for stability
-
-// Add a comment to a blog post
-router.post('/:slug/comments', async (req, res) => {
-    try {
-        const { userName, text } = req.body;
-        if (!userName || !text) {
-            return res.status(400).json({ message: 'Name and comment text are required' });
-        }
-
-        if (req.app.locals.isMockMode) {
-            const newComment = {
-                _id: 'mock_' + Date.now(),
-                blogSlug: req.params.slug,
-                userName,
-                text,
-                createdAt: new Date()
-            };
-            blogComments.push(newComment);
-                        // SSR cache clearing placeholder
-            return res.status(201).json(newComment);
-        }
-
-        const newComment = new Comment({
-            blogSlug: req.params.slug,
-            userName,
-            text
-        });
-
-        const savedComment = await newComment.save();
-                    // SSR cache clearing placeholder
-        res.status(201).json(savedComment);
-    } catch (err) {
-        console.error('Error saving comment:', err);
-        res.status(500).json({ message: 'Error saving comment' });
-    }
-});
+// Admin Routes (Note: In a real app, add auth middleware here)
+router.post('/', saveBlogPost);
+router.put('/:id', saveBlogPost);
 
 export default router;

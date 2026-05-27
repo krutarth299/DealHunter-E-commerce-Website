@@ -1,0 +1,19 @@
+{
+  "watch": ["server"],
+  "ext": "js,json",
+  "ignore": [
+    "node_modules",
+    "../src",
+    "../dist",
+    "../node_modules",
+    ".git",
+    "*.log",
+    "../.server-port.json",
+    ".server-port.json",
+    "temp/*",
+    "cache/*",
+    "images/*",
+    "logs/*"
+  ],
+  "delay": "2000"
+}

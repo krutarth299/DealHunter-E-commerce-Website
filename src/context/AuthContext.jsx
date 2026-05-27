@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthContext } from './authContextDefinition';
 
-const API_BASE_URL = 'http://localhost:5000/api'; // Defined API_BASE_URL as it was used in the provider value
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const AuthProvider = ({ children }) => {
     // Account system removed. Providing dummy user for parts of the app that still expect it.

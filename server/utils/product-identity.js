@@ -114,10 +114,6 @@ export const getSourceProductId = (productUrl = '', store = '') => {
         if (haystack.includes('myntra')) {
             return pathname.match(/\/(\d+)(?:\/buy)?\/?$/i)?.[1] || '';
         }
-
-        if (haystack.includes('ajio')) {
-            return pathname.match(/\/p\/([a-z0-9_]+)/i)?.[1] || '';
-        }
     } catch (_) {
         return '';
     }
@@ -266,6 +262,7 @@ export const groupDealsIntoListings = (deals = []) => {
             [makeVariantOptionFromDeal(existing), makeVariantOptionFromDeal(deal)]
         );
         best.variants = duplicateVariants;
+        best.variations = duplicateVariants;
         byDuplicate.set(key, best);
     });
 
@@ -283,6 +280,7 @@ export const groupDealsIntoListings = (deals = []) => {
         const keeper = { ...pickBestDealRecord(group) };
         const groupedVariants = group.map((deal, index) => makeVariantOptionFromDeal(deal, index));
         keeper.variants = mergeVariantOptions(keeper.variants, groupedVariants);
+        keeper.variations = keeper.variants;
         listings.push(keeper);
     });
 

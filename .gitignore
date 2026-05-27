@@ -40,6 +40,7 @@ lerna-debug.log*
 
 # Vite
 *.local
+.server-port.json
 
 # System files
 Thumbs.db

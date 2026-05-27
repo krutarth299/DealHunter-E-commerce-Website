@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Search, Menu, X, Heart, Flame, Bell, Zap, Tag, ArrowRight, ShieldCheck, BadgePercent } from 'lucide-react';
+import { Search, Menu, X, Heart, Flame, Bell, Zap, Tag, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useWishlistAnimation } from '../context/wishlistAnimationContextDefinition';
 import { AuthContext } from '../context/authContextDefinition';
 import { motion, AnimatePresence } from 'framer-motion';
-import { optimizeImageUrl, getMainProductImage } from '../utils/imageOptimizer';
+import { getMainProductImage } from '../utils/imageOptimizer';
 import { getCardTitle } from '../utils/productTitles';
 import { formatPriceDisplay, parsePriceNumber } from '../utils/dealUi';
+import { getProductPath } from '../utils/productUrls';
+import logo from '../assets/logo.png';
+
 
 const Navbar = ({ onSearch, wishlistCount = 0 }) => {
     const { wishlistRef, arrivalEffect } = useWishlistAnimation();
@@ -24,17 +27,16 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
 
     const fetchNotifications = React.useCallback(() => {
         if (!apiBase) return;
-        fetch(apiBase.replace('/user', '') + '/deals')
+        fetch(`${apiBase.replace('/user', '')}/deals/latest?limit=5`, { cache: 'no-store' })
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {
-                    const sorted = [...data].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-                    setLatestDeals(sorted.slice(0, 5));
+                    setLatestDeals(data.slice(0, 5));
                     
                     // Check if the newest deal is unread
-                    if (sorted.length > 0) {
+                    if (data.length > 0) {
                         const lastSeenId = localStorage.getItem('lastSeenDealId');
-                        const currentNewestId = String(sorted[0]._id || sorted[0].id);
+                        const currentNewestId = String(data[0]._id || data[0].id);
                         if (lastSeenId !== currentNewestId) {
                             setHasUnread(true);
                         }
@@ -50,12 +52,19 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
 
     // Listen for new deals added in current session
     useEffect(() => {
-        const handleNewDeal = () => {
+        const handleNewDeal = (event) => {
+            if (event?.type === 'dealsphere:data-changed' && event?.detail?.entity && event.detail.entity !== 'deal') {
+                return;
+            }
             setHasUnread(true);
             fetchNotifications();
         };
         window.addEventListener('newDealAdded', handleNewDeal);
-        return () => window.removeEventListener('newDealAdded', handleNewDeal);
+        window.addEventListener('dealsphere:data-changed', handleNewDeal);
+        return () => {
+            window.removeEventListener('newDealAdded', handleNewDeal);
+            window.removeEventListener('dealsphere:data-changed', handleNewDeal);
+        };
     }, [fetchNotifications]);
 
     useEffect(() => {
@@ -117,11 +126,11 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
             {/* Announcement Bar */}
             <div className="hidden sm:flex bg-slate-900 text-white text-[10px] font-black uppercase tracking-[0.2em] py-2.5 items-center justify-center gap-4 border-b border-white/5 relative z-[60]">
                 <span className="flex items-center gap-1.5 opacity-60">
-                    <Zap size={10} className="text-orange-500 fill-orange-500" /> 
+                    <Zap size={10} className="text-[#FF6A00] fill-[#FF6A00]" /> 
                     Limited Time Offer
                 </span>
                 <span className="w-1 h-1 rounded-full bg-slate-700" />
-                <span className="flex items-center gap-2 text-orange-400 group transition-all">
+                <span className="flex items-center gap-2 text-[#FF6A00] group transition-all">
                     Handpicked Premium Deals for You
                 </span>
                 <span className="w-1 h-1 rounded-full bg-slate-700" />
@@ -132,36 +141,36 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
             </div>
 
             {/* Sticky Header Container */}
-            <div className={`sticky top-0 z-40 w-full transition-all duration-500`}>
+            <div className="sticky top-0 z-40 w-full optimize-gpu">
                 <div className="absolute inset-0 bg-white/70 backdrop-blur-2xl border-b border-slate-100 shadow-premium-sm" />
                 
-                <nav className={`relative transition-all duration-500 ${scrolled ? 'py-1' : 'py-4'}`}>
+                <nav className="relative py-3">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className={`flex items-center justify-between gap-4 relative transition-all duration-500 ${scrolled ? 'h-14' : 'h-16'}`}>
+                        <div className="flex items-center justify-between gap-4 relative h-16">
 
                             {/* Logo */}
                             <Link to="/" className="flex items-center gap-2 sm:gap-3.5 shrink-0 group">
-                                <div className={`flex items-center transition-all duration-500 ${scrolled ? 'h-9 sm:h-12' : 'h-12 sm:h-20'}`}>
+                                <div className="flex items-center h-12 sm:h-14">
                                     <img 
-                                        src="/logo.png" 
+                                        src={logo} 
                                         alt="DealSphere" 
-                                        className="h-full w-auto object-contain filter drop-shadow-sm group-hover:drop-shadow-md transition-all duration-300 scale-105 sm:scale-110" 
+                                        className={`h-full w-auto object-contain filter drop-shadow-sm group-hover:drop-shadow-md transition-transform duration-300 ${scrolled ? 'scale-90' : 'scale-100 sm:scale-105'}`} 
                                     />
                                 </div>
                                 <div className="flex flex-col leading-none">
-                                    <span className={`font-[1000] tracking-tighter flex items-baseline transition-all duration-500 ${scrolled ? 'text-xl sm:text-3xl' : 'text-2xl sm:text-4xl'}`}>
-                                        <span className="text-[#1E3A8A]">Deal</span>
-                                        <span className="text-[#F97316]">Sphere</span>
+                                    <span className="font-[1000] tracking-tighter flex items-baseline transition-all duration-300 text-xl sm:text-3xl">
+                                        <span className="text-[#0F172A]">Deal</span>
+                                        <span className="text-[#FF6A00]">Sphere</span>
                                     </span>
-                                    <span className={`font-bold text-slate-400 uppercase tracking-widest mt-0.5 ml-0.5 transition-all duration-500 hidden sm:block ${scrolled ? 'text-[7px] sm:text-[8px]' : 'text-[8px] sm:text-[11px]'}`}>
+                                    <span className="font-bold text-slate-400 uppercase tracking-widest mt-0.5 ml-0.5 transition-all duration-300 hidden sm:block text-[8px] sm:text-[9px]">
                                         Smart Deals Around the World
                                     </span>
                                 </div>
                             </Link>
 
                             {/* Search Bar */}
-                            <form onSubmit={handleSearch} className={`flex-1 max-w-2xl mx-4 lg:mx-8 hidden md:flex items-center relative group/search transition-all duration-500 ${scrolled ? 'scale-95' : ''}`}>
-                                <div className="absolute left-5 text-slate-400 group-focus-within/search:text-orange-500 transition-colors">
+                            <form onSubmit={handleSearch} className="flex-1 max-w-2xl mx-4 lg:mx-8 hidden md:flex items-center relative group/search">
+                                <div className="absolute left-5 text-slate-400 group-focus-within/search:text-[#FF6A00] transition-colors">
                                     <Search size={18} strokeWidth={2.5} />
                                 </div>
                                 <input
@@ -169,7 +178,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                     value={searchVal}
                                     onChange={e => { setSearchVal(e.target.value); if (onSearch) onSearch(e.target.value); }}
                                     placeholder="Search 10,000+ verified deals..."
-                                    className="w-full bg-slate-100/30 border border-slate-200/60 rounded-2xl py-3.5 pl-12 pr-6 text-sm font-semibold focus:outline-none focus:bg-white focus:border-orange-500/50 focus:ring-[6px] focus:ring-orange-500/5 transition-all"
+                                    className="w-full bg-slate-100/30 border border-slate-200/60 rounded-2xl py-3.5 pl-12 pr-6 text-sm font-semibold focus:outline-none focus:bg-white focus:border-[#FF6A00]/50 focus:ring-[6px] focus:ring-[#FF6A00]/5 transition-all"
                                 />
                                 <AnimatePresence>
                                     {searchVal.trim().length >= 2 && (
@@ -180,7 +189,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                             className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-50 overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white/98 shadow-2xl shadow-slate-900/12 backdrop-blur-xl"
                                         >
                                             {searchSuggestions.length > 0 ? searchSuggestions.map((deal) => {
-                                                const productPath = `/product/${deal._id || deal.id}`;
+                                                const productPath = getProductPath(deal);
                                                 return (
                                                     <Link
                                                         key={deal._id || deal.id || deal.title}
@@ -209,7 +218,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                             <Link
                                                 to={`/deals?search=${encodeURIComponent(searchVal)}`}
                                                 onClick={closeSearch}
-                                                className="flex items-center justify-between bg-slate-950 px-5 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white transition-colors hover:bg-orange-500"
+                                                className="flex items-center justify-between bg-[#0F172A] px-5 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white transition-colors hover:bg-[#FF6A00]"
                                             >
                                                 Search all deals
                                                 <ArrowRight size={15} />
@@ -222,10 +231,10 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                             {/* Right Actions */}
                             <div className="flex items-center gap-1 sm:gap-3">
                                 {/* Wishlist */}
-                                <Link to="/wishlist" ref={wishlistRef} className="relative flex items-center justify-center w-11 h-11 rounded-2xl hover:bg-red-50 transition-all group">
-                                    <Heart size={22} className={`${wishlistCount > 0 ? 'text-red-500 fill-red-500' : 'text-slate-500'} group-hover:text-red-500 transition-colors`} />
+                                <Link to="/wishlist" ref={wishlistRef} className="relative flex items-center justify-center w-11 h-11 rounded-2xl hover:bg-orange-50 transition-all group">
+                                    <Heart size={22} className={`${wishlistCount > 0 ? 'text-[#FF6A00] fill-[#FF6A00]' : 'text-slate-500'} group-hover:text-[#FF6A00] transition-colors`} />
                                     {wishlistCount > 0 && (
-                                        <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                                        <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-[#FF6A00] text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-lg border-2 border-white">
                                             {wishlistCount}
                                         </span>
                                     )}
@@ -245,23 +254,23 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                                 localStorage.setItem('lastSeenDealId', String(latestDeals[0]._id || latestDeals[0].id));
                                             }
                                         }} 
-                                        className={`relative flex items-center justify-center w-11 h-11 rounded-2xl transition-all ${isNotificationsOpen ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                                        className={`relative flex items-center justify-center w-11 h-11 rounded-2xl transition-all ${isNotificationsOpen ? 'bg-orange-50 text-[#FF6A00]' : 'text-slate-500 hover:bg-slate-100'}`}
                                     >
                                         <Bell size={22} />
-                                        {hasUnread && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border-2 border-white animate-pulse" />}
+                                        {hasUnread && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#FF6A00] rounded-full border-2 border-white animate-pulse" />}
                                     </button>
                                     <AnimatePresence>
                                         {isNotificationsOpen && (
                                             <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute top-14 right-0 w-80 bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl border border-slate-100 z-50 overflow-hidden transform origin-top-right">
                                                 <div className="p-5 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
                                                     <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest">New Deals</h4>
-                                                    <span className="text-[10px] font-black bg-orange-500 text-white px-2 py-0.5 rounded-lg">{latestDeals.length}</span>
+                                                    <span className="text-[10px] font-black bg-[#FF6A00] text-white px-2 py-0.5 rounded-lg">{latestDeals.length}</span>
                                                 </div>
                                                 <div className="max-h-[350px] overflow-y-auto no-scrollbar py-2">
                                                     {latestDeals.length > 0 ? latestDeals.map((deal, idx) => (
                                                         <Link
                                                             key={idx}
-                                                            to={`/product/${deal._id || deal.id}`}
+                                                            to={getProductPath(deal)}
                                                             onClick={() => {
                                                                 setIsNotificationsOpen(false);
                                                             }}
@@ -272,7 +281,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                                             </div>
                                                             <div className="flex-1 min-w-0">
                                                                 <p className="text-[10px] font-black text-emerald-600 mb-0.5 flex items-center gap-1"><Zap size={10} fill="currentColor" /> FRESH PRICE DROP</p>
-                                                                <p className="text-xs font-bold text-slate-800 line-clamp-2 leading-tight group-hover/notif:text-orange-500 transition-colors">{deal.title}</p>
+                                                                <p className="text-xs font-bold text-slate-800 line-clamp-2 leading-tight group-hover/notif:text-[#FF6A00] transition-colors">{deal.title}</p>
                                                                 <p className="text-[10px] text-slate-400 mt-1 font-bold">{deal.store} • {deal.price}</p>
                                                             </div>
                                                         </Link>
@@ -283,7 +292,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                                         </div>
                                                     )}
                                                 </div>
-                                                <Link to="/deals" onClick={() => setIsNotificationsOpen(false)} className="block p-4 bg-slate-50 border-t border-slate-100 text-center text-[11px] font-black text-slate-500 hover:text-orange-500 transition-colors uppercase tracking-[0.2em]">View All Live Deals</Link>
+                                                <Link to="/deals" onClick={() => setIsNotificationsOpen(false)} className="block p-4 bg-slate-50 border-t border-slate-100 text-center text-[11px] font-black text-slate-500 hover:text-[#FF6A00] transition-colors uppercase tracking-[0.2em]">View All Live Deals</Link>
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
@@ -292,14 +301,14 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                 {/* User Profile */}
                                 {user && (
                                     <div className="hidden md:flex items-center gap-3 bg-slate-50 p-1 rounded-xl border border-slate-100 hover:bg-white hover:border-orange-200 transition-all cursor-pointer group">
-                                        <div className="w-9 h-9 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600 font-black text-sm border border-white shadow-sm overflow-hidden">
+                                        <div className="w-9 h-9 rounded-lg bg-orange-100 flex items-center justify-center text-[#FF6A00] font-black text-sm border border-white shadow-sm overflow-hidden">
                                             {user.name && user.name.charAt(0)}
                                         </div>
                                         <div className="flex flex-col pr-3">
                                             <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-1">Account</span>
                                             <span className="text-xs font-black text-slate-900 leading-none">{user.name.split(' ')[0]}</span>
                                         </div>
-                                        <button onClick={logout} className="p-1.5 text-slate-300 hover:text-red-500 transition-colors">
+                                        <button onClick={logout} className="p-1.5 text-slate-300 hover:text-[#FF6A00] transition-colors">
                                             <X size={14} />
                                         </button>
                                     </div>
@@ -313,29 +322,24 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                         </div>
 
                         {/* Secondary Desktop Navigation Row */}
-                        <AnimatePresence initial={false}>
-                            {!scrolled && (
-                                <motion.div initial={false} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="hidden md:block overflow-hidden">
-                                    <div className="max-w-7xl mx-auto border-t border-slate-100/50 py-2 mt-4 flex items-center gap-1">
-                                        {[
-                                            { to: '/', label: '🔥 Hot Deals' },
-                                            { to: '/deals', label: 'All Deals' },
-                                            { to: '/coupons', label: 'Coupons' },
-                                            { to: '/stores', label: 'Stores' },
-                                            { to: '/blog', label: 'Blog' },
-                                        ].map(link => (
-                                            <Link key={link.to} to={link.to} className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${isActive(link.to) ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' : 'text-slate-500 hover:text-orange-500 hover:bg-orange-50/50'}`}>
-                                                {link.label}
-                                            </Link>
-                                        ))}
-                                        <div className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Live Updates</span>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                        <div className="hidden md:block overflow-hidden">
+                            <div className="max-w-7xl mx-auto border-t border-slate-100/50 py-2 mt-4 flex items-center gap-1">
+                                {[
+                                    { to: '/', label: '🔥 Hot Deals' },
+                                    { to: '/deals', label: 'All Deals' },
+                                    { to: '/stores', label: 'Stores' },
+                                    { to: '/blog', label: 'Blog' }
+                                ].map(link => (
+                                    <Link key={link.to} to={link.to} className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${isActive(link.to) ? 'bg-[#FF6A00] text-white shadow-lg shadow-orange-500/20' : 'text-slate-500 hover:text-[#FF6A00] hover:bg-orange-50/50'}`}>
+                                        {link.label}
+                                    </Link>
+                                ))}
+                                <div className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Live Updates</span>
+                                </div>
+                            </div>
+                        </div>
 
                         {/* Mobile Menu Open State */}
                         <AnimatePresence>
@@ -351,7 +355,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                                 {searchSuggestions.slice(0, 3).map((deal) => (
                                                     <Link
                                                         key={deal._id || deal.id || deal.title}
-                                                        to={`/product/${deal._id || deal.id}`}
+                                                        to={getProductPath(deal)}
                                                         onClick={() => {
                                                             closeSearch();
                                                         }}
@@ -371,11 +375,10 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                         {[
                                             { to: '/', label: '🔥 Hot Deals' },
                                             { to: '/deals', label: 'All Deals' },
-                                            { to: '/coupons', label: 'Coupons & Codes' },
                                             { to: '/stores', label: 'Stores' },
-                                            { to: '/blog', label: '✍️ Shopping Blog' },
+                                            { to: '/blog', label: '✍️ Shopping Blog' }
                                         ].map(link => (
-                                            <Link key={link.to} to={link.to} onClick={() => setIsOpen(false)} className={`block px-5 py-4 rounded-2xl font-black text-sm transition-all ${isActive(link.to) ? 'bg-orange-50 text-orange-600' : 'text-slate-700 hover:bg-slate-50'}`}>
+                                            <Link key={link.to} to={link.to} onClick={() => setIsOpen(false)} className={`block px-5 py-4 rounded-2xl font-black text-sm transition-all ${isActive(link.to) ? 'bg-orange-50 text-[#FF6A00]' : 'text-slate-700 hover:bg-slate-50'}`}>
                                                 {link.label}
                                             </Link>
                                         ))}
@@ -391,21 +394,17 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
             <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-center px-4 pb-6 pointer-events-none">
                 <div className="w-full max-w-md h-16 bg-slate-900/90 backdrop-blur-2xl rounded-3xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between px-2 pointer-events-auto">
                     <Link to="/" className={`flex flex-col items-center justify-center flex-1 h-[3.25rem] rounded-2xl gap-1 transition-all ${isActive('/') ? 'bg-white/10 text-white shadow-inner' : 'text-slate-500 active:bg-white/5'}`}>
-                        <Flame size={20} className={isActive('/') ? 'fill-orange-500 text-orange-500' : ''} />
+                        <Flame size={20} className={isActive('/') ? 'fill-[#FF6A00] text-[#FF6A00]' : ''} />
                         <span className="text-[9px] font-black uppercase tracking-tighter">Home</span>
                     </Link>
                     <Link to="/deals" className={`flex flex-col items-center justify-center flex-1 h-[3.25rem] rounded-2xl gap-1 transition-all ${isActive('/deals') ? 'bg-white/10 text-white shadow-inner' : 'text-slate-500 active:bg-white/5'}`}>
-                        <Tag size={20} className={isActive('/deals') ? 'fill-blue-500 text-blue-500' : ''} />
+                        <Tag size={20} className={isActive('/deals') ? 'fill-[#FF6A00] text-[#FF6A00]' : ''} />
                         <span className="text-[9px] font-black uppercase tracking-tighter">Deals</span>
                     </Link>
-                    <Link to="/coupons" className={`flex flex-col items-center justify-center flex-1 h-[3.25rem] rounded-2xl gap-1 transition-all ${isActive('/coupons') ? 'bg-white/10 text-white shadow-inner' : 'text-slate-500 active:bg-white/5'}`}>
-                        <BadgePercent size={20} className={isActive('/coupons') ? 'fill-orange-500 text-orange-500' : ''} />
-                        <span className="text-[9px] font-black uppercase tracking-tighter">Codes</span>
-                    </Link>
                     <Link to="/wishlist" className={`relative flex flex-col items-center justify-center flex-1 h-[3.25rem] rounded-2xl gap-1 transition-all ${isActive('/wishlist') ? 'bg-white/10 text-white shadow-inner' : 'text-slate-500 active:bg-white/5'}`}>
-                        <Heart size={20} className={isActive('/wishlist') ? 'fill-red-500 text-red-500' : ''} />
+                        <Heart size={20} className={isActive('/wishlist') ? 'fill-[#FF6A00] text-[#FF6A00]' : ''} />
                         <span className="text-[9px] font-black uppercase tracking-tighter">Saved</span>
-                        {wishlistCount > 0 && <span className="absolute top-2 right-4 w-4 h-4 bg-orange-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-slate-900">{wishlistCount}</span>}
+                        {wishlistCount > 0 && <span className="absolute top-2 right-4 w-4 h-4 bg-[#FF6A00] text-white text-[8px] font-black rounded-full flex items-center justify-center border border-slate-900">{wishlistCount}</span>}
                     </Link>
                 </div>
             </div>

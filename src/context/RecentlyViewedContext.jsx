@@ -2,7 +2,13 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { normalizeDealForUi } from '../utils/dealUi';
 
-const RecentlyViewedContext = createContext();
+const DEFAULT_CONTEXT_VALUE = {
+    recentlyViewed: [],
+    addRecentlyViewed: () => {},
+    clearRecentlyViewed: () => {}
+};
+
+const RecentlyViewedContext = createContext(DEFAULT_CONTEXT_VALUE);
 const STORAGE_KEY = 'recentlyViewedProducts';
 const MAX_RECENTLY_VIEWED = 10;
 
