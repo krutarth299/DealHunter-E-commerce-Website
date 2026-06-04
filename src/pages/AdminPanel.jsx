@@ -107,12 +107,20 @@ const mergeAffiliateSettings = (backendSettings = [], storeNames = []) => {
     const safeBackend = Array.isArray(backendSettings) ? backendSettings : [];
     const safeStoreNames = Array.isArray(storeNames) ? storeNames : [];
     
-    const allStoreNames = [
-        ...new Set([
-            ...safeStoreNames,
-            ...Object.keys(AFFILIATE_STORE_PROFILES || {})
-        ])
-    ].sort((a, b) => a.localeCompare(b));
+    const storeMap = new Map();
+    const addStore = (name) => {
+        if (!name) return;
+        const normalized = name.trim();
+        const lower = normalized.toLowerCase();
+        if (!storeMap.has(lower) || storeMap.get(lower) === 'Generic') {
+            storeMap.set(lower, normalized);
+        }
+    };
+
+    safeStoreNames.forEach(addStore);
+    safeBackend.forEach(s => addStore(s.store || s.storeName));
+
+    const allStoreNames = Array.from(storeMap.values()).sort((a, b) => a.localeCompare(b));
 
     return allStoreNames.map(storeName => {
         const existing = safeBackend.find(s => 

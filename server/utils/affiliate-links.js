@@ -232,14 +232,25 @@ export const syncAffiliateSettingsWithStores = async (AffiliateSettingModel, Dea
         rawStoreNames = [...storeNames, ...stores];
     }
 
-    // Append predefined store names to ensure all supported platforms are synced
-    const predefinedStoreNames = AFFILIATE_STORE_SOURCES.map((source) => source.store);
-    rawStoreNames = [...rawStoreNames, ...predefinedStoreNames];
-
     const discoveredStores = [...new Set(rawStoreNames
         .map((store) => normalizeStoreName(store))
         .filter((store) => store && store !== 'Generic' && store !== 'Online Store')
     )].sort((a, b) => a.localeCompare(b));
+
+    const activeSlugs = new Set(discoveredStores.map(s => getStoreSlug(s)));
+    
+    const extraSettingIds = existingSettings
+        .filter(s => !activeSlugs.has(getStoreSlug(s.store || s.storeName)))
+        .map(s => s._id);
+
+    if (extraSettingIds.length > 0) {
+        await AffiliateSettingModel.deleteMany({ _id: { $in: extraSettingIds } });
+        existingSettings.forEach(s => {
+            if (extraSettingIds.includes(s._id)) {
+                bySlug.delete(getStoreSlug(s.store || s.storeName));
+            }
+        });
+    }
 
     const syncTimestamp = new Date();
     const missingSettings = discoveredStores
