@@ -3,10 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import {
     LayoutDashboard, Package, PlusCircle, Search, Trash2,
-    TrendingUp, LogOut, Shield, ExternalLink, Edit3, Image as ImageIcon,
+    TrendingUp, Shield, ExternalLink, Edit3, Image as ImageIcon,
     Zap, DollarSign, Flame, Menu, X, CheckCircle, AlertCircle, Pencil, Activity,
     TrendingDown, Sparkles, Smartphone, Shirt, Gamepad2, Plane, Utensils, ShoppingBag, Layers,
-    ChevronLeft, ChevronRight, Home as HomeIcon, ShoppingCart, Loader2
+    ChevronLeft, ChevronRight, Home as HomeIcon, Loader2, Filter
 } from 'lucide-react';
 import { useNavigate, Link, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { optimizeImageUrl } from '../utils/imageOptimizer';
@@ -64,13 +64,12 @@ const deriveStoreFromUrl = (rawUrl = '') => {
         const host = new URL(rawUrl).hostname.toLowerCase();
         if (host.includes('amazon')) return 'Amazon';
         if (host.includes('flipkart')) return 'Flipkart';
-        if (host.includes('myntra')) return 'Myntra';
-        if (host.includes('nykaa')) return 'Nykaa';
         if (host.includes('croma')) return 'Croma';
         if (host.includes('reliancedigital')) return 'Reliance Digital';
         if (host.includes('firstcry')) return 'FirstCry';
-        if (host.includes('tatacliq')) return 'Tata CLiQ';
-        if (host.includes('snapdeal')) return 'Snapdeal';
+        if (host.includes('bigbasket')) return 'BigBasket';
+        if (host.includes('purplle')) return 'Purplle';
+        if (host.includes('1mg')) return 'Tata 1mg';
         return host.replace(/^www\./, '').split('.')[0]?.replace(/^./, c => c.toUpperCase()) || '';
     } catch {
         return '';
@@ -81,13 +80,12 @@ const detectPlatform = (url = '') => {
     const low = url.toLowerCase();
     if (low.includes("amazon")) return "amazon";
     if (low.includes("flipkart")) return "flipkart";
-    if (low.includes("myntra")) return "myntra";
     if (low.includes("croma")) return "croma";
     if (low.includes("reliancedigital")) return "reliancedigital";
-    if (low.includes("nykaa")) return "nykaa";
     if (low.includes("firstcry")) return "firstcry";
-    if (low.includes("tatacliq")) return "tatacliq";
-    if (low.includes("snapdeal")) return "snapdeal";
+    if (low.includes("bigbasket")) return "bigbasket";
+    if (low.includes("purplle")) return "purplle";
+    if (low.includes("1mg")) return "tata1mg";
     return "unknown";
 };
 
@@ -277,8 +275,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     const [storeFilter, setStoreFilter] = useState('All');
     const [categoryFilter, setCategoryFilter] = useState('All');
-    const [discountFilter, setDiscountFilter] = useState('All');
-    const [dateFilter, setDateFilter] = useState('All');
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [sortMode, setSortMode] = useState('newest');
     const [duplicateOnly, setDuplicateOnly] = useState(false);
     const [selectedDealIds, setSelectedDealIds] = useState([]);
@@ -307,7 +304,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
-    const [pageSize, setPageSize] = useState(50);
+    const [pageSize, setPageSize] = useState(10);
     const [duplicateCandidates, setDuplicateCandidates] = useState([]);
 
     const liveAffiliateStoreNames = useMemo(() => {
@@ -361,9 +358,10 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
         return mergedSettings;
     }, [adminApiBase, isAdmin]);
 
-    const fetchDealsList = useCallback(async ({ silent = false } = {}) => {
+    const fetchDealsList = useCallback(async ({ silent = false, signal } = {}) => {
         if (!isAdmin || !adminApiBase) return;
         if (!silent) setIsLoading(true);
+        let aborted = false;
         try {
             const headers = { 'auth-token': token() };
             const params = new URLSearchParams();
@@ -372,12 +370,11 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
             if (debouncedSearchQuery) params.append('search', debouncedSearchQuery);
             if (storeFilter && storeFilter !== 'All') params.append('store', storeFilter);
             if (categoryFilter && categoryFilter !== 'All') params.append('category', categoryFilter);
-            if (discountFilter && discountFilter !== 'All') params.append('discount', discountFilter);
-            if (dateFilter && dateFilter !== 'All') params.append('dateFilter', dateFilter);
             if (sortMode) params.append('sort', sortMode);
             if (duplicateOnly) params.append('duplicateOnly', 'true');
+            params.append('raw', 'true');
 
-            const data = await fetchJson(`${adminApiBase}/admin/deals?${params.toString()}`, { headers });
+            const data = await fetchJson(`${adminApiBase}/deals?${params.toString()}`, { headers, signal });
             const dealsArray = Array.isArray(data) ? data : (data?.deals || []);
             const normalizedDeals = normalizeDealsForUi(dealsArray);
             
@@ -386,12 +383,16 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
             setTotalPages(data?.totalPages || 1);
             return normalizedDeals;
         } catch (error) {
+            if (error?.name === 'AbortError') {
+                aborted = true;
+                return;
+            }
             console.error('Failed to fetch deals list:', error);
             setAdminError(error.message || 'Failed to fetch deals list.');
         } finally {
-            if (!silent) setIsLoading(false);
+            if (!silent && !aborted) setIsLoading(false);
         }
-    }, [adminApiBase, isAdmin, currentPage, pageSize, debouncedSearchQuery, storeFilter, categoryFilter, discountFilter, dateFilter, sortMode, duplicateOnly]);
+    }, [adminApiBase, isAdmin, currentPage, pageSize, debouncedSearchQuery, storeFilter, categoryFilter, sortMode, duplicateOnly]);
 
     const fetchMetadata = useCallback(async ({ silent = false } = {}) => {
         if (!isAdmin || !adminApiBase) return;
@@ -400,7 +401,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
             const headers = { 'auth-token': token() };
             const [statsData, categoriesData, storesData] = await Promise.all([
                 fetchJson(`${adminApiBase}/admin/stats`, { headers }),
-                fetchJson(`${adminApiBase}/admin/deals/categories`, { headers }),
+                fetchJson(`${adminApiBase}/deals/categories`, { headers }),
                 fetchJson(`${adminApiBase}/stores`, { headers })
             ]);
 
@@ -459,9 +460,11 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
     // Fetch deals when page/filters change
     useEffect(() => {
         if (!isAdmin || !adminApiBase) return;
+        const controller = new AbortController();
         Promise.resolve().then(() => {
-            fetchDealsList();
+            fetchDealsList({ signal: controller.signal });
         });
+        return () => controller.abort();
     }, [fetchDealsList, isAdmin, adminApiBase]);
 
     // Initial load for metadata and stats
@@ -496,17 +499,16 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
     // Debounce searchQuery
     useEffect(() => {
         const handler = setTimeout(() => {
-            setDebouncedSearchQuery(searchQuery);
+            setDebouncedSearchQuery((prev) => {
+                if (prev !== searchQuery) {
+                    setCurrentPage(1);
+                    return searchQuery;
+                }
+                return prev;
+            });
         }, 300);
         return () => clearTimeout(handler);
     }, [searchQuery]);
-
-    // Reset to page 1 when filters change
-    useEffect(() => {
-        Promise.resolve().then(() => {
-            setCurrentPage(1);
-        });
-    }, [debouncedSearchQuery, storeFilter, categoryFilter, discountFilter, dateFilter, sortMode, duplicateOnly]);
 
     // Debounce similar candidates search
     useEffect(() => {
@@ -524,7 +526,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                 const params = new URLSearchParams();
                 params.append('search', title);
                 params.append('limit', '5');
-                const res = await fetchJson(`${adminApiBase}/admin/deals?${params.toString()}`, { headers });
+                const res = await fetchJson(`${adminApiBase}/deals?${params.toString()}`, { headers });
                 const fetchedDeals = normalizeDealsForUi(Array.isArray(res) ? res : (res?.deals || []));
                 
                 // Filter out the one we are editing
@@ -586,7 +588,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
         setIsFetching(true);
         setFetchError('');
         try {
-            const response = await fetch(`${adminApiBase}/admin/deals/fetch-deal`, {
+            const response = await fetch(`${adminApiBase}/deals/fetch-deal`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -726,8 +728,8 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
             link: sanitizeUrl(dealForm?.productUrl),
             productUrl: sanitizeUrl(dealForm?.productUrl),
             affiliateLink: finalUrl,
-            price: safeMrp || price || 0, // Mapping: price => MRP
-            dealPrice: price,
+            price: price || safeMrp || 0,
+            dealPrice: price || 0,
             originalPrice: safeMrp || 0,
             mrp: safeMrp || 0,
             discount: computedDiscount ? `${computedDiscount}%` : '',
@@ -758,17 +760,20 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
         }
         setIsLoading(true);
         try {
-            const dealsApi = `${adminApiBase}/admin/deals/${editId}`;
+            const dealsApi = `${adminApiBase}/deals/${editId}`;
             const r = await fetch(dealsApi, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'auth-token': token() },
                 body: JSON.stringify(payload)
             });
             if (r.ok) {
-                await r.json().catch(() => ({}));
+                const responseData = await r.json().catch(() => ({}));
+                window.dispatchEvent(new CustomEvent('dealsphere:data-changed', {
+                    detail: { entity: 'deal', action: 'updated', id: editId, deal: responseData.deal || responseData }
+                }));
                 await refreshAdminData({ silent: true });
                 showToast?.('Deal updated!', 'success');
-                navigate('/admin/dashboard');
+                navigate('/admin/manage-deals');
             } else {
                 const error = await r.json().catch(() => ({}));
                 showToast?.(error.message || 'Update failed', 'error');
@@ -783,7 +788,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
         if (!window.confirm('Delete this deal?')) return;
         setIsLoading(true);
         try {
-            const dealsApi = `${adminApiBase}/admin/deals/${id}`;
+            const dealsApi = `${adminApiBase}/deals/${id}`;
             const r = await fetch(dealsApi, { method: 'DELETE', headers: { 'auth-token': token() } });
             if (r.ok) {
                 if (typeof setDeals === 'function') {
@@ -793,6 +798,9 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                         return next;
                     });
                 }
+                window.dispatchEvent(new CustomEvent('dealsphere:data-changed', {
+                    detail: { entity: 'deal', action: 'deleted', id }
+                }));
                 await refreshAdminData({ silent: true });
                 showToast?.('Deal deleted!', 'success');
             } else {
@@ -830,12 +838,19 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
         setIsLoading(true);
         try {
             const results = await Promise.allSettled(ids.map((id) =>
-                fetch(`${adminApiBase}/admin/deals/${id}`, {
+                fetch(`${adminApiBase}/deals/${id}`, {
                     method: 'DELETE',
                     headers: { 'auth-token': token() }
                 })
             ));
             const failed = results.filter((result) => result.status === 'rejected' || !result.value?.ok).length;
+            results.forEach((result, index) => {
+                if (result.status === 'fulfilled' && result.value?.ok) {
+                    window.dispatchEvent(new CustomEvent('dealsphere:data-changed', {
+                        detail: { entity: 'deal', action: 'deleted', id: ids[index] }
+                    }));
+                }
+            });
             clearSelectedDeals();
             await refreshAdminData({ silent: true });
             showToast?.(failed ? `Bulk delete finished. ${failed} failed.` : 'Selected deals deleted.', failed ? 'warning' : 'success');
@@ -847,12 +862,13 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
     };
 
     const handleBulkFeatured = async (featured) => {
-        if (selectedDeals.length === 0) return;
+        const ids = safeArray(selectedDealIds);
+        if (ids.length === 0) return;
 
         setIsLoading(true);
         try {
-            const results = await Promise.allSettled(selectedDeals.map((deal) =>
-                fetch(`${adminApiBase}/admin/deals/${getDealId(deal)}`, {
+            const results = await Promise.allSettled(ids.map((id) =>
+                fetch(`${adminApiBase}/deals/${id}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -892,7 +908,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                 discount: discount ? `${discount}%` : '',
                 discountPercent: discount || 0
             };
-            const response = await fetch(`${adminApiBase}/admin/deals/${id}`, {
+            const response = await fetch(`${adminApiBase}/deals/${id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -930,8 +946,16 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
         try {
             const success = await handleAddDeal(e, payload);
             if (success) {
+                setCurrentPage(1);
+                setSortMode('newest');
+                setSearchQuery('');
+                setDebouncedSearchQuery('');
+                setStoreFilter('All');
+                setCategoryFilter('All');
+                setDuplicateOnly(false);
+                
                 await refreshAdminData({ silent: true });
-                navigate('/admin/dashboard');
+                navigate('/admin/manage-deals');
             }
         } finally {
             setIsLoading(false);
@@ -977,7 +1001,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
 
         setIsLoading(true);
         try {
-            const response = await fetch(`${adminApiBase}/admin/deals/${id}`, {
+            const response = await fetch(`${adminApiBase}/deals/${id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1093,7 +1117,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
     ];
 
     /* ────────── label helper for auto-filled fields ────────── */
-    const AutoBadge = ({ field }) => autoPopulated.has(field) ? (
+    const renderAutoBadge = (field) => autoPopulated.has(field) ? (
         <span className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
             <CheckCircle size={8} /> Auto
         </span>
@@ -1307,41 +1331,50 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                     </div>
 
                                     <div className="mb-6 rounded-3xl border border-slate-200/60 bg-white/60 backdrop-blur-xl p-4 shadow-sm relative z-10">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
-                                            <select className={inputCls} value={storeFilter} onChange={(event) => setStoreFilter(event.target.value)}>
-                                                {storeFilterOptions.map((store) => <option key={store} value={store}>{store === 'All' ? 'All stores' : store}</option>)}
-                                            </select>
-                                            <select className={inputCls} value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-                                                {categoryFilterOptions.map((category) => <option key={category} value={category}>{category === 'All' ? 'All categories' : category}</option>)}
-                                            </select>
-                                            <select className={inputCls} value={discountFilter} onChange={(event) => setDiscountFilter(event.target.value)}>
-                                                <option value="All">All discounts</option>
-                                                <option value="50+">50%+ off</option>
-                                                <option value="25+">25%+ off</option>
-                                                <option value="1-24">1-24% off</option>
-                                                <option value="0">No discount</option>
-                                            </select>
-                                            <select className={inputCls} value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
-                                                <option value="All">All dates</option>
-                                                <option value="24h">Last 24 hours</option>
-                                                <option value="7d">Last 7 days</option>
-                                                <option value="30d">Last 30 days</option>
-                                            </select>
-                                            <select className={inputCls} value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
-                                                <option value="newest">Sort: newest</option>
-                                                <option value="price-low">Price: low to high</option>
-                                                <option value="price-high">Price: high to low</option>
-                                                <option value="discount">Best discount</option>
-                                                <option value="clicked">Most clicked</option>
-                                            </select>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <div className="flex-1 min-w-[200px] flex items-center gap-2 bg-white rounded-xl border border-slate-200 px-3 overflow-hidden focus-within:border-orange-300 focus-within:ring-2 focus-within:ring-orange-100 transition-all">
+                                                <Search size={16} className="text-slate-400 shrink-0" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search deals..."
+                                                    value={searchQuery}
+                                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                                    className="w-full bg-transparent py-2.5 text-sm font-bold text-slate-700 focus:outline-none"
+                                                />
+                                            </div>
                                             <button
                                                 type="button"
-                                                onClick={() => setDuplicateOnly(value => !value)}
-                                                className={`rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest transition-all ${duplicateOnly ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' : 'bg-white text-slate-600 border border-slate-200 hover:bg-amber-50 hover:text-amber-700'}`}
+                                                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                                                className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${showAdvancedFilters ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                                             >
-                                                Duplicates {adminInsights.duplicateCount ? `(${adminInsights.duplicateCount})` : ''}
+                                                <Filter size={16} className="inline-block mr-1.5 -mt-0.5" />
+                                                Filters
                                             </button>
                                         </div>
+                                        {showAdvancedFilters && (
+                                            <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-slate-200/60">
+                                                <select className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 transition-all" value={storeFilter} onChange={(event) => { setStoreFilter(event.target.value); setCurrentPage(1); }}>
+                                                    {storeFilterOptions.map((store) => <option key={store} value={store}>{store === 'All' ? 'All stores' : store}</option>)}
+                                                </select>
+                                                <select className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 transition-all" value={categoryFilter} onChange={(event) => { setCategoryFilter(event.target.value); setCurrentPage(1); }}>
+                                                    {categoryFilterOptions.map((category) => <option key={category} value={category}>{category === 'All' ? 'All categories' : category}</option>)}
+                                                </select>
+                                                <select className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 transition-all" value={sortMode} onChange={(event) => { setSortMode(event.target.value); setCurrentPage(1); }}>
+                                                    <option value="newest">Sort: newest</option>
+                                                    <option value="price-low">Price: low to high</option>
+                                                    <option value="price-high">Price: high to low</option>
+                                                    <option value="discount">Best discount</option>
+                                                    <option value="clicked">Most clicked</option>
+                                                </select>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setDuplicateOnly(value => !value); setCurrentPage(1); }}
+                                                    className={`rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest transition-all ${duplicateOnly ? 'bg-amber-500 text-white shadow-sm border-transparent' : 'bg-white text-slate-600 border border-slate-200 hover:bg-amber-50 hover:text-amber-700'}`}
+                                                >
+                                                    Dups {adminInsights.duplicateCount ? `(${adminInsights.duplicateCount})` : ''}
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {selectedDealIds.length > 0 && (
@@ -1380,7 +1413,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                                     <table className="min-w-full divide-y divide-slate-200/60">
                                                         <thead className="bg-slate-50/50 backdrop-blur-sm">
                                                             <tr>
-                                                                <th className="px-4 py-3 text-left">
+                                                                <th className="px-4 py-3 text-left w-12">
                                                                     <input
                                                                         type="checkbox"
                                                                         checked={filteredDeals.length > 0 && filteredDeals.every((deal) => selectedDealIds.includes(getDealId(deal)))}
@@ -1389,14 +1422,9 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                                                         aria-label="Select visible deals"
                                                                     />
                                                                 </th>
-                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Deal</th>
-                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Store</th>
-                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Category</th>
-                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Deal Price</th>
-                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">MRP</th>
-                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Discount</th>
-                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Featured</th>
-                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Created</th>
+                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Deal Product</th>
+                                                                <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">Price & Offer</th>
+                                                                <th className="px-4 py-3 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">Featured</th>
                                                                 <th className="px-4 py-3 text-right text-[11px] font-black uppercase tracking-wider text-slate-500">Actions</th>
                                                             </tr>
                                                         </thead>
@@ -1406,21 +1434,22 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                                                 const dealId = getDealId(deal);
                                                                 return (
                                                                     <tr key={deal._id || deal.id} className="hover:bg-slate-50/50 hover:shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] transition-all duration-300">
-                                                                        <td className="px-4 py-4 align-top">
+                                                                        <td className="px-4 py-4 align-top w-12">
                                                                             <input
                                                                                 type="checkbox"
                                                                                 checked={selectedDealIds.includes(getDealId(deal))}
                                                                                 onChange={() => toggleDealSelection(deal)}
-                                                                                className="mt-5 h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
+                                                                                className="mt-2 h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
                                                                                 aria-label={`Select ${deal.title || 'deal'}`}
                                                                             />
                                                                         </td>
                                                                         <td className="px-4 py-4">
-                                                                            <div className="flex items-center gap-3 min-w-[280px]">
-                                                                                <div className="w-14 h-14 rounded-xl overflow-hidden bg-white border border-slate-200/60 flex-shrink-0 shadow-sm">
+                                                                            <div className="flex items-start gap-4 min-w-[280px]">
+                                                                                <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white border border-slate-200/80 flex-shrink-0 shadow-sm p-1">
                                                                                     {deal.imageUrl ? (
-                                                                                        <div className="w-full h-full relative">
+                                                                                        <div className="w-full h-full relative rounded-xl overflow-hidden">
                                                                                             <img 
+                                                                                                key={`tbl-${deal.imageUrl || 'no-img'}`}
                                                                                                 src={optimizeImageUrl(deal.imageUrl)} 
                                                                                                 alt={deal.title} 
                                                                                                 className="w-full h-full object-cover" 
@@ -1434,71 +1463,73 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                                                                             </div>
                                                                                         </div>
                                                                                     ) : (
-                                                                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-100 to-rose-100 text-orange-600 font-black text-xl uppercase shadow-inner">
+                                                                                        <div className="w-full h-full rounded-xl flex items-center justify-center bg-gradient-to-br from-orange-100 to-rose-100 text-orange-600 font-black text-xl uppercase shadow-inner">
                                                                                             {(deal.store || 'D').charAt(0)}
                                                                                         </div>
                                                                                     )}
                                                                                 </div>
-                                                                                <div className="min-w-0">
+                                                                                <div className="min-w-0 flex flex-col justify-center">
                                                                                     <div className="flex items-start gap-2">
-                                                                                        <div className="text-sm font-black text-slate-900 line-clamp-2">{deal?.title || 'Untitled deal'}</div>
+                                                                                        <div className="text-sm font-black text-slate-900 line-clamp-2 leading-tight">{deal?.title || 'Untitled deal'}</div>
                                                                                         {duplicateIdSet.has(getDealId(deal)) && (
                                                                                             <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-800">Dup?</span>
                                                                                         )}
                                                                                     </div>
-                                                                                    <div className="text-xs text-slate-500 mt-1 truncate max-w-[280px]">{sanitizeOriginalUrl(deal?.productUrl || deal?.link || '') || 'No product URL'}</div>
+                                                                                    <div className="flex flex-wrap gap-2 mt-2">
+                                                                                        <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600 uppercase tracking-wider border border-slate-200">{deal?.store || 'Online Store'}</span>
+                                                                                        <span className="inline-flex items-center rounded-lg bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-600 uppercase tracking-wider border border-blue-100">{deal?.category || 'Other'}</span>
+                                                                                    </div>
+                                                                                    <div className="text-[11px] font-semibold text-slate-400 mt-1.5 truncate max-w-[320px]">
+                                                                                        {sanitizeOriginalUrl(deal?.productUrl || deal?.link || '') || 'No product URL'}
+                                                                                    </div>
                                                                                 </div>
                                                                             </div>
                                                                         </td>
-                                                                        <td className="px-4 py-4 text-sm font-bold text-slate-700">{deal?.store || 'Online Store'}</td>
-                                                                        <td className="px-4 py-4 text-sm text-slate-600">{deal?.category || 'Other'}</td>
-                                                                        <td className="px-4 py-4 text-sm font-black text-slate-900">{getDealDisplayPrice(deal)}</td>
-                                                                        <td className="px-4 py-4 text-sm text-slate-500">{getDealDisplayMrp(deal)}</td>
-                                                                        <td className="px-4 py-4">
-                                                                            <span className="inline-flex px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-black">
-                                                                                {getDealDisplayDiscount(deal)}
-                                                                            </span>
+                                                                        <td className="px-4 py-4 align-top">
+                                                                            <div className="flex flex-col gap-1">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span className="text-lg font-black text-slate-900">{getDealDisplayPrice(deal)}</span>
+                                                                                    {getDealDisplayDiscount(deal) && getDealDisplayDiscount(deal) !== '0% OFF' && (
+                                                                                        <span className="inline-flex px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-wider">
+                                                                                            {getDealDisplayDiscount(deal)}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                                <div className="text-xs font-semibold text-slate-400 line-through">
+                                                                                    {getDealDisplayMrp(deal)}
+                                                                                </div>
+                                                                            </div>
                                                                         </td>
-                                                                        <td className="px-4 py-4">
+                                                                        <td className="px-4 py-4 align-top text-center">
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => handleFeaturedToggle(deal)}
-                                                                                className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-black transition-colors ${deal?.featured ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                                                className={`inline-flex items-center justify-center p-2 rounded-xl transition-all ${deal.featured
+                                                                                    ? 'bg-amber-100 text-amber-600 hover:bg-amber-200 shadow-sm'
+                                                                                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'
+                                                                                    }`}
+                                                                                title={deal.featured ? "Unfeature deal" : "Feature deal"}
                                                                             >
-                                                                                {deal?.featured ? 'Featured' : 'Not featured'}
+                                                                                <Flame size={18} fill={deal.featured ? 'currentColor' : 'none'} />
                                                                             </button>
                                                                         </td>
-                                                                        <td className="px-4 py-4 text-sm text-slate-500">{formatDealDate(deal?.createdAt)}</td>
-                                                                        <td className="px-4 py-4">
-                                                                            <div className="flex items-center justify-end gap-2">
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => setQuickEditDeal({
-                                                                                        ...deal,
-                                                                                        price: normalizeNumberLike(deal.dealPrice || deal.price),
-                                                                                        originalPrice: normalizeNumberLike(deal.mrp || deal.originalPrice),
-                                                                                        discount: normalizeNumberLike(deal.discountPercent || deal.discount)
-                                                                                    })}
-                                                                                    className="inline-flex items-center gap-1 rounded-xl border border-blue-200 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50"
-                                                                                >
-                                                                                    <Edit3 size={13} />
-                                                                                    Quick
-                                                                                </button>
+                                                                        <td className="px-4 py-4 align-top text-right">
+                                                                            <div className="flex justify-end gap-2">
                                                                                 <button
                                                                                     type="button"
                                                                                     onClick={() => handleEditClick(deal)}
-                                                                                    className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                                                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                                                                                    title="Edit Deal"
                                                                                 >
-                                                                                    <Pencil size={13} />
-                                                                                    Edit
+                                                                                    <Edit3 size={16} strokeWidth={2.5} />
                                                                                 </button>
                                                                                 <button
                                                                                     type="button"
                                                                                     onClick={() => handleDeleteDeal(deal._id || deal.id)}
-                                                                                    className="inline-flex items-center gap-1 rounded-xl border border-rose-200 px-3 py-2 text-xs font-black text-rose-600 hover:bg-rose-50"
+                                                                                    className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                                                                                    title="Delete Deal"
                                                                                 >
-                                                                                    <Trash2 size={13} />
-                                                                                    Delete
+                                                                                    <Trash2 size={16} strokeWidth={2.5} />
                                                                                 </button>
                                                                             </div>
                                                                         </td>
@@ -1535,6 +1566,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                                                     {deal.imageUrl ? (
                                                                         <div className="w-full h-full relative">
                                                                             <img 
+                                                                                key={`mob-${deal.imageUrl || 'no-img'}`}
                                                                                 src={optimizeImageUrl(deal.imageUrl)} 
                                                                                 alt={deal.title} 
                                                                                 className="w-full h-full object-cover" 
@@ -1567,41 +1599,22 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                                                             {deal?.featured ? 'Featured' : 'Standard'}
                                                                         </button>
                                                                     </div>
-                                                                    <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                                                                        <div>
-                                                                            <div className="text-slate-400 font-semibold">Deal</div>
-                                                                            <div className="text-slate-900 font-black">{getDealDisplayPrice(deal)}</div>
-                                                                        </div>
-                                                                        <div>
-                                                                            <div className="text-slate-400 font-semibold">MRP</div>
-                                                                            <div className="text-slate-700 font-bold">{getDealDisplayMrp(deal)}</div>
-                                                                        </div>
-                                                                        <div>
-                                                                            <div className="text-slate-400 font-semibold">Discount</div>
-                                                                            <div className="text-emerald-700 font-black">{getDealDisplayDiscount(deal)}</div>
-                                                                        </div>
+                                                                    <div className="mt-3 flex items-end gap-2 text-xs border-t border-slate-100/60 pt-3">
+                                                                        <span className="text-xl font-black text-slate-900">{getDealDisplayPrice(deal)}</span>
+                                                                        <span className="text-sm font-semibold text-slate-400 line-through pb-0.5">{getDealDisplayMrp(deal)}</span>
+                                                                        {getDealDisplayDiscount(deal) && getDealDisplayDiscount(deal) !== '0% OFF' && (
+                                                                            <span className="inline-flex px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-wider mb-1">
+                                                                                {getDealDisplayDiscount(deal)}
+                                                                            </span>
+                                                                        )}
                                                                     </div>
-                                                                    <div className="mt-3 text-xs text-slate-400">Created {formatDealDate(deal?.createdAt)}</div>
                                                                 </div>
                                                             </div>
                                                             <div className="mt-4 flex items-center gap-2">
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => setQuickEditDeal({
-                                                                        ...deal,
-                                                                        price: normalizeNumberLike(deal.dealPrice || deal.price),
-                                                                        originalPrice: normalizeNumberLike(deal.mrp || deal.originalPrice),
-                                                                        discount: normalizeNumberLike(deal.discountPercent || deal.discount)
-                                                                    })}
-                                                                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 px-3 py-2 text-sm font-black text-blue-700 hover:bg-blue-50"
-                                                                >
-                                                                    <Edit3 size={14} />
-                                                                    Quick
-                                                                </button>
-                                                                <button
-                                                                    type="button"
                                                                     onClick={() => handleEditClick(deal)}
-                                                                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+                                                                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-black text-slate-700 hover:bg-slate-50 transition-colors"
                                                                 >
                                                                     <Pencil size={14} />
                                                                     Edit
@@ -1609,7 +1622,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleDeleteDeal(deal._id || deal.id)}
-                                                                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm font-black text-rose-600 hover:bg-rose-50"
+                                                                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm font-black text-rose-600 hover:bg-rose-50 transition-colors"
                                                                 >
                                                                     <Trash2 size={14} />
                                                                     Delete
@@ -1643,6 +1656,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                                             }}
                                                             className="bg-transparent text-sm font-bold text-slate-700 focus:outline-none focus:text-orange-600 transition-colors cursor-pointer"
                                                         >
+                                                            <option value={10}>10</option>
                                                             <option value={20}>20</option>
                                                             <option value={50}>50</option>
                                                             <option value={100}>100</option>
@@ -1774,7 +1788,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                                         id="autoFetchUrl"
                                                         type="text"
                                                         className="w-full bg-transparent py-6 pl-16 pr-6 text-sm font-black placeholder:text-slate-400 focus:outline-none"
-                                                        placeholder="Paste any Amazon, Flipkart, Myntra, Croma, Reliance Digital, Nykaa, FirstCry, Tata CLiQ or Snapdeal link to fetch perfectly..."
+                                                        placeholder="Paste any Amazon, Flipkart, Croma, Reliance Digital, FirstCry, BigBasket, Purplle, or Tata 1mg link..."
                                                         value={autoFetchUrl}
                                                         onChange={e => setAutoFetchUrl(e.target.value)}
                                                         onKeyDown={e => {

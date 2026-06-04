@@ -27,7 +27,7 @@ const lazyWithRetry = (factory, key) => React.lazy(async () => {
 
     if (typeof window !== 'undefined' && isDynamicImportFailure && !window.sessionStorage.getItem(reloadKey)) {
       window.sessionStorage.setItem(reloadKey, '1');
-
+      window.location.reload();
       return new Promise(() => { });
     }
 
@@ -78,7 +78,7 @@ const readBrowserStorage = (key) => {
 
 const DEALS_CACHE_META_KEY = 'cached_deals_meta';
 const DEALS_CACHE_KEY = 'cached_deals';
-const DEALS_CACHE_VERSION = 2;
+const DEALS_CACHE_VERSION = 3;
 const LIVE_DEALS_REFRESH_MS = 2 * 60 * 1000;
 const LIVE_DATA_CHANGED_EVENT = 'dealsphere:data-changed';
 const DEFAULT_DEAL_FORM = {
@@ -231,8 +231,45 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
         showToast(e.detail.message, e.detail.type || 'info');
       }
     };
+    const handleLocalDataChange = (e) => {
+      const { entity, action, id, deal } = e.detail || {};
+      if (entity === 'deal') {
+        if (action === 'deleted' && id) {
+          setDeals(prev => {
+            const next = prev.filter(d => String(d._id || d.id) !== String(id));
+            writeBrowserStorage(DEALS_CACHE_KEY, JSON.stringify(next));
+            writeBrowserStorage(DEALS_CACHE_META_KEY, JSON.stringify({ updatedAt: Date.now(), version: DEALS_CACHE_VERSION }));
+            return next;
+          });
+          setHomepageSnapshot((snapshot) => ({
+            ...snapshot,
+            deals: snapshot.deals.filter(d => String(d._id || d.id) !== String(id)),
+            updatedAt: Date.now()
+          }));
+        } else if (action === 'updated' && id && deal) {
+          const normalizedDeal = normalizeDealsForUi([deal])[0];
+          if (normalizedDeal) {
+            setDeals(prev => {
+              const next = [normalizedDeal, ...prev.filter(d => String(d._id || d.id) !== String(id))];
+              writeBrowserStorage(DEALS_CACHE_KEY, JSON.stringify(next));
+              writeBrowserStorage(DEALS_CACHE_META_KEY, JSON.stringify({ updatedAt: Date.now(), version: DEALS_CACHE_VERSION }));
+              return next;
+            });
+            setHomepageSnapshot((snapshot) => ({
+              ...snapshot,
+              deals: [normalizedDeal, ...snapshot.deals.filter(d => String(d._id || d.id) !== String(id))],
+              updatedAt: Date.now()
+            }));
+          }
+        }
+      }
+    };
     window.addEventListener('showToast', handleCustomToast);
-    return () => window.removeEventListener('showToast', handleCustomToast);
+    window.addEventListener('dealsphere:data-changed', handleLocalDataChange);
+    return () => {
+      window.removeEventListener('showToast', handleCustomToast);
+      window.removeEventListener('dealsphere:data-changed', handleLocalDataChange);
+    };
   }, [showToast]);
 
   // Sync Deals & Categories from Server & Handle Real-time Updates

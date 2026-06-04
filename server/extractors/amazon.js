@@ -1,58 +1,106 @@
+import * as cheerio from 'cheerio';
+
 export async function extractAmazon(page) {
-    // Manual wait to let Amazon's heavy scripts inject dynamic content
-    await new Promise(resolve => setTimeout(resolve, 5000));
-
     // Wait for the product title to guarantee core DOM is ready
-    await page.waitForSelector('#productTitle', { timeout: 20000 }).catch(() => {});
+    await page.waitForSelector('#productTitle', { timeout: 15000 }).catch(() => {});
+    
+    // Wait a brief moment for dynamic scripts to inject prices if any
+    await new Promise(r => setTimeout(r, 2000));
 
-    // Wait for the dynamic image to fully populate
-    await page.waitForFunction(() => {
-        const img = document.querySelector("#landingImage");
-        return img && img.getAttribute("data-a-dynamic-image");
-    }, { timeout: 15000 }).catch(() => {});
+    let html;
+    try {
+        html = await page.content();
+    } catch (e) {
+        console.log("Could not get page content directly, page might have crashed.");
+        return { success: false, message: e.message };
+    }
 
-    return await page.evaluate(() => {
-        const getText = (sel) => document.querySelector(sel)?.innerText?.trim() || '';
-        
-        // Image extraction (REAL PRODUCT GALLERY STRATEGY)
-        const imageList = [];
-        
-        // REAL PRODUCT GALLERY THUMBNAILS
-        const thumbs = document.querySelectorAll("#altImages img");
-        thumbs.forEach(img => {
-            let src = img.src || img.getAttribute("src");
-            if (!src) return;
+    const $ = cheerio.load(html);
+    const getText = (sel) => $(sel).first().text().trim();
 
-            // REMOVE SMALL SIZE
-            src = src.replace(/\._.*_\./, ".");
-
-            // ONLY AMAZON CDN
-            if (src.includes("m.media-amazon.com")) {
-                imageList.push(src);
-            }
-        });
-
-        // MAIN IMAGE FALLBACK
-        const landing = document.querySelector("#landingImage");
-        if (landing?.src) {
-            let main = landing.src.replace(/\._.*_\./, ".");
-            imageList.unshift(main);
+    // Image extraction
+    const imageList = [];
+    
+    // THUMBNAILS
+    $("#altImages img").each((i, img) => {
+        let src = $(img).attr("src");
+        if (!src) return;
+        src = src.replace(/\._.*_\./, "."); // Get full resolution
+        if (src.includes("m.media-amazon.com")) {
+            imageList.push(src);
         }
-
-        const finalImages = [...new Set(imageList)];
-
-        // Price cleaning
-        const rawPrice = getText(".a-price-whole").replace(/[^\d]/g, '');
-        const rawMrp = (getText(".a-price.a-text-price span[aria-hidden='true']") || getText(".priceBlockStrikePriceString")).replace(/[^\d]/g, '');
-
-        return {
-            title: getText("#productTitle"),
-            store: "Amazon",
-            category: getText("#wayfinding-breadcrumbs_feature_div"),
-            description: getText("#feature-bullets"),
-            mrp: rawMrp,
-            price: rawPrice,
-            images: finalImages
-        };
     });
+
+    // MAIN IMAGE
+    const landing = $("#landingImage");
+    if (landing.length > 0) {
+        let dyn = landing.attr("data-a-dynamic-image");
+        if (dyn) {
+            try {
+                const parsed = JSON.parse(dyn);
+                const keys = Object.keys(parsed);
+                if (keys.length > 0) {
+                    imageList.unshift(keys[0]);
+                }
+            } catch(e){}
+        } else {
+            let main = landing.attr("src");
+            if (main) {
+                main = main.replace(/\._.*_\./, ".");
+                imageList.unshift(main);
+            }
+        }
+    }
+
+    const finalImages = [...new Set(imageList)];
+
+    // Price extraction
+    const getPriceText = () => {
+        const selectors = [
+            "#corePriceDisplay_desktop_feature_div .a-price-whole",
+            "#corePriceDisplay_desktop_feature_div .a-offscreen",
+            "#corePrice_desktop .a-price-whole",
+            "#corePrice_desktop .a-offscreen",
+            ".a-price .a-offscreen",
+            ".a-price-whole",
+            "#priceblock_ourprice",
+            "#priceblock_dealprice"
+        ];
+        for (const sel of selectors) {
+            const txt = $(sel).first().text().trim();
+            if (txt && txt.replace(/[^\d]/g, '')) return txt;
+        }
+        return '';
+    };
+
+    const rawPrice = getPriceText().replace(/[\.,]\d{2}$/, '').replace(/[^\d]/g, '');
+
+    // MRP extraction
+    const getMrpText = () => {
+        const selectors = [
+            ".a-text-strike",
+            ".aok-nowrap.a-text-strike",
+            "#corePriceDisplay_desktop_feature_div .a-text-price span[aria-hidden='true']",
+            "#corePriceDisplay_desktop_feature_div .a-price.a-text-price .a-offscreen",
+            "#corePrice_desktop .a-text-price span[aria-hidden='true']",
+            "span.a-price.a-text-price span.a-offscreen"
+        ];
+        for (const sel of selectors) {
+            const txt = $(sel).first().text().trim();
+            if (txt && txt.replace(/[^\d]/g, '')) return txt;
+        }
+        return '';
+    };
+
+    const rawMrp = getMrpText().replace(/[\.,]\d{2}$/, '').replace(/[^\d]/g, '');
+
+    return {
+        title: getText("#productTitle"),
+        store: "Amazon",
+        category: getText("#wayfinding-breadcrumbs_feature_div"),
+        description: getText("#feature-bullets"),
+        mrp: rawMrp,
+        price: rawPrice,
+        images: finalImages
+    };
 }

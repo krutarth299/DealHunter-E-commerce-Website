@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
     LayoutDashboard, Package, TrendingUp, DollarSign, 
     Flame, Activity, TrendingDown, ExternalLink, 
-    Pencil, AlertCircle, ArrowRight, Zap, Search, Eye, Filter, Link as LinkIcon
+    Pencil, AlertCircle, ArrowRight, Zap, Search, Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { safeArray, safeString } from '../../utils/safety';
@@ -50,11 +50,11 @@ const Dashboard = ({
     const sortedTableDeals = useMemo(() => {
         let filtered = safeDeals;
         if (tableSearch) {
-            const q = tableSearch.toLowerCase();
-            filtered = filtered.filter(d => 
-                (d.title || '').toLowerCase().includes(q) || 
-                (d.store || '').toLowerCase().includes(q)
-            );
+            const queryWords = tableSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+            filtered = filtered.filter(d => {
+                const haystack = `${d.title || ''} ${d.store || ''}`.toLowerCase();
+                return queryWords.every(word => haystack.includes(word));
+            });
         }
         return filtered.sort((a, b) => {
             if (tableSort === 'views') return getDealViews(b) - getDealViews(a);

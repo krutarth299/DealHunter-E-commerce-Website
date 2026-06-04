@@ -42,6 +42,7 @@ const getDealPricing = (deal = {}) => {
         dealPriceValue,
         mrpValue,
         discount,
+        discountValue: parseInt(String(discount).replace(/[^0-9]/g, ''), 10) || 0,
         dealPriceLabel: dealPriceValue > 0 ? formatPriceDisplay(dealPriceValue) : (dealPrice || ""),
         mrpLabel: mrpValue > 0 ? formatPriceDisplay(mrpValue) : (mrp || ""),
     };
@@ -101,7 +102,7 @@ const DealCard = React.memo(({ deal, wishlist = [], toggleWishlist, index = 0 })
         return wishlistId && dealId && String(wishlistId) === String(dealId);
     });
 
-    const { dealPriceValue, discountValue, dealPriceLabel, mrpLabel, showZeroDiscount } = getDealPricing(deal);
+    const { dealPriceValue, mrpValue, discountValue, dealPriceLabel, mrpLabel, showZeroDiscount } = getDealPricing(deal);
     const storeName = deal.store || deal.storeName || 'Online Store';
     const storeStyle = getStoreStyle(storeName);
     const shortTitle = deal.cardTitle || getShortTitle(deal.displayTitle || deal.title);
@@ -140,6 +141,7 @@ const DealCard = React.memo(({ deal, wishlist = [], toggleWishlist, index = 0 })
                         src={getMainProductImage(deal)}
                         alt={deal.title || shortTitle}
                         loading="lazy"
+                        referrerPolicy="no-referrer"
                         className="h-full w-full object-contain drop-shadow-md transition-transform duration-700 ease-out group-hover:scale-105"
                         onError={(event) => {
                             event.target.onerror = null;
@@ -217,23 +219,29 @@ const DealCard = React.memo(({ deal, wishlist = [], toggleWishlist, index = 0 })
                 <div className="mb-4 min-h-[3rem]">
                     <h3
                         title={rawTitle}
-                        className="line-clamp-2 text-[12px] font-extrabold leading-[1.4] text-slate-900 transition-colors group-hover:text-[#FF6A00] md:text-[13px]"
+                        className="line-clamp-2 h-[2.8rem] text-[12px] font-extrabold leading-[1.4] text-slate-900 transition-colors group-hover:text-[#FF6A00] md:text-[13px]"
                     >
-                        {shortTitle}
+                        {shortTitle || 'Untitled Deal'}
                     </h3>
                 </div>
 
                 <div className="mt-auto flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-2 min-h-[3.5rem] justify-end">
                         <div className="flex flex-wrap items-baseline gap-2">
-                            {deal?.dealPrice && (
-                                <span className="text-[1.5rem] font-black leading-none tracking-tighter text-slate-950 md:text-[1.85rem]">
-                                    {deal.dealPrice.toString().startsWith('₹') ? deal.dealPrice : `₹${deal.dealPrice}`}
-                                </span>
-                            )}
-                            {deal?.mrp && (
-                                <span className="text-[10px] font-bold tracking-tight text-slate-400 line-through opacity-70 md:text-xs">
-                                    {deal.mrp.toString().startsWith('₹') ? deal.mrp : `₹${deal.mrp}`}
+                            {dealPriceValue > 0 ? (
+                                <>
+                                    <span className="text-[1.5rem] font-black leading-none tracking-tighter text-slate-950 md:text-[1.85rem]">
+                                        {dealPriceLabel}
+                                    </span>
+                                    {mrpValue > 0 && (
+                                        <span className="text-[10px] font-bold tracking-tight text-slate-400 line-through opacity-70 md:text-xs">
+                                            {mrpLabel}
+                                        </span>
+                                    )}
+                                </>
+                            ) : (
+                                <span className="text-[1.25rem] font-black leading-none tracking-tighter text-slate-500 md:text-[1.5rem]">
+                                    Check Price
                                 </span>
                             )}
                         </div>
@@ -282,7 +290,7 @@ const DealCard = React.memo(({ deal, wishlist = [], toggleWishlist, index = 0 })
     );
 });
 
-const DealsGrid = React.memo(({ deals = [], wishlist = [], toggleWishlist, initialCount = 30, increment = 30 }) => {
+const DealsGrid = React.memo(({ deals = [], wishlist = [], toggleWishlist, initialCount = 30, increment = 30, hasMore = false, onLoadMore }) => {
     const validDeals = useMemo(
         () => (Array.isArray(deals) ? deals : []).filter((deal) => deal && (deal.title || deal.store)),
         [deals]
@@ -297,13 +305,17 @@ const DealsGrid = React.memo(({ deals = [], wishlist = [], toggleWishlist, initi
 
         const observer = new IntersectionObserver((entries) => {
             if (entries.some((entry) => entry.isIntersecting)) {
-                setVisibleCount((count) => Math.min(count + increment, validDeals.length));
+                if (visibleCount < validDeals.length) {
+                    setVisibleCount((count) => Math.min(count + increment, validDeals.length));
+                } else if (hasMore && onLoadMore) {
+                    onLoadMore();
+                }
             }
         }, { rootMargin: '700px 0px' });
 
         observer.observe(target);
         return () => observer.disconnect();
-    }, [increment, validDeals.length]);
+    }, [increment, validDeals.length, visibleCount, hasMore, onLoadMore]);
 
     const effectiveVisibleCount = Math.min(visibleCount, validDeals.length);
     const visibleDeals = validDeals.slice(0, effectiveVisibleCount);
@@ -350,11 +362,17 @@ const DealsGrid = React.memo(({ deals = [], wishlist = [], toggleWishlist, initi
                     index={index}
                 />
             ))}
-            {effectiveVisibleCount < validDeals.length && (
+            {(effectiveVisibleCount < validDeals.length || hasMore) && (
                 <div ref={loadMoreRef} className="col-span-full flex justify-center py-4">
                     <button
                         type="button"
-                        onClick={() => setVisibleCount((count) => Math.min(count + increment, validDeals.length))}
+                        onClick={() => {
+                            if (effectiveVisibleCount < validDeals.length) {
+                                setVisibleCount((count) => Math.min(count + increment, validDeals.length));
+                            } else if (hasMore && onLoadMore) {
+                                onLoadMore();
+                            }
+                        }}
                         className="rounded-2xl border border-slate-200 bg-white px-6 py-3 text-[11px] font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:text-[#FF6A00]"
                     >
                         Load more deals

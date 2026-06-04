@@ -11,22 +11,9 @@ const STORE_IMAGE_CDNS = {
         'rukminim.flixcart.com/image/',
         'rukmini1.flixcart.com/image/'
     ],
-    myntra: [
-        'assets.myntassets.com/',
-        'myntra.myntassets.com/'
-    ],
     blinkit: [
         'cdn.grofers.com/',
         'cdn.blinkit.com/'
-    ],
-    nykaa: [
-        'images-static.nykaa.com/',
-        'adn-static1.nykaa.com/',
-        'www.nykaa.com/media/'
-    ],
-    tatacliq: [
-        'img.tatacliq.com/images/i',
-        'assets.tatacliq.com/'
     ],
     croma: [
         'media-ik.croma.com/prod/https://media.croma.com/image/upload/',
@@ -47,12 +34,6 @@ const STORE_IMAGE_CDNS = {
     lenskart: [
         'static1.lenskart.com/media/catalog/product/',
         'static.lenskart.com/media/catalog/product/'
-    ],
-    snapdeal: [
-        'n1.sdlcdn.com/imgs/',
-        'n2.sdlcdn.com/imgs/',
-        'n3.sdlcdn.com/imgs/',
-        'n4.sdlcdn.com/imgs/'
     ],
     tata1mg: [
         'onemg.gumlet.io/',
@@ -100,7 +81,6 @@ const IMAGE_CONTEXT_JUNK_REGEX = /recommend|recommended|similar product|related 
 
 const AMAZON_NON_PRODUCT_IMAGE_REGEX = /\/images\/s\/|aplus-media|aplus|amazon-adsystem|\/images\/g\/|\/widgets\/q|\/x-locale\/|transparent-pixel|grey-pixel|nav-sprite|al-eu-/i;
 const FLIPKART_NON_PRODUCT_IMAGE_REGEX = /static-assets|fk-cp-zion|navigation|header|footer|login|seller|plus/i;
-const MYNTRA_NON_PRODUCT_IMAGE_REGEX = /sprite|logo|desktop-banner|app-download|studio|giftcard/i;
 
 const BRAND_RULES = [
     { canonical: 'Dell', aliases: ['dell'] },
@@ -145,16 +125,12 @@ const toStoreKey = (store = '', productUrl = '') => {
     const haystack = `${store} ${productUrl}`.toLowerCase();
     if (haystack.includes('amazon.')) return 'amazon';
     if (haystack.includes('flipkart.')) return 'flipkart';
-    if (haystack.includes('myntra.')) return 'myntra';
     if (haystack.includes('blinkit.') || haystack.includes('grofers.')) return 'blinkit';
-    if (haystack.includes('nykaa.')) return 'nykaa';
-    if (haystack.includes('tatacliq.')) return 'tatacliq';
     if (haystack.includes('croma.')) return 'croma';
     if (haystack.includes('reliancedigital.')) return 'reliancedigital';
     if (haystack.includes('firstcry.')) return 'firstcry';
     if (haystack.includes('purplle.')) return 'purplle';
     if (haystack.includes('lenskart.')) return 'lenskart';
-    if (haystack.includes('snapdeal.')) return 'snapdeal';
     if (haystack.includes('1mg.')) return 'tata1mg';
     if (haystack.includes('pharmeasy.')) return 'pharmeasy';
     if (haystack.includes('bigbasket.')) return 'bigbasket';
@@ -262,16 +238,7 @@ export const optimizeProductImageUrl = (url) => {
                 .replace(/q=\d+/i, 'q=100');
         }
 
-        if (lower.includes('myntassets.com')) {
-            optimized = optimized
-                .replace(/w_\d+/i, 'w_1080')
-                .replace(/h_\d+/i, 'h_1440')
-                .replace(/q_\d+/i, 'q_100')
-                .replace('h_480', 'h_1440')
-                .replace('w_360', 'w_1080');
-        }
-
-        if (lower.includes('tatacliq.com/images/i') || lower.includes('croma.com/image/upload')) {
+        if (lower.includes('croma.com/image/upload')) {
             optimized = optimized
                 .replace(/\/w_\d+,h_\d+/, '/w_1200,h_1200')
                 .replace(/w_\d+/i, 'w_1200')
@@ -346,11 +313,6 @@ export const isLikelyProductImage = (url, { store = '', productUrl = '', strictS
     if (storeKey === 'flipkart') {
         if (FLIPKART_NON_PRODUCT_IMAGE_REGEX.test(lower)) return false;
         return STORE_IMAGE_CDNS.flipkart.some((cdn) => lower.includes(cdn));
-    }
-
-    if (storeKey === 'myntra') {
-        if (MYNTRA_NON_PRODUCT_IMAGE_REGEX.test(lower)) return false;
-        return STORE_IMAGE_CDNS.myntra.some((cdn) => lower.includes(cdn));
     }
 
     if (storeKey && STORE_IMAGE_CDNS[storeKey]) {
@@ -465,15 +427,11 @@ export const normalizeProductImages = ({
         const isTrustedAmazonProductImage = storeKey === 'amazon'
             && STORE_IMAGE_CDNS.amazon.some((cdn) => optimized.toLowerCase().includes(cdn))
             && !AMAZON_NON_PRODUCT_IMAGE_REGEX.test(optimized.toLowerCase());
-        const isTrustedMyntraProductImage = storeKey === 'myntra'
-            && STORE_IMAGE_CDNS.myntra.some((cdn) => optimized.toLowerCase().includes(cdn))
-            && !MYNTRA_NON_PRODUCT_IMAGE_REGEX.test(optimized.toLowerCase());
         if (
             titleSignals.length >= 2
             && modelMatchCount === 0
             && !optimized.includes('/images/p/')
             && !isTrustedAmazonProductImage
-            && !isTrustedMyntraProductImage
         ) {
             rejectedReasons.model_mismatch = (rejectedReasons.model_mismatch || 0) + 1;
             return;

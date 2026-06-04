@@ -1,6 +1,5 @@
 import express from 'express';
 import Deal from '../models/Deal.js';
-import { deals } from '../mockStore.js';
 import { normalizeDealForResponse } from '../utils/deal-normalizer.js';
 import { getStoreSlug } from '../utils/affiliate-links.js';
 import {
@@ -132,9 +131,7 @@ router.get('/sources', (req, res) => {
 
 router.get('/', async (req, res) => {
     try {
-        const dealsList = req.app.locals.isMockMode
-            ? deals
-            : await Deal.find(LIVE_DEAL_QUERY).lean();
+        const dealsList = await Deal.find(LIVE_DEAL_QUERY).lean();
 
         const normalizedDeals = dealsList.map((deal) => normalizeDealForResponse(deal));
         res.json(buildStoreSummary(normalizedDeals));
@@ -146,9 +143,7 @@ router.get('/', async (req, res) => {
 router.get('/:storeSlug', async (req, res) => {
     try {
         const requestedSlug = getStoreSlug(req.params.storeSlug);
-        const dealsList = req.app.locals.isMockMode
-            ? deals
-            : await Deal.find(LIVE_DEAL_QUERY).sort({ createdAt: -1, updatedAt: -1 }).lean();
+        const dealsList = await Deal.find(LIVE_DEAL_QUERY).sort({ createdAt: -1, updatedAt: -1 }).lean();
 
         const normalizedDeals = dealsList
             .map((deal) => normalizeDealForResponse(deal))

@@ -1,7 +1,6 @@
 import express from 'express';
 import Deal from '../models/Deal.js';
 import Blog from '../models/Blog.js';
-import { deals as mockDeals } from '../mockStore.js';
 import { slugifyProductTitle } from '../../src/utils/productUrls.js';
 import { couponsEnabled } from '../config/features.js';
 
@@ -126,9 +125,7 @@ const getDealSlug = (deal = {}) => {
 };
 
 const getDealsForSitemap = async (req) => {
-    const dealsSource = req.app.locals.isMockMode
-        ? mockDeals
-        : await Deal.find({
+    const dealsSource = await Deal.find({
             isExpired: { $ne: true },
             validationStatus: { $ne: 'rejected' },
             title: { $exists: true, $ne: '' }
@@ -231,9 +228,7 @@ const buildStoreEntries = (deals = []) => {
 };
 
 const getBlogsForSitemap = async (req) => {
-    const blogsSource = req.app.locals.isMockMode
-        ? []
-        : await Blog.find({
+    const blogsSource = await Blog.find({
             status: 'published',
             slug: { $exists: true, $ne: '' },
             title: { $exists: true, $ne: '' }
@@ -259,7 +254,7 @@ const buildBlogEntries = (blogs = []) => uniqueByLoc(
     }))
 );
 
-const getCacheKey = (req) => `${getSiteOrigin()}|${req.app.locals.isMockMode ? 'mock' : 'db'}`;
+const getCacheKey = (req) => `${getSiteOrigin()}|db`;
 
 const getSitemapData = async (req) => {
     const cacheKey = getCacheKey(req);

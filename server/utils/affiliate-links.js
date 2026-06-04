@@ -52,22 +52,13 @@ export const buildDefaultAffiliateSetting = (store = '') => normalizeAffiliateSe
     discoveredFromDeals: true
 });
 
-export const getMockAffiliateSettings = (appLocals) => {
-    if (!appLocals.affiliateSettings) {
-        appLocals.affiliateSettings = [];
-    }
-    return appLocals.affiliateSettings;
-};
+
 
 let settingsCache = null;
 let settingsCacheTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export const getAffiliateSettings = async (AffiliateSettingModel, isMockMode, appLocals) => {
-    if (isMockMode) {
-        return getMockAffiliateSettings(appLocals);
-    }
-
     const now = Date.now();
     if (settingsCache && (now - settingsCacheTime < CACHE_TTL) && !appLocals?.affiliateSettingsSyncMeta?.forceRefresh) {
         return settingsCache;
@@ -205,42 +196,35 @@ export const syncAffiliateSettingsWithStores = async (AffiliateSettingModel, Dea
         };
     }
 
-    const existingSettings = isMockMode
-        ? getMockAffiliateSettings(appLocals)
-        : await AffiliateSettingModel.find().lean();
+    const existingSettings = await AffiliateSettingModel.find().lean();
     const bySlug = new Map(existingSettings.map((setting) => {
         const normalized = normalizeAffiliateSetting(setting);
         return [normalized.storeSlug, normalized];
     }));
 
-    if (!isMockMode) {
-        const slugBackfills = existingSettings
-            .map((setting) => {
-                const normalized = normalizeAffiliateSetting(setting);
-                const currentSlug = String(setting.storeSlug || '').trim().toLowerCase();
+    const slugBackfills = existingSettings
+        .map((setting) => {
+            const normalized = normalizeAffiliateSetting(setting);
+            const currentSlug = String(setting.storeSlug || '').trim().toLowerCase();
 
-                if (currentSlug === normalized.storeSlug) return null;
+            if (currentSlug === normalized.storeSlug) return null;
 
-                return {
-                    updateOne: {
-                        filter: setting._id ? { _id: setting._id } : { store: setting.store },
-                        update: { $set: { storeSlug: normalized.storeSlug } }
-                    }
-                };
-            })
-            .filter(Boolean);
+            return {
+                updateOne: {
+                    filter: setting._id ? { _id: setting._id } : { store: setting.store },
+                    update: { $set: { storeSlug: normalized.storeSlug } }
+                }
+            };
+        })
+        .filter(Boolean);
 
-        if (slugBackfills.length) {
-            await AffiliateSettingModel.bulkWrite(slugBackfills);
-        }
+    if (slugBackfills.length) {
+        await AffiliateSettingModel.bulkWrite(slugBackfills);
     }
 
     let rawStoreNames = [];
 
-    if (isMockMode) {
-        const mockDeals = Array.isArray(appLocals.deals) ? appLocals.deals : [];
-        rawStoreNames = mockDeals.flatMap((deal) => [deal.storeName, deal.store]);
-    } else if (DealModel) {
+    if (DealModel) {
         const [storeNames, stores] = await Promise.all([
             DealModel.distinct('storeName'),
             DealModel.distinct('store')
@@ -262,12 +246,7 @@ export const syncAffiliateSettingsWithStores = async (AffiliateSettingModel, Dea
         .map((store) => buildDefaultAffiliateSetting(store))
         .filter((setting) => !bySlug.has(setting.storeSlug));
 
-    if (isMockMode) {
-        appLocals.affiliateSettings = [
-            ...existingSettings.map(normalizeAffiliateSetting),
-            ...missingSettings
-        ].sort((a, b) => a.store.localeCompare(b.store));
-    } else if (missingSettings.length > 0) {
+    if (missingSettings.length > 0) {
         await Promise.all(missingSettings.map((setting) =>
             AffiliateSettingModel.findOneAndUpdate(
                 { storeSlug: setting.storeSlug },

@@ -1,10 +1,18 @@
 export async function extractRelianceDigital(page) {
-    // Wait for the main elements to load
-    await page.waitForSelector('h1, h2, .pdp__title, .product-title', { timeout: 15000 }).catch(() => {});
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Wait for product page to render (SPA needs JS)
+    // First wait for any content indicator
+    await page.waitForSelector('h1, .pdp__title, .pdp-title, [class*="pdp"], [data-qa="productTitle"]', { timeout: 20000 }).catch(() => {});
+    // Then give extra time for price/product data to load via API calls
+    await new Promise(r => setTimeout(r, 4500));
+    // Wait specifically for price or product content to appear
+    await page.waitForFunction(() => {
+        const bodyText = document.body.textContent || '';
+        return bodyText.includes('₹') || bodyText.includes('Add to Cart') || bodyText.includes('Buy Now');
+    }, { timeout: 10000 }).catch(() => {});
+
 
     return await page.evaluate(() => {
-        const getText = (sel) => document.querySelector(sel)?.innerText?.trim() || '';
+        const getText = (sel) => document.querySelector(sel)?.textContent?.trim() || '';
         
         let data = {
             title: '',
@@ -16,11 +24,26 @@ export async function extractRelianceDigital(page) {
             images: []
         };
 
-        // 1. JSON-LD Extraction
+        // Helper to extract clean number
+        const extractNumber = (str) => {
+            const match = String(str || '').replace(/,/g, '').match(/\d+(\.\d+)?/);
+            return match ? Math.round(parseFloat(match[0])) : 0;
+        };
+
+        // 1. JSON-LD Extraction (most reliable)
         const ldScripts = document.querySelectorAll('script[type="application/ld+json"]');
         for (const script of ldScripts) {
             try {
-                const parsed = JSON.parse(script.innerText || '{}');
+                let text = (script.textContent || '').trim();
+                let parsed = {};
+                try {
+                    parsed = JSON.parse(text);
+                } catch(e) {
+                    try {
+                        text = text.replace(/}[\s\n]*}$/, '}');
+                        parsed = JSON.parse(text);
+                    } catch(e2) {}
+                }
                 const items = Array.isArray(parsed) ? parsed : [parsed];
                 
                 const product = items.find(i => i['@type'] === 'Product' || i['@type']?.includes('Product'));
@@ -42,93 +65,128 @@ export async function extractRelianceDigital(page) {
                 const breadcrumbsItem = items.find(i => i['@type'] === 'BreadcrumbList');
                 if (breadcrumbsItem && breadcrumbsItem.itemListElement && breadcrumbsItem.itemListElement.length > 0) {
                     const elements = breadcrumbsItem.itemListElement;
-                    const leaf = elements[elements.length - 1];
-                    const parent = elements.length > 1 ? elements[elements.length - 2] : leaf;
-                    
-                    const leafName = leaf.name || leaf.item?.name || '';
-                    const parentName = parent.name || parent.item?.name || '';
-                    
-                    if (!data.category) {
-                        data.category = (leafName.length > 30 || (data.title && leafName.includes(data.title.substring(0, 10)))) ? parentName : leafName;
+                    const crumbs = elements.map(e => e.name || e.item?.name).filter(c => c && c.toLowerCase() !== 'home' && c.toLowerCase() !== 'reliance digital');
+                    if (!data.category && crumbs.length > 0) {
+                        // Use second-to-last (the category, not the product name)
+                        const leaf = crumbs[crumbs.length - 1];
+                        const parent = crumbs.length > 1 ? crumbs[crumbs.length - 2] : crumbs[0];
+                        // If leaf looks like a product name (too long or contains the title), use parent
+                        data.category = (leaf.length > 30 || (data.title && leaf.includes(data.title.substring(0, 10)))) ? parent : leaf;
                     }
                 }
-            } catch (e) {
-                // Ignore parse errors for individual scripts
-            }
+            } catch (e) {}
         }
 
-        // 2. Meta Tags Extraction
+        // 2. Meta Tags - but skip og:title as Reliance Digital uses the site name there
         const getMeta = (prop) => {
             const el = document.querySelector(`meta[property="${prop}"], meta[name="${prop}"]`);
             return el?.content?.trim() || '';
         };
-
-        if (!data.title) data.title = getMeta('og:title') || getMeta('twitter:title');
+        
+        // Only use og:title if it doesn't look like the generic site title
+        if (!data.title) {
+            const ogTitle = getMeta('og:title');
+            if (ogTitle && !ogTitle.toLowerCase().includes('online electronic') && !ogTitle.toLowerCase().includes('reliance digital') && ogTitle.length < 100) {
+                data.title = ogTitle;
+            }
+        }
         if (!data.description) data.description = getMeta('og:description') || getMeta('description');
         if (data.images.length === 0) {
             const ogImg = getMeta('og:image');
-            if (ogImg) data.images.push(ogImg);
+            if (ogImg && ogImg.startsWith('http')) data.images.push(ogImg);
         }
 
-        // 3. DOM Fallbacks
+        // 3. DOM Fallbacks - use multiple selectors for Reliance Digital's dynamic CSS class names
         if (!data.title) {
-            data.title = getText('h1.pdp__title') || getText('h1') || getText('.pdp__title') || getText('.product-title');
+            data.title = getText('h1.pdp__title') || 
+                         getText('h1[class*="pdp"]') || 
+                         getText('.pdp__title') || 
+                         getText('.product-title') ||
+                         getText('[data-qa="productTitle"]') ||
+                         getText('h1');
+        }
+
+        // Clean title: remove site name suffix if present
+        if (data.title && data.title.toLowerCase().includes('reliance digital')) {
+            data.title = data.title.split('|')[0].split('-').slice(0, -1).join('-').trim() || data.title;
         }
 
         if (!data.price) {
-            data.price = getText('.pdp__priceSection__price') || getText('.pdp__price') || getText('span.pdp__priceSection__price') || getText('.cp-price') || getText('.price');
+            const priceSelectors = [
+                '.pdp__priceSection__price',
+                '[class*="pdp"][class*="price"]',
+                '[class*="Price"][class*="final"]',
+                '[class*="FinalPrice"]',
+                '.cp-price',
+                '.price',
+                '[data-qa="productPrice"]',
+                '[class*="selling-price"]',
+            ];
+            for (const sel of priceSelectors) {
+                const txt = getText(sel);
+                if (txt && extractNumber(txt) > 0) {
+                    data.price = txt;
+                    break;
+                }
+            }
         }
         
-        // Helper to extract clean number from string (e.g., "85,999.00" -> 85999)
-        const extractNumber = (str) => {
-            const match = String(str).replace(/,/g, '').match(/\d+(\.\d+)?/);
-            return match ? Math.round(parseFloat(match[0])) : 0;
-        };
-        
-        // Generic Price Fallback if classes failed and JSON-LD failed
+        // Generic Price Fallback: find prominent price-looking elements
         if (!data.price || extractNumber(data.price) === 0) {
-            // Find the most prominent price-like element
             const priceEls = Array.from(document.querySelectorAll('span, div, p, b, h1, h2, h3, h4'))
                 .filter(el => {
                     if (el.children.length > 0) return false;
-                    const txt = el.innerText || '';
-                    return (txt.includes('₹') || txt.toLowerCase().includes('rs')) && extractNumber(txt) > 0;
+                    const txt = el.textContent || '';
+                    return (txt.includes('₹') || txt.toLowerCase().includes('rs.')) && extractNumber(txt) > 100;
                 });
             
-            // Assume the lowest prominent number is the deal price (filtering out tiny values)
-            let prices = priceEls.map(el => extractNumber(el.innerText)).filter(p => p > 100);
+            let prices = priceEls.map(el => extractNumber(el.textContent)).filter(p => p > 100);
             if (prices.length > 0) {
-                // Often there's a deal price and an MRP. Deal price is usually the lower of the top prominent numbers.
                 data.price = String(Math.min(...prices));
             }
         }
 
-        // Extract MRP (strike-through or original price)
+        // Extract MRP
         let foundMrp = 0;
         const priceVal = extractNumber(data.price || '0');
         
-        // 1. Look for explicit "MRP" text
+        // Look for explicit "MRP" text nodes
         const mrpNodes = Array.from(document.querySelectorAll('span, p, div, li')).filter(el => {
             if (el.children.length > 0) return false;
-            return el.innerText && el.innerText.toUpperCase().includes('MRP');
+            return el.textContent && el.textContent.toUpperCase().includes('MRP');
         });
         for (const node of mrpNodes) {
-             const text = node.innerText.replace(/\s+/g, ' ');
-             const match = text.match(/MRP\s*[:]?\s*(?:₹|Rs\.?|INR)?\s*([\d,]+(\.\d+)?)/i);
-             if (match) {
-                 foundMrp = extractNumber(match[1]);
-                 if (foundMrp >= priceVal && foundMrp <= priceVal * 10) break;
-                 foundMrp = 0; // Invalid MRP, keep looking
-             }
+            const text = node.textContent.replace(/\s+/g, ' ');
+            const match = text.match(/MRP\s*[:]?\s*(?:₹|Rs\.?|INR)?\s*([\d,]+(\.\d+)?)/i);
+            if (match) {
+                const val = extractNumber(match[1]);
+                if (val >= priceVal && val <= priceVal * 10) {
+                    foundMrp = val;
+                    break;
+                }
+            } else {
+                // MRP label and value might be in separate elements
+                const parent = node.parentElement;
+                if (parent) {
+                    const sibling = node.nextElementSibling;
+                    if (sibling) {
+                        const sibVal = extractNumber(sibling.textContent);
+                        if (sibVal >= priceVal && sibVal <= priceVal * 10) {
+                            foundMrp = sibVal;
+                            break;
+                        }
+                    }
+                }
+            }
         }
         
-        // 2. Look for strike-through elements
+        // Look for strike-through elements
         if (!foundMrp) {
-            const possibleMrps = document.querySelectorAll('.pdp__mrp, .pdp__originalPrice, span.pdp__mrp, del, .strike, span[style*="line-through"], [style*="text-decoration: line-through"]');
+            const possibleMrps = document.querySelectorAll('.pdp__mrp, .pdp__originalPrice, span.pdp__mrp, del, .strike, span[style*="line-through"], [style*="text-decoration: line-through"], [class*="original-price"], [class*="OriginalPrice"]');
             for (const el of possibleMrps) {
-                if (el?.innerText) {
-                    const cleaned = extractNumber(el.innerText);
-                    if (cleaned && cleaned > priceVal && cleaned <= priceVal * 10) {
+                if (el?.textContent) {
+                    const cleaned = extractNumber(el.textContent);
+                    if (cleaned && cleaned >= priceVal && cleaned <= priceVal * 10) {
                         foundMrp = cleaned;
                         break;
                     }
@@ -136,82 +194,61 @@ export async function extractRelianceDigital(page) {
             }
         }
 
-        // 3. Heuristic: Find price element's container and extract the highest number
-        if (!foundMrp && priceVal > 0) {
-            const priceElements = Array.from(document.querySelectorAll('*')).filter(el => {
-                if (el.children.length > 0) return false;
-                const txt = el.innerText || '';
-                return txt.includes(String(priceVal)) || extractNumber(txt) === priceVal;
-            });
-            
-            if (priceElements.length > 0) {
-                let container = priceElements[0].parentElement;
-                if (container) container = container.parentElement || container;
-                if (container) {
-                     const text = container.innerText || '';
-                     // Require currency symbol to prevent extracting pincodes or review counts
-                     const matches = Array.from(text.matchAll(/(?:₹|Rs\.?|INR)\s*([\d,]+(\.\d+)?)/gi));
-                     let maxVal = priceVal;
-                     for (const match of matches) {
-                         const val = extractNumber(match[1]);
-                         if (val > maxVal && val <= priceVal * 10) {
-                             maxVal = val;
-                         }
-                     }
-                     if (maxVal > priceVal) {
-                         foundMrp = maxVal;
-                     }
-                }
-            }
-        }
-
-        // 4. Generic fallback: Just look for a number higher than price with a currency symbol
+        // Heuristic: find the highest price-looking number near the deal price
         if (!foundMrp && priceVal > 0) {
             const anyCurrencyNodes = Array.from(document.querySelectorAll('span, div, p, b'))
-                .filter(el => el.children.length === 0 && (el.innerText.includes('₹') || el.innerText.toLowerCase().includes('rs')));
+                .filter(el => el.children.length === 0 && (el.textContent.includes('₹') || el.textContent.toLowerCase().includes('rs')));
             for (const node of anyCurrencyNodes) {
-                const val = extractNumber(node.innerText);
-                if (val > priceVal && val <= priceVal * 10) {
+                const val = extractNumber(node.textContent);
+                if (val > priceVal && val <= priceVal * 5) {
                     foundMrp = val;
-                    // Keep searching in case there's an even higher legitimate MRP? 
-                    // Usually we just want one that is > priceVal.
                 }
             }
         }
 
         if (foundMrp) {
-             data.mrp = String(foundMrp);
+            data.mrp = String(foundMrp);
         }
 
-        // Category from breadcrumbs
+        // Category from breadcrumbs DOM
         if (!data.category) {
-            const breadcrumbs = Array.from(document.querySelectorAll('.pdp__breadcrumb li, ul.breadcrumbs li, .breadcrumbs li, [aria-label="breadcrumb"] li, ol li'))
-                .map(el => el.innerText.trim())
-                .filter(Boolean);
-            if (breadcrumbs.length > 1) {
-                data.category = breadcrumbs[breadcrumbs.length - 1] === data.title ? breadcrumbs[breadcrumbs.length - 2] : breadcrumbs[breadcrumbs.length - 1];
+            const crumbSelectors = [
+                '.pdp__breadcrumb li', 'ul.breadcrumbs li', '.breadcrumbs li',
+                '[aria-label="breadcrumb"] li', 'ol li', '[class*="breadcrumb"] a',
+            ];
+            for (const sel of crumbSelectors) {
+                const breadcrumbs = Array.from(document.querySelectorAll(sel))
+                    .map(el => el.textContent.trim())
+                    .filter(c => c && c.toLowerCase() !== 'home' && c.toLowerCase() !== 'reliance digital');
+                if (breadcrumbs.length > 0) {
+                    const lastBreadcrumb = breadcrumbs[breadcrumbs.length - 1];
+                    const isTitle = lastBreadcrumb === data.title || lastBreadcrumb.length > 30;
+                    data.category = isTitle && breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2] : lastBreadcrumb;
+                    break;
+                }
             }
         }
 
-        // Images fallback
-        const domImgs = Array.from(document.querySelectorAll('img')).map(img => img.getAttribute('data-src') || img.getAttribute('data-srcset') || img.src || img.getAttribute('src'));
+        // Images - filter to only product images from Reliance Digital CDN
+        const domImgs = Array.from(document.querySelectorAll('img')).map(img => 
+            img.getAttribute('data-src') || img.src || img.getAttribute('src'));
         domImgs.forEach(src => {
-            if (src && src.startsWith('http') && (src.includes('/medias/') || src.includes('product') || src.includes('jmd-asp')) && !src.includes('placeholder')) {
-                const cleanSrc = src.split(' ')[0]; // handle srcset format just in case
+            if (src && src.startsWith('http') && 
+                (src.includes('/medias/') || src.includes('jiostore') || src.includes('jmd-asp') || src.includes('product')) &&
+                !src.includes('placeholder') && !src.includes('logo') && !src.includes('icon') &&
+                !src.includes('.svg') && !src.includes('banner')) {
+                const cleanSrc = src.split(' ')[0];
                 if (!data.images.includes(cleanSrc)) {
                     data.images.push(cleanSrc);
                 }
             }
         });
         
-        // Deduplicate images
         data.images = [...new Set(data.images)];
 
-        // Normalization
+        // Final normalization
         if (data.price) data.price = String(extractNumber(data.price) || data.price);
         if (data.mrp) data.mrp = String(extractNumber(data.mrp) || data.mrp);
-        
-        // If MRP is missing or somehow less than price, assume price is MRP (no discount)
         if (!data.mrp || parseInt(data.mrp) < parseInt(data.price)) {
             data.mrp = data.price;
         }

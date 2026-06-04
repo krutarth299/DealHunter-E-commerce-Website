@@ -8,7 +8,7 @@ import {
     Filter, X, SlidersHorizontal, ShoppingBag, TrendingDown, Zap, ShieldCheck, ArrowRight,
     Clock, Search, Tag, Layers, Package, ChevronRight, Star, ExternalLink, Flame, BadgePercent
 } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import SEO from '../components/SEO';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CATEGORY_MAP, FEATURED_CATEGORIES, getCategoryStyle, normalizeCategory } from '../utils/categoryConstants';
@@ -299,8 +299,9 @@ const InlineDealHighlights = ({ deals = [] }) => {
     );
 };
 
-const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: globalCategories, dealsLoading = false, dealsError = '' }) => {
-    const [searchParams] = useSearchParams();
+const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: globalCategories, dealsLoading = false, dealsError = '', apiBase }) => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
     
     const categories = React.useMemo(() => {
         const normalizedGlobal = (globalCategories || []).map(c => normalizeCategory(c)).filter(Boolean);
@@ -353,6 +354,42 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
         scrollToFeed();
     }, [searchParams, scrollToFeed]);
 
+    // Sync state to URL params so they can be shared and properly refreshed
+    // We only update the URL if the local state has meaningfully changed
+    // and differs from the current URL to avoid sync loops.
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearchParams(prev => {
+                const newParams = new URLSearchParams(prev);
+                let changed = false;
+
+                const currentSearch = newParams.get('search') || '';
+                if (deferredSearchQuery !== currentSearch && (!currentSearch || deferredSearchQuery)) {
+                    if (deferredSearchQuery) newParams.set('search', deferredSearchQuery);
+                    else newParams.delete('search');
+                    changed = true;
+                }
+
+                const currentCategory = newParams.get('category') || 'All';
+                if (selectedCategory !== currentCategory) {
+                    if (selectedCategory && selectedCategory !== 'All') newParams.set('category', selectedCategory);
+                    else newParams.delete('category');
+                    changed = true;
+                }
+
+                const currentStore = newParams.get('store') || 'All';
+                if (selectedStore !== currentStore) {
+                    if (selectedStore && selectedStore !== 'All') newParams.set('store', selectedStore);
+                    else newParams.delete('store');
+                    changed = true;
+                }
+
+                return changed ? newParams : prev;
+            }, { replace: true });
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [deferredSearchQuery, selectedCategory, selectedStore, setSearchParams]);
+
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') setIsMobileFilterOpen(false);
@@ -361,63 +398,117 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
+    const [fetchedDeals, setFetchedDeals] = useState([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [isFetchingDeals, setIsFetchingDeals] = useState(false);
+
+    // Listen for global data changes (e.g., deal deleted via admin panel or another tab)
+    useEffect(() => {
+        const handleLiveDataChanged = (event) => {
+            const { entity, action, id, deal } = event?.detail || {};
+            if (entity === 'deal') {
+                if (action === 'deleted' && id) {
+                    setFetchedDeals(prev => prev.filter(d => String(d._id || d.id) !== String(id)));
+                } else if (action === 'updated' && id && deal) {
+                    setFetchedDeals(prev => prev.map(d => String(d._id || d.id) === String(id) ? deal : d));
+                }
+            }
+        };
+        window.addEventListener('dealsphere:data-changed', handleLiveDataChanged);
+        return () => window.removeEventListener('dealsphere:data-changed', handleLiveDataChanged);
+    }, []);
+
+    useEffect(() => {
+        const fetchDeals = async () => {
+            if (!apiBase) return;
+            setIsFetchingDeals(true);
+            try {
+                const query = new URLSearchParams();
+                query.set('page', 1);
+                query.set('limit', 60);
+                if (deferredSearchQuery) query.set('search', deferredSearchQuery);
+                if (selectedCategory && selectedCategory !== 'All') query.set('category', selectedCategory);
+                if (selectedStore && selectedStore !== 'All') query.set('store', selectedStore);
+                if (selectedDiscount.value > 0) {
+                    if (selectedDiscount.value === 50) query.set('discount', '50+');
+                    else if (selectedDiscount.value === 25) query.set('discount', '25+');
+                }
+                
+                let backendSort = 'newest';
+                if (sortBy === 'price_asc') backendSort = 'price-low';
+                else if (sortBy === 'price_desc') backendSort = 'price-high';
+                else if (sortBy === 'discount') backendSort = 'discount';
+                query.set('sort', backendSort);
+
+                const res = await fetch(`${apiBase}/deals?${query.toString()}`, { cache: 'no-store' });
+                const data = await res.json();
+                
+                if (data.success && Array.isArray(data.deals)) {
+                    setFetchedDeals(data.deals);
+                    setTotalPages(data.totalPages || 1);
+                } else if (Array.isArray(data)) {
+                    setFetchedDeals(data);
+                }
+                setCurrentPage(1);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setIsFetchingDeals(false);
+            }
+        };
+        fetchDeals();
+    }, [deferredSearchQuery, selectedCategory, selectedStore, selectedDiscount.value, sortBy, apiBase]);
+
+    const handleLoadMore = useCallback(async () => {
+        if (currentPage >= totalPages || isFetchingDeals || !apiBase) return;
+        const nextPage = currentPage + 1;
+        setIsFetchingDeals(true);
+        try {
+            const query = new URLSearchParams();
+            query.set('page', nextPage);
+            query.set('limit', 60);
+            if (deferredSearchQuery) query.set('search', deferredSearchQuery);
+            if (selectedCategory && selectedCategory !== 'All') query.set('category', selectedCategory);
+            if (selectedStore && selectedStore !== 'All') query.set('store', selectedStore);
+            if (selectedDiscount.value > 0) {
+                if (selectedDiscount.value === 50) query.set('discount', '50+');
+                else if (selectedDiscount.value === 25) query.set('discount', '25+');
+            }
+            
+            let backendSort = 'newest';
+            if (sortBy === 'price_asc') backendSort = 'price-low';
+            else if (sortBy === 'price_desc') backendSort = 'price-high';
+            else if (sortBy === 'discount') backendSort = 'discount';
+            query.set('sort', backendSort);
+
+            const res = await fetch(`${apiBase}/deals?${query.toString()}`, { cache: 'no-store' });
+            const data = await res.json();
+            
+            if (data.success && Array.isArray(data.deals)) {
+                setFetchedDeals(prev => {
+                    const existingIds = new Set(prev.map(getDealIdentity));
+                    const newDeals = data.deals.filter(d => !existingIds.has(getDealIdentity(d)));
+                    return [...prev, ...newDeals];
+                });
+                setTotalPages(data.totalPages || 1);
+                setCurrentPage(nextPage);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsFetchingDeals(false);
+        }
+    }, [currentPage, totalPages, isFetchingDeals, deferredSearchQuery, selectedCategory, selectedStore, selectedDiscount.value, sortBy, apiBase]);
+
     const filteredDeals = useMemo(() => {
-        let filtered = [...allDeals];
-        if (selectedCategory !== 'All') {
-            filtered = filtered.filter(d => {
-                const dealCat = normalizeCategory(d.category)?.toLowerCase();
-                const selectedCat = selectedCategory.toLowerCase();
-                return dealCat === selectedCat || d.category?.toLowerCase().includes(selectedCat);
-            });
-        }
-        if (selectedStore !== 'All') {
-            filtered = filtered.filter(d => (d.store || d.storeName)?.toLowerCase() === selectedStore.toLowerCase());
-        }
-        if (deferredSearchQuery) {
-            const query = deferredSearchQuery.toLowerCase().trim();
-            filtered = filtered.filter(d => {
-                const haystack = [
-                    d.title,
-                    d.displayTitle,
-                    d.cardTitle,
-                    d.store,
-                    d.storeName,
-                    d.category
-                ].filter(Boolean).join(' ').toLowerCase();
-                return haystack.includes(query);
-            });
-        }
-        filtered = filtered.filter(d => {
+        // Price filtering is done client-side since slider max is derived from allDeals
+        return fetchedDeals.filter(d => {
             const price = parseDealPrice(d);
             const maxPrice = Math.min(priceRange.max, effectiveMaxPrice);
             return price >= priceRange.min && price <= maxPrice;
         });
-
-        if (selectedDiscount.value > 0) {
-            filtered = filtered.filter(d => parseDealDiscount(d) >= selectedDiscount.value);
-        }
-
-        filtered.sort((a, b) => {
-            if (sortBy === 'price_asc') {
-                return parseDealPrice(a) - parseDealPrice(b);
-            }
-            if (sortBy === 'price_desc') {
-                return parseDealPrice(b) - parseDealPrice(a);
-            }
-            if (sortBy === 'discount') {
-                return parseDealDiscount(b) - parseDealDiscount(a);
-            }
-            if (sortBy === 'newest') {
-                const dateA = getDealTimestamp(a);
-                const dateB = getDealTimestamp(b);
-                if (dateA !== dateB) return dateB - dateA;
-                return 0;
-            }
-            return 0;
-        });
-
-        return filtered;
-    }, [allDeals, deferredSearchQuery, effectiveMaxPrice, priceRange.max, priceRange.min, selectedCategory, selectedDiscount.value, selectedStore, sortBy]);
+    }, [fetchedDeals, priceRange.max, priceRange.min, effectiveMaxPrice]);
     const featuredDeals = useMemo(() => getTopDeals(filteredDeals, filteredDeals.length > 8 ? 3 : 0), [filteredDeals]);
     const featuredIdentitySet = useMemo(() => new Set(featuredDeals.map(getDealIdentity)), [featuredDeals]);
     const gridDeals = featuredDeals.length > 0
@@ -484,8 +575,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
     useEffect(() => {
         console.info(`[DEALS_RENDER] page=deals count=${Array.isArray(filteredDeals) ? filteredDeals.length : 0} loading=${dealsLoading} error=${dealsError ? 'yes' : 'no'}`);
     }, [filteredDeals, dealsLoading, dealsError]);
-
-    const FilterContent = () => (
+    const renderFilterContent = () => (
         <div className="space-y-12">
             {/* Categories */}
             <div className="space-y-8">
@@ -747,7 +837,8 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
                                                     type="button"
                                                     onMouseDown={(event) => event.preventDefault()}
                                                     onClick={() => {
-                                                        setSearchQuery(suggestion.label);
+                                                        navigate(`/deal/${suggestion.id}`);
+                                                        setSearchQuery('');
                                                         setIsSearchFocused(false);
                                                     }}
                                                     className="flex w-full items-center gap-4 rounded-3xl px-3 py-3 text-left transition-colors hover:bg-slate-50"
@@ -835,12 +926,16 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
             <div className="flex-grow w-full mx-auto px-4 sm:px-8 lg:px-12 py-10 pb-24 lg:pb-10">
                 <div className="flex flex-col lg:flex-row gap-10">
                     {/* Desktop Sidebar */}
-                    <aside className="hidden lg:block w-64 shrink-0">
-                        <div className="sticky top-28 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm max-h-[calc(100vh-9rem)] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                            <h2 className="text-base font-black text-slate-900 mb-8 flex items-center gap-2">
+                    <aside className="hidden lg:block w-64 shrink-0 relative">
+                        <div className="sticky top-36 bg-white rounded-3xl border border-slate-100 p-6 lg:p-8 shadow-sm max-h-[calc(100vh-10rem)] flex flex-col">
+                            <h2 className="text-base font-black text-slate-900 mb-6 flex-shrink-0 flex items-center gap-2">
                                 <SlidersHorizontal size={18} className="text-[#FF6A00]" /> Filters
                             </h2>
-                            <FilterContent />
+                            <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent flex-1 min-h-0 pb-4">
+                                <div className="py-2">
+                                    {renderFilterContent()}
+                                </div>
+                            </div>
                         </div>
                     </aside>
 
@@ -907,11 +1002,9 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
                             </section>
                         )}
 
-                        {!dealsLoading && filteredDeals.length > 0 && (
-                            <TrendingDealsRail deals={trendingDeals} />
-                        )}
+                        {/* Trending Deals Rail intentionally removed to match user's requested layout */}
 
-                        {dealsLoading ? (
+                        {dealsLoading || (isFetchingDeals && filteredDeals.length === 0) ? (
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6">
                                 {Array.from({ length: 12 }).map((_, index) => (
                                     <div key={index} className="h-[360px] rounded-[2.2rem] border border-slate-100 bg-white p-5 animate-pulse">
@@ -930,7 +1023,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
                                 )}
                                 <InlineDealHighlights deals={gridSections.inlineHighlights} />
                                 {gridSections.finalGrid.length > 0 && (
-                                    <DealsGrid deals={gridSections.finalGrid} wishlist={wishlist} toggleWishlist={toggleWishlist} />
+                                    <DealsGrid deals={gridSections.finalGrid} wishlist={wishlist} toggleWishlist={toggleWishlist} hasMore={currentPage < totalPages} onLoadMore={handleLoadMore} />
                                 )}
                             </div>
                         ) : (
@@ -985,8 +1078,8 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
                                     <X size={18} />
                                 </button>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-6"><FilterContent /></div>
-                            <div className="p-6 border-t border-slate-100">
+                            <div className="flex-1 overflow-y-auto p-6">{renderFilterContent()}</div>
+                            <div className="p-6 bg-white border-t border-slate-100">
                                 <button onClick={() => setIsMobileFilterOpen(false)} className="w-full h-14 bg-gradient-to-r from-[#FF6A00] to-[#FF8C42] text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:brightness-95 transition-colors shadow-lg shadow-orange-500/20">
                                     Apply ({filteredDeals.length} results)
                                 </button>

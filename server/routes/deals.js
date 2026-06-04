@@ -12,8 +12,6 @@ const __dirname = path.dirname(__filename);
 
 import Deal from '../models/Deal.js';
 import AffiliateSetting from '../models/AffiliateSetting.js';
-import { deals } from '../mockStore.js';
-
 import {
     sleep,
     PROFILES,
@@ -299,128 +297,38 @@ router.get('/', async (req, res) => {
         const sort = req.query.sort || 'newest';
         const duplicateOnly = req.query.duplicateOnly === 'true';
 
-        if (req.app.locals.isMockMode) {
-            let filteredDeals = [...deals];
-            
-            // 1. Search
-            if (search) {
-                const sLower = search.toLowerCase();
-                filteredDeals = filteredDeals.filter(d => 
-                    (d.title && d.title.toLowerCase().includes(sLower)) ||
-                    (d.storeName && d.storeName.toLowerCase().includes(sLower)) ||
-                    (d.store && d.store.toLowerCase().includes(sLower)) ||
-                    (d.category && d.category.toLowerCase().includes(sLower))
-                );
-            }
-
-            // 2. Store
-            if (store && store !== 'All') {
-                filteredDeals = filteredDeals.filter(d => 
-                    d.storeName === store || d.store === store
-                );
-            }
-
-            // 3. Category
-            if (category && category !== 'All') {
-                filteredDeals = filteredDeals.filter(d => d.category === category);
-            }
-
-            // 4. Discount
-            if (discount && discount !== 'All') {
-                filteredDeals = filteredDeals.filter(d => {
-                    const pct = Number(d.discountPercent || 0);
-                    if (discount === '50+') return pct >= 50;
-                    if (discount === '25+') return pct >= 25;
-                    if (discount === '1-24') return pct > 0 && pct < 25;
-                    if (discount === '0') return pct === 0;
-                    return true;
-                });
-            }
-
-            // 5. Date Filter
-            if (dateFilter && dateFilter !== 'All') {
-                const now = Date.now();
-                let limitMs;
-                if (dateFilter === '24h') limitMs = 24 * 60 * 60 * 1000;
-                else if (dateFilter === '7d') limitMs = 7 * 24 * 60 * 60 * 1000;
-                else if (dateFilter === '30d') limitMs = 30 * 24 * 60 * 60 * 1000;
-
-                if (limitMs) {
-                    filteredDeals = filteredDeals.filter(d => {
-                        const createdAt = new Date(d.createdAt).getTime();
-                        return (now - createdAt) <= limitMs;
-                    });
-                }
-            }
-
-            // 6. Duplicate Only
-            if (duplicateOnly) {
-                const keyCounts = {};
-                filteredDeals.forEach(d => {
-                    const key = `${(d.title || '').toLowerCase().trim()}-${(d.storeName || d.store || '').toLowerCase().trim()}`;
-                    if (key && key !== '-') {
-                        keyCounts[key] = (keyCounts[key] || 0) + 1;
-                    }
-                });
-                filteredDeals = filteredDeals.filter(d => {
-                    const key = `${(d.title || '').toLowerCase().trim()}-${(d.storeName || d.store || '').toLowerCase().trim()}`;
-                    return keyCounts[key] > 1;
-                });
-            }
-
-            // 7. Sort
-            filteredDeals.sort((a, b) => {
-                if (sort === 'price-low') {
-                    return (Number(a.dealPrice || a.price || 0)) - (Number(b.dealPrice || b.price || 0));
-                } else if (sort === 'price-high') {
-                    return (Number(b.dealPrice || b.price || 0)) - (Number(a.dealPrice || a.price || 0));
-                } else if (sort === 'discount') {
-                    return (Number(b.discountPercent || 0)) - (Number(a.discountPercent || 0));
-                } else if (sort === 'clicked') {
-                    return (Number(b.views || 0)) - (Number(a.views || 0));
-                } else {
-                    return new Date(b.createdAt) - new Date(a.createdAt);
-                }
-            });
-
-            // 8. Paginate or return
-            if (Number.isInteger(page) && Number.isInteger(limit)) {
-                const totalCount = filteredDeals.length;
-                const startIndex = (page - 1) * limit;
-                const paginatedList = filteredDeals.slice(startIndex, startIndex + limit);
-                const responseDeals = decorateDealListingsForResponse(
-                    paginatedList,
-                    affiliateSettings
-                );
-                return res.json({
-                    success: true,
-                    deals: responseDeals,
-                    totalCount,
-                    page,
-                    totalPages: Math.ceil(totalCount / limit)
-                });
-            }
-
-            const responseDeals = decorateDealListingsForResponse(
-                filteredDeals,
-                affiliateSettings
-            );
-            return res.json(responseDeals);
-        }
+        // Mock mode removed
 
         // Build MongoDB Query
         let query = {};
         const andConditions = [];
 
         if (search) {
-            andConditions.push({
-                $or: [
-                    { title: { $regex: search, $options: 'i' } },
-                    { storeName: { $regex: search, $options: 'i' } },
-                    { category: { $regex: search, $options: 'i' } }
-                ]
-            });
+            const searchTerms = search.trim().split(/[\s/\-(),|\[\]{}+:]+/).filter(Boolean);
+            if (searchTerms.length > 0) {
+                const termConditions = searchTerms.map(term => {
+                    let safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    // Allow optional spaces between letters and numbers (e.g. "8GB" matches "8 GB")
+                    safeTerm = safeTerm.replace(/([a-zA-Z])(\d)/g, '$1\\s*$2').replace(/(\d)([a-zA-Z])/g, '$1\\s*$2');
+                    return {
+                        $or: [
+                            { title: { $regex: safeTerm, $options: 'i' } },
+                            { shortTitle: { $regex: safeTerm, $options: 'i' } },
+                            { fullTitle: { $regex: safeTerm, $options: 'i' } },
+                            { normalizedTitle: { $regex: safeTerm, $options: 'i' } },
+                            { originalTitle: { $regex: safeTerm, $options: 'i' } },
+                            { storeName: { $regex: safeTerm, $options: 'i' } },
+                            { store: { $regex: safeTerm, $options: 'i' } },
+                            { category: { $regex: safeTerm, $options: 'i' } },
+                            { brand: { $regex: safeTerm, $options: 'i' } },
+                            { description: { $regex: safeTerm, $options: 'i' } }
+                        ]
+                    };
+                });
+                andConditions.push({ $and: termConditions });
+            }
         }
+
 
         if (store && store !== 'All') {
             andConditions.push({
@@ -491,8 +399,10 @@ router.get('/', async (req, res) => {
 
         let sortQuery = { createdAt: -1 };
         if (sort === 'price-low') {
+            andConditions.push({ dealPrice: { $gt: 0 } });
             sortQuery = { dealPrice: 1 };
         } else if (sort === 'price-high') {
+            andConditions.push({ dealPrice: { $gt: 0 } });
             sortQuery = { dealPrice: -1 };
         } else if (sort === 'discount') {
             sortQuery = { discountPercent: -1 };
@@ -509,10 +419,9 @@ router.get('/', async (req, res) => {
                 .limit(limit)
                 .lean();
 
-            const responseDeals = decorateDealListingsForResponse(
-                dealsList,
-                affiliateSettings
-            );
+            const responseDeals = req.query.raw === 'true'
+                ? decorateDealsForResponse(dealsList, affiliateSettings)
+                : decorateDealListingsForResponse(dealsList, affiliateSettings);
 
             return res.json({
                 success: true,
@@ -527,10 +436,9 @@ router.get('/', async (req, res) => {
             .sort(sortQuery)
             .lean();
 
-        const responseDeals = decorateDealListingsForResponse(
-            dealsList,
-            affiliateSettings
-        );
+        const responseDeals = req.query.raw === 'true'
+            ? decorateDealsForResponse(dealsList, affiliateSettings)
+            : decorateDealListingsForResponse(dealsList, affiliateSettings);
 
         res.json(responseDeals);
     } catch (err) {
@@ -551,20 +459,10 @@ router.get('/latest', async (req, res) => {
         const affiliateSettings =
             await loadAffiliateSettings(req);
 
-        if (req.app.locals.isMockMode) {
-            dealsList = [...deals]
-                .sort(
-                    (a, b) =>
-                        new Date(b.createdAt) -
-                        new Date(a.createdAt)
-                )
-                .slice(0, limit);
-        } else {
-            dealsList = await Deal.find()
-                .sort({ createdAt: -1 })
-                .limit(limit)
-                .lean();
-        }
+        dealsList = await Deal.find()
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .lean();
 
         res.json(
             decorateDealsForResponse(
@@ -587,11 +485,7 @@ router.get('/stats', async (req, res) => {
         const affiliateSettings =
             await loadAffiliateSettings(req);
 
-        if (req.app.locals.isMockMode) {
-            dealsList = deals;
-        } else {
-            dealsList = await Deal.find().lean();
-        }
+        dealsList = await Deal.find().lean();
 
         const normalizedDeals =
             decorateDealsForResponse(
@@ -614,26 +508,8 @@ router.get('/categories', async (req, res) => {
     try {
         let categories;
 
-        if (req.app.locals.isMockMode) {
-            categories = [
-                ...new Set(
-                    deals
-                        .map((deal) => deal.category)
-                        .filter(
-                            (c) =>
-                                c &&
-                                c.trim() !== ''
-                        )
-                )
-            ];
-        } else {
-            const raw =
-                await Deal.distinct('category');
-
-            categories = raw.filter(
-                (c) => c && c.trim() !== ''
-            );
-        }
+        const raw = await Deal.distinct('category');
+        categories = raw.filter((c) => c && c.trim() !== '');
 
         res.json(categories);
     } catch (err) {
@@ -976,33 +852,27 @@ router.get('/homepage', async (req, res) => {
         const affiliateSettings = await loadAffiliateSettings(req);
         let dealsList;
 
-        if (req.app.locals.isMockMode) {
-            dealsList = [...deals]
-                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-                .slice(0, 30);
-        } else {
-            // Fetch active deals, latest first
-            const latestDeals = await Deal.find({ isExpired: { $ne: true } })
-                .sort({ createdAt: -1 })
-                .limit(30)
-                .lean();
+        // Fetch active deals, latest first
+        const latestDeals = await Deal.find({ isExpired: { $ne: true } })
+            .sort({ createdAt: -1 })
+            .limit(30)
+            .lean();
 
-            // Also fetch featured deals to ensure they show in the slider even if they are old
-            const featuredDeals = await Deal.find({
-                isExpired: { $ne: true },
-                $or: [{ featured: true }, { isTrending: true }, { trending: true }]
-            })
-                .sort({ createdAt: -1 })
-                .limit(10)
-                .lean();
+        // Also fetch featured deals to ensure they show in the slider even if they are old
+        const featuredDeals = await Deal.find({
+            isExpired: { $ne: true },
+            $or: [{ featured: true }, { isTrending: true }, { trending: true }]
+        })
+            .sort({ createdAt: -1 })
+            .limit(10)
+            .lean();
 
-            // Combine and deduplicate
-            const dealMap = new Map();
-            latestDeals.forEach(d => dealMap.set(d._id.toString(), d));
-            featuredDeals.forEach(d => dealMap.set(d._id.toString(), d));
-            
-            dealsList = Array.from(dealMap.values());
-        }
+        // Combine and deduplicate
+        const dealMap = new Map();
+        latestDeals.forEach(d => dealMap.set(d._id.toString(), d));
+        featuredDeals.forEach(d => dealMap.set(d._id.toString(), d));
+        
+        dealsList = Array.from(dealMap.values());
 
         const responseDeals = decorateDealListingsForResponse(dealsList, affiliateSettings);
         res.json({
@@ -1042,27 +912,7 @@ router.get('/:id', async (req, res) => {
         const affiliateSettings =
             await loadAffiliateSettings(req);
 
-        if (req.app.locals.isMockMode) {
-            const deal = deals.find(
-                (d) => d._id === id
-            );
-
-            if (!deal) {
-                return res
-                    .status(404)
-                    .json({
-                        message:
-                            'Cannot find deal'
-                    });
-            }
-
-            return res.json(
-                decorateDealForResponse(
-                    deal,
-                    affiliateSettings
-                )
-            );
-        }
+        // Mock mode removed
 
         const deal =
             await Deal.findById(id);

@@ -81,9 +81,16 @@ export const buildAffiliateUrl = ({ url = '', store = '', settings = [], manualO
         return parsedUrl.toString();
     } catch {
         // Fallback for invalid URLs that passed earlier checks
-        const separator = originalUrl.includes('?') ? '&' : '?';
-        if (originalUrl.toLowerCase().includes(`${rule.paramKey.toLowerCase()}=`)) return originalUrl;
-        return `${originalUrl}${separator}${rule.paramKey}=${rule.paramValue}`;
+        const hashIndex = originalUrl.indexOf('#');
+        let baseUrl = originalUrl;
+        let hash = '';
+        if (hashIndex !== -1) {
+            baseUrl = originalUrl.substring(0, hashIndex);
+            hash = originalUrl.substring(hashIndex);
+        }
+        const separator = baseUrl.includes('?') ? '&' : '?';
+        if (baseUrl.toLowerCase().includes(`${rule.paramKey.toLowerCase()}=`)) return originalUrl;
+        return `${baseUrl}${separator}${rule.paramKey}=${rule.paramValue}${hash}`;
     }
 };
 

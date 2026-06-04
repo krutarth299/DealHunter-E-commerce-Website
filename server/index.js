@@ -52,11 +52,10 @@ const connectDB = async () => {
         await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/dealsphere', {
             serverSelectionTimeoutMS: 2000
         });
-        app.locals.isMockMode = false;
         logger.info('DB', 'Connected to MongoDB');
     } catch (err) {
-        app.locals.isMockMode = true;
-        logger.warn('DB', 'Connection failed, falling back to MOCK MODE');
+        logger.error('DB', 'MongoDB connection failed: ' + err.message);
+        process.exit(1);
     }
 };
 connectDB();

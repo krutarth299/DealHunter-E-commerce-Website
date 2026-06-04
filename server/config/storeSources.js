@@ -136,7 +136,7 @@ export const AFFILIATE_STORE_SOURCES = [
         homeUrl: 'https://www.lenskart.com',
         category: 'Eyewear',
         categories: ['Eyewear', 'Fashion', 'Accessories'],
-        enabledByDefault: false,
+        enabledByDefault: true,
         affiliateReady: true
     },
     {
@@ -176,7 +176,7 @@ export const AFFILIATE_STORE_SOURCES = [
         homeUrl: 'https://www.bigbasket.com',
         category: 'Grocery',
         categories: ['Grocery', 'Home Essentials'],
-        enabledByDefault: false,
+        enabledByDefault: true,
         affiliateReady: true
     },
     {

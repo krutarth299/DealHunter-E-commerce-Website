@@ -7,7 +7,7 @@ const DealSchema = new mongoose.Schema({
     slug: { type: String, trim: true, lowercase: true, index: true },
     originalTitle: { type: String },
     thumbnail: { type: String, trim: true, default: '' },
-    image: { type: String, required: true },
+    image: { type: String, default: '' },
     images: [{ type: String }],
     videos: [{ type: String }],
     price: { type: Number, required: true, default: 0 },
@@ -103,6 +103,8 @@ DealSchema.index({ isExpired: 1, createdAt: -1 });
 DealSchema.index({ store: 1, createdAt: -1 });
 DealSchema.index({ storeName: 1, createdAt: -1 });
 DealSchema.index({ category: 1, createdAt: -1 });
+DealSchema.index({ discountPercent: -1, createdAt: -1 });
+DealSchema.index({ dealPrice: 1, createdAt: -1 });
 
 DealSchema.post('save', function postSavePriceSnapshot(doc) {
     import('../services/pricingInsights.js')

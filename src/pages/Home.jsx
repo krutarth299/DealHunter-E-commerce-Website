@@ -252,9 +252,9 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
     const featuredDealKeys = useMemo(() => new Set(featuredHomepageDeals.map(getDealKey)), [featuredHomepageDeals]);
     
     const mainGridDeals = useMemo(() => {
-        // Exclude both hero and featured deals from the main grid
-        return homepageDeals.filter(deal => !heroDealKeys.has(getDealKey(deal)) && !featuredDealKeys.has(getDealKey(deal)));
-    }, [homepageDeals, heroDealKeys, featuredDealKeys]);
+        // Show all balanced deals in the main grid
+        return homepageDeals;
+    }, [homepageDeals]);
     
     const bestDealsToday = useMemo(() => getBestDealsToday(liveDealPool, 4), [liveDealPool]);
 

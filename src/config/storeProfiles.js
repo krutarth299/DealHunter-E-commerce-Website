@@ -1,15 +1,11 @@
 export const AFFILIATE_STORE_PROFILES = {
     Amazon: { domain: 'amazon.in', tier: 1, category: 'Multi-category', tagline: 'Live Amazon deals from your catalog' },
     Flipkart: { domain: 'flipkart.com', tier: 1, category: 'Multi-category', tagline: 'Live Flipkart deals from your catalog' },
-    Myntra: { domain: 'myntra.com', tier: 1, category: 'Fashion', tagline: 'Live Myntra fashion and lifestyle deals' },
-    Nykaa: { domain: 'nykaa.com', tier: 1, category: 'Beauty', tagline: 'Live beauty and skincare offers' },
-    'Tata CLiQ': { domain: 'tatacliq.com', tier: 1, category: 'Lifestyle', tagline: 'Live Tata CLiQ lifestyle and electronics offers' },
     Croma: { domain: 'croma.com', tier: 1, category: 'Electronics', tagline: 'Live electronics and appliance deals' },
     'Reliance Digital': { domain: 'reliancedigital.in', tier: 1, category: 'Electronics', tagline: 'Live Reliance Digital electronics offers' },
     FirstCry: { domain: 'firstcry.com', tier: 1, category: 'Baby', tagline: 'Live baby, kids and parenting deals' },
     Purplle: { domain: 'purplle.com', tier: 2, category: 'Beauty', tagline: 'Beauty and personal care offers' },
     Lenskart: { domain: 'lenskart.com', tier: 2, category: 'Eyewear', tagline: 'Eyewear and accessories offers' },
-    Snapdeal: { domain: 'snapdeal.com', tier: 2, category: 'Multi-category', tagline: 'Marketplace deals and discounts' },
     'Tata 1mg': { domain: '1mg.com', tier: 2, category: 'Health', tagline: 'Pharmacy and health offers' },
     PharmEasy: { domain: 'pharmeasy.in', tier: 2, category: 'Health', tagline: 'Medicine and healthcare offers' },
     BigBasket: { domain: 'bigbasket.com', tier: 2, category: 'Grocery', tagline: 'Live supermarket offers' },
@@ -29,7 +25,6 @@ export const STORE_DETECTION_PATTERNS = [
         name,
         patterns: [profile.domain, name].filter(Boolean)
     })),
-    { name: 'Tata CLiQ', patterns: ['tatacliq', 'tata cliq', 'tata-cliq'] },
     { name: 'IKEA India', patterns: ['ikea.com/in', 'ikea india'] },
     { name: 'Tata 1mg', patterns: ['1mg.com', 'tata 1mg', '1mg'] }
 ];

@@ -2,32 +2,43 @@ import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { extractAmazon } from './amazon.js';
 import { extractFlipkart } from './flipkart.js';
-import { extractMyntra } from './myntra.js';
 import { extractCroma } from './croma.js';
 import { extractRelianceDigital } from './reliancedigital.js';
-import { extractNykaa } from './nykaa.js';
 import { extractFirstCry } from './firstcry.js';
-import { extractTataCliq } from './tatacliq.js';
-import { extractSnapdeal } from './snapdeal.js';
-
+import { extractBigBasket } from './bigbasket.js';
+import { extractPurplle } from './purplle.js';
+import { extractTata1mg } from './tata1mg.js';
+import { extractMyntra } from './myntra.js';
 puppeteer.use(StealthPlugin());
 
-export async function extractProduct(url) {
-    if (!url) return { success: false, message: "URL is required" };
+let globalBrowser = null;
 
-    let browser;
-    try {
-        browser = await puppeteer.launch({
-            headless: 'new',
+async function getBrowser() {
+    if (!globalBrowser || !globalBrowser.isConnected()) {
+        globalBrowser = await puppeteer.launch({
+            headless: false, // Changed to false to bypass advanced Cloudflare/Akamai bot detection on residential IPs
             defaultViewport: null,
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox',
-                '--disable-blink-features=AutomationControlled'
+                '--disable-blink-features=AutomationControlled',
+                '--disable-infobars',
+                '--window-position=0,0',
+                '--ignore-certifcate-errors',
+                '--ignore-certifcate-errors-spki-list'
             ]
         });
-        
-        const page = await browser.newPage();
+    }
+    return globalBrowser;
+}
+
+export async function extractProduct(url) {
+    if (!url) return { success: false, message: "URL is required" };
+
+    let page;
+    try {
+        const browser = await getBrowser();
+        page = await browser.newPage();
         
         // Anti-bot webdriver bypass
         await page.evaluateOnNewDocument(() => {
@@ -37,40 +48,49 @@ export async function extractProduct(url) {
         });
 
         // Block heavy resources safely
-        const isMyntra = url.toLowerCase().includes('myntra.com');
-        const isNykaa = url.toLowerCase().includes('nykaa.com');
-        const isTataCliq = url.toLowerCase().includes('tatacliq.com');
         const isFirstCry = url.toLowerCase().includes('firstcry.com');
         const isRelianceDigital = url.toLowerCase().includes('reliancedigital.in');
+        const isCroma = url.toLowerCase().includes('croma.com');
         
         // Many SPAs (React/Angular/Vue) crash if stylesheets/images are blocked
-        const needsFullLoad = isMyntra || isNykaa || isTataCliq || isFirstCry || isRelianceDigital;
+        const needsFullLoad = isFirstCry || isRelianceDigital || isCroma;
         
-        await page.setRequestInterception(true);
-        page.on('request', (request) => {
-            if (request.isInterceptResolutionHandled()) return;
-            const resourceType = request.resourceType();
+        const blockedTypes = needsFullLoad 
+            ? [] 
+            : ['image', 'stylesheet', 'font', 'media'];
             
-            // React frontends crash if stylesheets/images are blocked
-            const blockedTypes = needsFullLoad 
-                ? ['font', 'media'] 
-                : ['image', 'stylesheet', 'font', 'media'];
-                
-            if (blockedTypes.includes(resourceType)) {
-                request.abort().catch(() => {});
-            } else {
-                request.continue().catch(() => {});
-            }
-        });
+        if (blockedTypes.length > 0) {
+            await page.setRequestInterception(true);
+            page.on('request', (request) => {
+                if (request.isInterceptResolutionHandled()) return;
+                const resourceType = request.resourceType();
+                if (blockedTypes.includes(resourceType)) {
+                    request.abort().catch(() => {});
+                } else {
+                    request.continue().catch(() => {});
+                }
+            });
+        }
 
         await page.setViewport({ width: 1400, height: 1200 });
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
-        await page.setExtraHTTPHeaders({
-            "accept-language": "en-US,en;q=0.9"
-        });
         await page.setCacheEnabled(false);
         
-        let cleanUrl = url;
+        let cleanUrl = (url || '').trim();
+        if (!cleanUrl) {
+            return { success: false, message: "URL cannot be empty" };
+        }
+        if (!/^https?:\/\//i.test(cleanUrl)) {
+            cleanUrl = 'https://' + cleanUrl;
+        }
+        try {
+            const parsed = new URL(cleanUrl);
+            if (!parsed.hostname || !parsed.hostname.includes('.')) {
+                return { success: false, message: "Invalid domain in URL" };
+            }
+        } catch (e) {
+            return { success: false, message: "Invalid URL format" };
+        }
+        
         if (cleanUrl.toLowerCase().includes("flipkart.com")) {
             // Remove query params
             cleanUrl = cleanUrl.split("?")[0];
@@ -81,7 +101,27 @@ export async function extractProduct(url) {
             }
         }
 
-        await page.goto(cleanUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
+        // Do not use networkidle2 as many ecommerce sites have persistent connections that cause timeouts
+        let targetUrl = cleanUrl;
+        
+        // Use ScraperAPI if key is provided in .env for highly protected sites (currently none)
+        const needsProxy = false;
+        if (needsProxy && process.env.SCRAPERAPI_KEY) {
+            console.log(`Routing ${cleanUrl} through ScraperAPI Premium...`);
+            targetUrl = `http://api.scraperapi.com/?api_key=${process.env.SCRAPERAPI_KEY}&url=${encodeURIComponent(cleanUrl)}&render=true&premium=true&country_code=in`;
+            try {
+                await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+            } catch (e) {
+                console.log("Navigation timeout, proceeding with available DOM...");
+            }
+        } else {
+            try {
+                await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+                await new Promise(r => setTimeout(r, 2000));
+            } catch (e) {
+                console.log("Navigation timeout, proceeding with available DOM...");
+            }
+        }
 
         let data = {};
         const lowUrl = cleanUrl.toLowerCase();
@@ -91,22 +131,22 @@ export async function extractProduct(url) {
             data = await extractAmazon(page);
         } else if (lowUrl.includes("flipkart") || finalUrl.includes("flipkart") || lowUrl.includes("fkrt.it")) {
             data = await extractFlipkart(page);
-        } else if (lowUrl.includes("myntra") || finalUrl.includes("myntra")) {
-            data = await extractMyntra(page);
         } else if (lowUrl.includes("croma") || finalUrl.includes("croma")) {
             data = await extractCroma(page);
         } else if (lowUrl.includes("reliancedigital") || finalUrl.includes("reliancedigital")) {
             data = await extractRelianceDigital(page);
-        } else if (lowUrl.includes("nykaa") || finalUrl.includes("nykaa")) {
-            data = await extractNykaa(page);
         } else if (lowUrl.includes("firstcry") || finalUrl.includes("firstcry")) {
             data = await extractFirstCry(page);
-        } else if (lowUrl.includes("tatacliq") || finalUrl.includes("tatacliq")) {
-            data = await extractTataCliq(page);
-        } else if (lowUrl.includes("snapdeal") || finalUrl.includes("snapdeal")) {
-            data = await extractSnapdeal(page);
+        } else if (lowUrl.includes("bigbasket") || finalUrl.includes("bigbasket")) {
+            data = await extractBigBasket(page, targetUrl);
+        } else if (lowUrl.includes("purplle") || finalUrl.includes("purplle")) {
+            data = await extractPurplle(page, targetUrl);
+        } else if (lowUrl.includes("1mg") || finalUrl.includes("1mg")) {
+            data = await extractTata1mg(page, targetUrl);
+        } else if (lowUrl.includes("myntra") || finalUrl.includes("myntra")) {
+            data = await extractMyntra(page, targetUrl);
         } else {
-            return { success: false, message: "Unsupported platform" };
+            return { success: false, message: "Store not supported" };
         }
 
         // Final normalization and cleaning
@@ -132,6 +172,6 @@ export async function extractProduct(url) {
         console.error("[EXTRACTOR_ERROR]", error);
         return { success: false, message: error.message };
     } finally {
-        if (browser) await browser.close();
+        if (page) await page.close().catch(e => console.error("Error closing page:", e));
     }
 }

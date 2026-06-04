@@ -102,11 +102,13 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
     const searchSuggestions = React.useMemo(() => {
         const query = searchVal.trim().toLowerCase();
         if (query.length < 2) return [];
+        
+        const queryWords = query.split(/\s+/).filter(Boolean);
 
         return latestDeals
             .filter((deal) => {
                 const haystack = `${deal.title || ''} ${deal.store || deal.storeName || ''} ${deal.category || ''}`.toLowerCase();
-                return haystack.includes(query);
+                return queryWords.every(word => haystack.includes(word));
             })
             .slice(0, 4);
     }, [latestDeals, searchVal]);

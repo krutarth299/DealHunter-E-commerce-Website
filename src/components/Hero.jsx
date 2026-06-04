@@ -168,13 +168,16 @@ const Hero = ({ deals = [], isLoading = false }) => {
     }, [slides.length, isPaused]);
 
     useEffect(() => {
-        const firstImage = slides[0]?.image;
-        if (!firstImage || typeof window === 'undefined') return;
+        if (!slides.length || typeof window === 'undefined') return;
+        // Preload next image to ensure smooth transitions
+        const nextSlideIdx = (current + 1) % slides.length;
+        const nextImage = slides[nextSlideIdx]?.image;
+        if (!nextImage) return;
         const preload = new window.Image();
         preload.decoding = 'async';
         preload.fetchPriority = 'high';
-        preload.src = firstImage;
-    }, [slides]);
+        preload.src = nextImage;
+    }, [current, slides]);
 
     const nextSlide = () => setCurrent((prev) => (prev + 1) % slides.length);
     const prevSlide = () => setCurrent((prev) => (prev - 1 + slides.length) % slides.length);
@@ -234,13 +237,14 @@ const Hero = ({ deals = [], isLoading = false }) => {
             onMouseLeave={() => setIsPaused(false)}
         >
             <div className="relative min-h-[560px] overflow-hidden sm:min-h-[640px] lg:min-h-[680px]">
-                <AnimatePresence mode="wait">
+                <AnimatePresence>
                     <motion.div
                         key={current}
                         initial={shouldRunEntryAnimation ? { opacity: 0 } : false}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.8, ease: [0.32, 0.72, 0, 1] }}
+                        transition={{ duration: 0.4, ease: "easeInOut" }}
+                        style={{ backgroundImage: HERO_GRADIENT }}
                         drag="x"
                         dragConstraints={{ left: 0, right: 0 }}
                         dragElastic={0.2}
@@ -249,7 +253,6 @@ const Hero = ({ deals = [], isLoading = false }) => {
                             if (offset.x > 50) prevSlide();
                         }}
                         className="absolute inset-0 cursor-grab overflow-hidden active:cursor-grabbing"
-                        style={{ backgroundImage: HERO_GRADIENT }}
                     >
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.26),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.16),transparent_28%)]" />
                         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))]" />
@@ -387,9 +390,9 @@ const Hero = ({ deals = [], isLoading = false }) => {
                                                 <img
                                                     src={slide.image}
                                                     alt={slide.title}
-                                                    className="max-h-[310px] w-full object-contain drop-shadow-[0_18px_38px_rgba(0,0,0,0.28)] transition-transform duration-700 group-hover:scale-[1.02] sm:max-h-[420px]"
-                                                    loading={current === 0 ? 'eager' : 'lazy'}
-                                                    fetchPriority={current === 0 ? 'high' : 'auto'}
+                                                    className="max-h-[310px] w-full object-contain transition-transform duration-700 group-hover:scale-[1.02] sm:max-h-[420px]"
+                                                    loading="eager"
+                                                    fetchPriority="high"
                                                     decoding="async"
                                                     onError={(e) => {
                                                         e.target.onerror = null;

@@ -7,7 +7,6 @@ import { normalizeDealForResponse } from './utils/deal-normalizer.js';
 import { groupDealsIntoListings } from './utils/product-identity.js';
 import AffiliateSetting from './models/AffiliateSetting.js';
 import Deal from './models/Deal.js';
-import { deals as mockDeals } from './mockStore.js';
 import logger from './utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,15 +31,12 @@ export const handleSSR = async (req, res, next) => {
         let preloadedCategories = [];
         
         try {
-            const isMock = req.app.locals.isMockMode;
-            const affiliateSettings = await getAffiliateSettings(AffiliateSetting, isMock, req.app.locals);
+            const affiliateSettings = await getAffiliateSettings(AffiliateSetting, false, req.app.locals);
             
-            const [d, c] = isMock
-                ? [mockDeals.slice(0, 20), [...new Set(mockDeals.map(d => d.category))]]
-                : await Promise.all([
-                    Deal.find(LIVE_DEAL_QUERY, SSR_PROJECTION).sort({ createdAt: -1 }).limit(20).lean(),
-                    Deal.distinct('category', LIVE_DEAL_QUERY)
-                ]);
+            const [d, c] = await Promise.all([
+                Deal.find(LIVE_DEAL_QUERY, SSR_PROJECTION).sort({ createdAt: -1 }).limit(20).lean(),
+                Deal.distinct('category', LIVE_DEAL_QUERY)
+            ]);
 
             preloadedDeals = groupDealsIntoListings((d || []).map(item => 
                 normalizeDealForResponse(applyAffiliateSettingsToDeal({ deal: item, settings: affiliateSettings }))

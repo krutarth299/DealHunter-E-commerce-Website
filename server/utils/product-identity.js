@@ -220,7 +220,7 @@ const getDealCompletenessScore = (deal = {}) => {
     if (Number(deal.mrp) > Number(deal.dealPrice || 0)) score += 6;
     if (deal.description) score += 4;
     if (deal.productUrl) score += 4;
-    if (deal.featured) score += 3;
+    if (deal.featured || deal.isTrending) score += 1000; // Prioritize explicitly featured deals
     score += Math.min(Number(deal.views || 0) / 100, 5);
     return score;
 };

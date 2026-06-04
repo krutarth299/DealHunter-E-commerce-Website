@@ -82,7 +82,8 @@ const AdminBlogManager = ({ adminApiBase, showToast }) => {
         blogs.filter((blog) => {
             const matchesStatus = statusFilter === 'all' || blog.status === statusFilter;
             const haystack = [blog.title, blog.summary, blog.category, ...(blog.tags || [])].join(' ').toLowerCase();
-            const matchesSearch = !searchTerm || haystack.includes(searchTerm.toLowerCase());
+            const queryWords = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
+            const matchesSearch = !searchTerm || queryWords.every(word => haystack.includes(word));
             return matchesStatus && matchesSearch;
         })
     ), [blogs, searchTerm, statusFilter]);

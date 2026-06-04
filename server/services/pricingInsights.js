@@ -1,6 +1,5 @@
 import Deal from '../models/Deal.js';
 import PriceSnapshot from '../models/PriceSnapshot.js';
-import { deals as mockDeals } from '../mockStore.js';
 import { normalizeDealForResponse } from '../utils/deal-normalizer.js';
 
 const STOP_WORDS = new Set([
@@ -137,11 +136,9 @@ export const persistPriceSnapshot = async (dealInput) => {
     });
 };
 
-const getComparableDeals = async (deal, { limit = 4, isMockMode = false } = {}) => {
+const getComparableDeals = async (deal, { limit = 4 } = {}) => {
     const dealId = String(deal._id || deal.id || '');
-    const sourceDeals = isMockMode
-        ? mockDeals
-        : await Deal.find({
+    const sourceDeals = await Deal.find({
             _id: { $ne: deal._id },
             isExpired: { $ne: true },
             validationStatus: { $ne: 'rejected' },
@@ -187,10 +184,10 @@ const getComparableDeals = async (deal, { limit = 4, isMockMode = false } = {}) 
     return scored;
 };
 
-export const getPriceInsightForDeal = async (dealInput, { isMockMode = false } = {}) => {
+export const getPriceInsightForDeal = async (dealInput) => {
     const currentPrice = parsePriceNumber(dealInput.dealPrice || dealInput.price);
     const originalPrice = parsePriceNumber(dealInput.mrp || dealInput.originalPrice);
-    const snapshotQuery = isMockMode ? null : buildSnapshotQuery(dealInput);
+    const snapshotQuery = buildSnapshotQuery(dealInput);
 
     const snapshots = snapshotQuery
         ? await PriceSnapshot.find(snapshotQuery)
@@ -212,7 +209,7 @@ export const getPriceInsightForDeal = async (dealInput, { isMockMode = false } =
         : null;
 
     const historyAverage = average(priceHistory.map((snapshot) => snapshot.currentPrice));
-    const similarListings = await getComparableDeals(dealInput, { limit: 4, isMockMode });
+    const similarListings = await getComparableDeals(dealInput, { limit: 4 });
     const comparablePrices = similarListings
         .map((listing) => parsePriceNumber(listing.dealPrice || listing.price))
         .filter((value) => value > 0);

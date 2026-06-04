@@ -740,6 +740,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                             ref={imageRef}
                                             src={optimizeImageUrl(activeImage) || NO_PRODUCT_IMAGE}
                                             alt={activeDisplayTitle}
+                                            referrerPolicy="no-referrer"
                                             className="w-full h-full object-contain filter drop-shadow-2xl p-5 sm:p-8 transition-transform duration-700 md:group-hover/main:scale-110"
                                             onError={(e) => {
                                                 e.target.onerror = null;
@@ -796,6 +797,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                             <img
                                                 src={optimizeImageUrl(img)}
                                                 alt={`Thumbnail ${idx}`}
+                                                referrerPolicy="no-referrer"
                                                 className="w-full h-full object-contain mix-blend-multiply p-2"
                                                 loading="lazy"
                                                 onError={(e) => { e.target.style.display = 'none'; }}
@@ -1017,6 +1019,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                                                     <img
                                                                         src={optimizeImageUrl(variant.image)}
                                                                         alt=""
+                                                                        referrerPolicy="no-referrer"
                                                                         className="h-8 w-8 rounded-xl object-contain bg-white"
                                                                         onError={(event) => { event.currentTarget.style.display = 'none'; }}
                                                                     />

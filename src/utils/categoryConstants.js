@@ -1,10 +1,9 @@
 import { 
     Smartphone, Shirt, Gamepad2, Plane, Utensils, ShoppingBag,
     Sparkles, Zap, Home as HomeIcon, Layers, BookOpen, Dumbbell, 
-    Car, Baby, Watch, Headphones, Camera, Laptop, Leaf, Heart, 
-    Pill, Sofa, Gem, Gift, Music, Tv, UtensilsCrossed, 
-    Scissors, PawPrint, Bike, Package, Briefcase, Stethoscope, 
-    Wrench, Cpu
+    Car, Baby, Watch, Headphones, Camera, Laptop, Heart, 
+    Sofa, Gem, Gift, PawPrint, Bike, Package, Briefcase, 
+    Stethoscope, Wrench, Cpu
 } from 'lucide-react';
 
 export const CATEGORY_MAP = {

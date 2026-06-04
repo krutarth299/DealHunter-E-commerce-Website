@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-    ImageIcon, Zap, Sparkles, Loader2, AlertCircle, 
+    Zap, Sparkles, Loader2, AlertCircle, 
     CheckCircle, Shield 
 } from 'lucide-react';
 import { optimizeImageUrl } from '../../utils/imageOptimizer';
