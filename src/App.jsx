@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef, useMemo, useCallback, Suspense } from 'react';
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { AuthContext } from './context/authContextDefinition';
 import ScrollToTop from './components/ScrollToTop';
@@ -47,6 +47,7 @@ const BlogPost = lazyWithRetry(() => import('./pages/BlogPost'), 'BlogPost');
 const CategoryDetails = lazyWithRetry(() => import('./pages/CategoryDetails'), 'CategoryDetails');
 const InfoPage = lazyWithRetry(() => import('./pages/InfoPage'), 'InfoPage');
 const AdminPanel = lazyWithRetry(() => import('./pages/AdminPanel'), 'AdminPanel');
+const AdminLogin = lazyWithRetry(() => import('./pages/AdminLogin'), 'AdminLogin');
 import { AFFILIATE_STORE_PROFILES } from './config/storeProfiles';
 
 const RouteFallback = ({ label = 'Loading page...' }) => (
@@ -155,6 +156,21 @@ const getCachedDealsSnapshot = () => {
 const emitLiveDataChanged = (detail = {}) => {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent(LIVE_DATA_CHANGED_EVENT, { detail }));
+};
+
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useContext(AuthContext) || {};
+  const location = useLocation();
+
+  if (loading) {
+    return <AdminRouteFallback />;
+  }
+
+  if (!user || user.role !== 'admin') {
+    return <Navigate to="/admin-login" state={{ from: location }} replace />;
+  }
+
+  return children;
 };
 
 export function AppContent({ preloadedDeals = null, preloadedCategories = null }) {
@@ -669,11 +685,17 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
             <Route path="/:slug-offers" element={<SeoAliasRedirect mode="offers" />} />
 
             {/* Dedicated Admin Panel Routes - Protected */}
-            {/* Admin Panel made accessible without login */}
-            <Route path="/admin/*" element={(
-              <Suspense fallback={<AdminRouteFallback />}>
-                <AdminPanel {...sharedProps} deals={deals} setDeals={setDeals} />
+            <Route path="/admin-login" element={
+              <Suspense fallback={<PublicRouteFallback />}>
+                <AdminLogin />
               </Suspense>
+            } />
+            <Route path="/admin/*" element={(
+              <ProtectedRoute>
+                <Suspense fallback={<AdminRouteFallback />}>
+                  <AdminPanel {...sharedProps} deals={deals} setDeals={setDeals} />
+                </Suspense>
+              </ProtectedRoute>
             )} />
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
 

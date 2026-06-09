@@ -152,12 +152,59 @@ export async function extractProduct(url) {
         // Final normalization and cleaning
         const cleanPrice = (p) => String(p || '').replace(/[^\d]/g, '');
         
+        const ALLOWED_CATEGORIES = [
+            "Electronics", "Fashion", "Footwear", "Accessories", "Beauty & Personal Care", 
+            "Home & Kitchen", "Furniture", "Groceries", "Baby Products", "Sports & Fitness", 
+            "Books & Media", "Toys & Games", "Automotive", "Office & Stationery", 
+            "Health & Medical", "Travel", "Pet Supplies", "Industrial & Tools", "Digital Products"
+        ];
+
+        function mapCategory(rawCategory) {
+            if (!rawCategory) return "Electronics";
+            const lowerRaw = String(rawCategory).toLowerCase();
+            
+            // Exact match
+            for (const cat of ALLOWED_CATEGORIES) {
+                if (cat.toLowerCase() === lowerRaw) return cat;
+            }
+            
+            // Keyword match
+            if (lowerRaw.match(/phone|mobile|laptop|computer|tv|television|audio|headphone|earphone|camera|electronic/i)) return "Electronics";
+            if (lowerRaw.match(/clothing|shirt|pant|dress|apparel|saree|kurta|jeans|t-shirt|top|bottom/i)) return "Fashion";
+            if (lowerRaw.match(/shoe|sneaker|boot|sandal|slipper|footwear/i)) return "Footwear";
+            if (lowerRaw.match(/watch|jewelry|bag|wallet|belt|sunglasses|eyewear|accessory/i)) return "Accessories";
+            if (lowerRaw.match(/makeup|skincare|haircare|perfume|fragrance|trimmer|shaver|grooming|beauty|personal/i)) return "Beauty & Personal Care";
+            if (lowerRaw.match(/kitchen|appliance|cookware|mixer|blender|fridge|refrigerator|washing machine|home/i)) return "Home & Kitchen";
+            if (lowerRaw.match(/furniture|bed|sofa|chair|table|wardrobe|mattress/i)) return "Furniture";
+            if (lowerRaw.match(/grocery|food|snack|beverage|drink|chocolate|pantry|staple/i)) return "Groceries";
+            if (lowerRaw.match(/baby|diaper|toy|kids|infant|stroller/i)) return "Baby Products";
+            if (lowerRaw.match(/sport|fitness|gym|yoga|bicycle|cycle|protein|dumbell/i)) return "Sports & Fitness";
+            if (lowerRaw.match(/book|media|music|movie|game|gaming/i)) return "Books & Media";
+            if (lowerRaw.match(/toy|game|puzzle|board game/i)) return "Toys & Games";
+            if (lowerRaw.match(/car|bike|auto|tyre|helmet|motor/i)) return "Automotive";
+            if (lowerRaw.match(/office|stationery|pen|paper|notebook/i)) return "Office & Stationery";
+            if (lowerRaw.match(/health|medical|medicine|supplement|vitamin|mask/i)) return "Health & Medical";
+            if (lowerRaw.match(/travel|luggage|suitcase|backpack/i)) return "Travel";
+            if (lowerRaw.match(/pet|dog|cat|food|aquarium/i)) return "Pet Supplies";
+            if (lowerRaw.match(/industrial|tool|drill|hardware|plumbing|electrical/i)) return "Industrial & Tools";
+            if (lowerRaw.match(/digital|software|subscription|gift card/i)) return "Digital Products";
+
+            // Substring fallback
+            for (const cat of ALLOWED_CATEGORIES) {
+                if (lowerRaw.includes(cat.toLowerCase()) || cat.toLowerCase().includes(lowerRaw)) {
+                    return cat;
+                }
+            }
+
+            return "Electronics"; // Default fallback
+        }
+
         return {
             success: true,
             data: {
                 title: data.title,
                 store: data.store,
-                category: data.category,
+                category: mapCategory(data.category),
                 description: data.description,
                 mrp: cleanPrice(data.mrp),
                 dealPrice: cleanPrice(data.price),

@@ -50,11 +50,13 @@ export const buildAffiliateUrl = ({ url = '', store = '', settings = [], manualO
         || safeSettings.find((setting) => setting.store === 'Generic')
         || null;
 
-    if (
-        !rule?.enabled
-        || !rule.paramKey
-        || !rule.paramValue
-    ) {
+    if (!rule?.enabled || !rule.paramValue) {
+        return originalUrl;
+    }
+
+    const isPrefixValue = String(rule.paramValue || '').trim().toLowerCase().startsWith('http');
+    
+    if (!rule.paramKey && !isPrefixValue) {
         return originalUrl;
     }
 
@@ -66,9 +68,22 @@ export const buildAffiliateUrl = ({ url = '', store = '', settings = [], manualO
         return originalUrl;
     }
 
+    const lowerKey = String(rule.paramKey || '').toLowerCase().trim();
+
+    if (lowerKey === 'prefix' || lowerKey === 'link' || (!lowerKey && isPrefixValue)) {
+        return `${String(rule.paramValue).trim()}${encodeURIComponent(originalUrl)}`;
+    }
+    
+    if (lowerKey === 'prefix-raw' || lowerKey === 'link-raw') {
+        return `${String(rule.paramValue).trim()}${originalUrl}`;
+    }
+
+    if (!rule.paramKey) {
+        return originalUrl; // Fallback if no valid key and not a prefix
+    }
+
     try {
         const parsedUrl = new URL(originalUrl);
-        const lowerKey = String(rule.paramKey).toLowerCase();
         
         // Clear existing to avoid duplicates
         [...parsedUrl.searchParams.keys()].forEach((key) => {

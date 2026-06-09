@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-/* eslint-disable react-hooks/static-components */
+ 
 import React, { useState, useEffect, useCallback, useRef, useMemo, useDeferredValue } from 'react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';

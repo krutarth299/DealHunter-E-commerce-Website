@@ -2364,7 +2364,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                                             <input
                                                                 type="text"
                                                                 className={inputCls}
-                                                                placeholder="tag"
+                                                                placeholder="tag (or 'prefix' for link format)"
                                                                 value={setting.paramKey}
                                                                 onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'paramKey', e.target.value)}
                                                             />
@@ -2375,10 +2375,11 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                                             <input
                                                                 type="text"
                                                                 className={inputCls}
-                                                                placeholder="mytag-21"
+                                                                placeholder="mytag-21 or https://admitad.com/?url="
                                                                 value={setting.paramValue}
                                                                 onChange={e => handleAffiliateSettingChange(setting.storeSlug, 'paramValue', e.target.value)}
                                                             />
+                                                            <p className="mt-1 text-[9.5px] text-slate-400 font-semibold leading-tight">If using a prefix link, set key to <strong className="text-slate-600">prefix</strong>.</p>
                                                         </div>
 
                                                         <div>
