@@ -22,8 +22,14 @@ export const handleSSR = async (req, res, next) => {
         let templatePath = path.resolve(__dirname, '../dist/client/index.html');
         if (!fs.existsSync(templatePath)) templatePath = path.resolve(__dirname, '../dist/index.html');
         
+        // If dist is missing (which happens in pure development), serve the source index.html
         if (!fs.existsSync(templatePath)) {
-            return res.status(500).send('Production build missing.');
+            templatePath = path.resolve(__dirname, '../index.html');
+            if (!fs.existsSync(templatePath)) {
+                return res.status(500).send('Production build and dev index missing.');
+            }
+            // For dev mode without dist, just serve the raw index.html and let Vite handle it
+            return res.status(200).send(fs.readFileSync(templatePath, 'utf8'));
         }
 
         let template = fs.readFileSync(templatePath, 'utf8');
@@ -54,7 +60,9 @@ export const handleSSR = async (req, res, next) => {
 
         const serverEntryPath = path.resolve(__dirname, '../dist/server/entry-server.js');
         if (fs.existsSync(serverEntryPath)) {
-            const { render } = await import('file://' + serverEntryPath.replace(/\\/g, '/'));
+            // Check if we are running the module runner accidentally
+            const entryUrl = 'file://' + serverEntryPath.replace(/\\/g, '/');
+            const { render } = await import(entryUrl);
             const { html, helmet } = await render(req.originalUrl, preloadedDeals, preloadedCategories);
             
             const helmetTags = helmet ? [
@@ -63,17 +71,18 @@ export const handleSSR = async (req, res, next) => {
                 helmet.link?.toString() || ''
             ].join('') : '';
 
+            // Using callback functions in replace to avoid string mangling by `$` characters
             template = template
-                .replace(/<!--\s*ssr-head\s*-->/gi, helmetTags)
-                .replace(/<!--\s*ssr-outlet\s*-->/gi, html)
-                .replace(/<!--\s*ssr-data\s*-->/gi, ssrDataScript)
-                .replace(/<div\s+id=["']root["']\s*>/gi, '<div id="root" data-ssr-status="active">');
+                .replace(/<!--\s*ssr-head\s*-->/gi, () => helmetTags)
+                .replace(/<!--\s*ssr-outlet\s*-->/gi, () => html)
+                .replace(/<!--\s*ssr-data\s*-->/gi, () => ssrDataScript)
+                .replace(/<div\s+id=["']root["']\s*>/gi, () => '<div id="root" data-ssr-status="active">');
         }
 
         res.setHeader('Content-Type', 'text/html');
         res.status(200).send(template);
     } catch(err) {
         logger.error('SSR_ENGINE', err.message);
-        res.status(500).send('Internal Server Error');
+        res.status(500).send('Internal Server Error: ' + err.message);
     }
 };
