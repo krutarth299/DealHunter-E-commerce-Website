@@ -15,7 +15,16 @@ export default defineConfig({
       name: 'dev-ssr',
       configureServer(server) {
         server.middlewares.use(async (req, res, next) => {
-          if (req.url.startsWith('/api') || req.url.includes('.') || req.url.includes('/socket.io')) return next();
+          const accept = req.headers.accept || '';
+          if (
+              !accept.includes('text/html') ||
+              req.url.startsWith('/api') || 
+              req.url.includes('/socket.io') ||
+              req.url.startsWith('/admin')
+          ) {
+              return next();
+          }
+          
           try {
             let template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
             template = await server.transformIndexHtml(req.url, template);

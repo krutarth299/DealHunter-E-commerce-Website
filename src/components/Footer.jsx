@@ -137,6 +137,7 @@ const Footer = ({ showToast }) => {
                         <Link to="/privacy-policy" className="transition-colors hover:text-white">Privacy Policy</Link>
                         <Link to="/terms" className="transition-colors hover:text-white">Terms of Service</Link>
                         <Link to="/about" className="transition-colors hover:text-white">About</Link>
+                        <Link to="/admin" className="transition-colors hover:text-[#FF6A00]">Admin</Link>
                     </div>
                     <div className="flex items-center gap-1.5 rounded-full bg-slate-800 px-3 py-1.5">
                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#22C55E]" />
