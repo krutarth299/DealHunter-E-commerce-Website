@@ -17,41 +17,43 @@ export default defineConfig({
         server.middlewares.use(async (req, res, next) => {
           const accept = req.headers.accept || '';
           if (
-              !accept.includes('text/html') ||
-              req.url.startsWith('/api') || 
-              req.url.includes('/socket.io') ||
-              req.url.startsWith('/admin')
+            !accept.includes('text/html') ||
+            req.url.startsWith('/api') ||
+            req.url.includes('/socket.io') ||
+            req.url.startsWith('/admin') ||
+            req.url.includes('sitemap') ||
+            req.url === '/robots.txt'
           ) {
-              return next();
+            return next();
           }
-          
+
           try {
             let template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
             template = await server.transformIndexHtml(req.url, template);
-            
+
             let preloadedDeals = [];
             let preloadedCategories = [];
             try {
-               // Fetch data from local backend API to populate SSR
-               const apiRes = await fetch('http://127.0.0.1:5000/api/deals/homepage');
-               if (apiRes.ok) {
-                   const data = await apiRes.json();
-                   if (data.success && data.data) {
-                       preloadedDeals = data.data.deals || [];
-                       preloadedCategories = data.data.categories || [];
-                   }
-               }
+              // Fetch data from local backend API to populate SSR
+              const apiRes = await fetch('http://127.0.0.1:5000/api/deals/homepage');
+              if (apiRes.ok) {
+                const data = await apiRes.json();
+                if (data.success && data.data) {
+                  preloadedDeals = data.data.deals || [];
+                  preloadedCategories = data.data.categories || [];
+                }
+              }
             } catch (err) {
-               console.error('[Dev SSR] Failed to fetch data from backend:', err.message);
+              console.error('[Dev SSR] Failed to fetch data from backend:', err.message);
             }
 
             const { render } = await server.ssrLoadModule('/src/entry-server.jsx');
             const { html, helmet } = await render(req.url, preloadedDeals, preloadedCategories);
-            
+``
             const helmetTags = helmet ? [
-                helmet.title?.toString() || '',
-                helmet.meta?.toString() || '',
-                helmet.link?.toString() || ''
+              helmet.title?.toString() || '',
+              helmet.meta?.toString() || '',
+              helmet.link?.toString() || ''
             ].filter(Boolean).join('\n') : '';
 
             const ssrDataScript = `<script>
@@ -60,10 +62,10 @@ export default defineConfig({
             </script>`;
 
             template = template
-                .replace(/<!--\s*ssr-head\s*-->/gi, () => helmetTags)
-                .replace(/<!--\s*ssr-outlet\s*-->/gi, () => html)
-                .replace(/<!--\s*ssr-data\s*-->/gi, () => ssrDataScript)
-                .replace(/<div\s+id=["']root["']\s*>/gi, () => '<div id="root" data-ssr-status="active">');
+              .replace(/<!--\s*ssr-head\s*-->/gi, () => helmetTags)
+              .replace(/<!--\s*ssr-outlet\s*-->/gi, () => html)
+              .replace(/<!--\s*ssr-data\s*-->/gi, () => ssrDataScript)
+              .replace(/<div\s+id=["']root["']\s*>/gi, () => '<div id="root" data-ssr-status="active">');
 
             res.setHeader('Content-Type', 'text/html');
             res.end(template);
@@ -102,6 +104,14 @@ export default defineConfig({
       "/socket.io": {
         target: "http://127.0.0.1:5000",
         ws: true
+      },
+      "^/sitemap.*\\.xml$": {
+        target: "http://127.0.0.1:5000",
+        changeOrigin: true
+      },
+      "/robots.txt": {
+        target: "http://127.0.0.1:5000",
+        changeOrigin: true
       }
     }
   }

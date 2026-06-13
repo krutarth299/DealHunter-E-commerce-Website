@@ -1,5 +1,5 @@
 import React from 'react';
-import { Helmet } from 'react-helmet-async';
+
 import { useLocation } from 'react-router-dom';
 import { generateSeoTitle, generateSeoDescription, generateSeoKeywords } from '../utils/seoBuilder';
 import {
@@ -291,13 +291,11 @@ const SEO = ({
     const schemaJson = JSON.stringify(schemas.length === 1 ? schemas[0] : { '@context': 'https://schema.org', '@graph': schemas });
 
     return (
-        <Helmet
-            htmlAttributes={{ lang: 'en-IN' }}
-            script={[{
-                type: 'application/ld+json',
-                innerHTML: schemaJson
-            }]}
-        >
+        <>
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: schemaJson }}
+            />
             <title>{finalTitle || SITE_TITLE}</title>
             <meta name="description" content={finalDescription} />
             <meta name="keywords" content={metaKeywords} />
@@ -327,7 +325,7 @@ const SEO = ({
             <meta name="twitter:description" content={finalDescription} />
             <meta name="twitter:image" content={finalImage} />
 
-        </Helmet>
+        </>
     );
 }
 

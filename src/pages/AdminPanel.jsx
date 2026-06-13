@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Helmet } from 'react-helmet-async';
+
 import {
     LayoutDashboard, Package, PlusCircle, Search, Trash2,
     TrendingUp, Shield, ExternalLink, Edit3, Image as ImageIcon,
@@ -1137,11 +1137,11 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
     /* ─── render ─── */
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans">
-            <Helmet>
+            <>
                 <title>Admin Panel | {SITE_NAME}</title>
                 <meta name="robots" content="noindex,nofollow" />
                 <meta name="application-name" content={SITE_NAME} />
-            </Helmet>
+            </>
 
             {/* Mobile overlay */}
             {isSidebarOpen && (

@@ -31,6 +31,7 @@ import {
 } from '../utils/affiliate-links.js';
 
 import { normalizeProductImages } from '../utils/product-images.js';
+import { downloadAndSaveImages } from '../utils/image-downloader.js';
 
 import {
     groupDealsIntoListings,
@@ -529,6 +530,15 @@ router.post('/', async (req, res) => {
         const normalizedPayload =
             normalizeDealPayload(req.body);
 
+        if (normalizedPayload.images && normalizedPayload.images.length > 0) {
+            const localImages = await downloadAndSaveImages(normalizedPayload.images);
+            normalizedPayload.images = localImages;
+            if (localImages.length > 0) {
+                normalizedPayload.image = localImages[0];
+                normalizedPayload.thumbnail = localImages[0];
+            }
+        }
+
         const finalPayload =
             applyAffiliateSettingsToDeal({
                 deal: normalizedPayload,
@@ -558,6 +568,15 @@ router.post('/', async (req, res) => {
                             finalPayload.variants
                         )
                 });
+
+            if (mergedPayload.images && mergedPayload.images.length > 0) {
+                const localImages = await downloadAndSaveImages(mergedPayload.images);
+                mergedPayload.images = localImages;
+                if (localImages.length > 0) {
+                    mergedPayload.image = localImages[0];
+                    mergedPayload.thumbnail = localImages[0];
+                }
+            }
 
             assignDealFields(
                 existingDeal,
@@ -640,6 +659,15 @@ router.put('/:id', async (req, res) => {
                 settings:
                     affiliateSettings
             });
+
+        if (normalizedPayload.images && normalizedPayload.images.length > 0) {
+            const localImages = await downloadAndSaveImages(normalizedPayload.images);
+            normalizedPayload.images = localImages;
+            if (localImages.length > 0) {
+                normalizedPayload.image = localImages[0];
+                normalizedPayload.thumbnail = localImages[0];
+            }
+        }
 
         assignDealFields(
             deal,

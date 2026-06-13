@@ -298,6 +298,8 @@ export const isLikelyProductImage = (url, { store = '', productUrl = '', strictS
     const normalized = optimizeProductImageUrl(url);
     if (!normalized) return false;
 
+    if (normalized.startsWith('/uploads/')) return true;
+
     const lower = normalized.toLowerCase();
     if (!/^https?:\/\//i.test(normalized)) return false;
     if (PRODUCT_IMAGE_JUNK_REGEX.test(lower)) return false;
@@ -339,6 +341,8 @@ export const isLikelyProductImage = (url, { store = '', productUrl = '', strictS
 };
 
 const getProductImageScore = (url, context) => {
+    if (url.startsWith('/uploads/')) return 1000;
+    
     const optimized = optimizeProductImageUrl(url);
     const lower = optimized.toLowerCase();
     const storeKey = toStoreKey(context.store, context.productUrl);
@@ -371,7 +375,7 @@ export const normalizeProductImages = ({
     store,
     productUrl,
     title,
-    maxImages = 8,
+    maxImages = 4,
     strictStore = true
 } = {}) => {
     const storeKey = toStoreKey(store, productUrl);
@@ -405,7 +409,7 @@ export const normalizeProductImages = ({
         }
 
         if (!isLikelyProductImage(optimized, { store, productUrl, title, strictStore })) {
-            const reason = !/^https?:\/\//i.test(optimized)
+            const reason = (!/^https?:\/\//i.test(optimized) && !optimized.startsWith('/uploads/'))
                 ? 'invalid_url'
                 : PRODUCT_IMAGE_JUNK_REGEX.test(optimized.toLowerCase())
                     ? 'junk_pattern'

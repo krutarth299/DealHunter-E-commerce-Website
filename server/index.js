@@ -96,6 +96,7 @@ app.use('/', sitemapRouter);
 // Static files
 app.use(express.static(path.join(__dirname, '../dist/client'), { index: false }));
 app.use(express.static(path.join(__dirname, '../dist'), { index: false }));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // SSR Engine
 app.get('*', handleSSR);
