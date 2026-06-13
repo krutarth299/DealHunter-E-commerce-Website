@@ -1,6 +1,7 @@
 export const AFFILIATE_STORE_PROFILES = {
     Amazon: { domain: 'amazon.in', tier: 1, category: 'Multi-category', tagline: 'Live Amazon deals from your catalog' },
     Flipkart: { domain: 'flipkart.com', tier: 1, category: 'Multi-category', tagline: 'Live Flipkart deals from your catalog' },
+    Myntra: { domain: 'myntra.com', tier: 1, category: 'Fashion', tagline: 'Live fashion and lifestyle deals' },
     Croma: { domain: 'croma.com', tier: 1, category: 'Electronics', tagline: 'Live electronics and appliance deals' },
     'Reliance Digital': { domain: 'reliancedigital.in', tier: 1, category: 'Electronics', tagline: 'Live Reliance Digital electronics offers' },
     FirstCry: { domain: 'firstcry.com', tier: 1, category: 'Baby', tagline: 'Live baby, kids and parenting deals' },

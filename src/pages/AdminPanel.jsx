@@ -317,7 +317,8 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
 
     const liveAffiliateStoreNames = useMemo(() => {
         const fromStoresApi = safeArray(stores).map((store) => store?.store || store?.name).filter(Boolean);
-        return [...new Set(fromStoresApi)].sort((a, b) => a.localeCompare(b));
+        const staticStores = Object.keys(AFFILIATE_STORE_PROFILES);
+        return [...new Set([...fromStoresApi, ...staticStores])].sort((a, b) => a.localeCompare(b));
     }, [stores]);
     const adminInsights = useMemo(() => buildAdminInsights(adminDeals, stores, dashboardStats), [adminDeals, stores, dashboardStats]);
     const duplicateIdSet = useMemo(() => new Set(
