@@ -6,7 +6,7 @@ export async function extractTata1mg(page, url) {
         try {
             html = await page.content();
         } catch (e) {
-            return { success: false, message: e.message };
+            throw new Error(`Failed to get page content: ${e.message}`);
         }
 
         const $ = cheerio.load(html);
@@ -58,6 +58,10 @@ export async function extractTata1mg(page, url) {
 
         if (!mrp || mrp < dealPrice) mrp = dealPrice;
 
+        if (!title || title.includes('Error 404') || title.includes('Tata 1mg Product') && dealPrice === 0) {
+            throw new Error("Product not found or blocked by Tata 1mg");
+        }
+
         return {
             title: title || 'Tata 1mg Product',
             image: image || '',
@@ -67,7 +71,6 @@ export async function extractTata1mg(page, url) {
             store: 'Tata 1mg'
         };
     } catch (error) {
-        console.error('Tata 1mg extraction error:', error);
-        return { title: '', price: 0, mrp: 0 };
+        throw error;
     }
 }

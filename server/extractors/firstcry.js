@@ -281,6 +281,10 @@ export async function extractFirstCry(page) {
             data.mrp = data.price;
         }
 
+        if (!data.title || data.price === '0' || data.price === '') {
+            throw new Error("Product not found or blocked by FirstCry");
+        }
+
         return data;
     });
 }

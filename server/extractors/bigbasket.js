@@ -61,12 +61,11 @@ export async function extractBigBasket(page, url) {
         });
 
         if (!data.title || data.price === 0) {
-            return { title: 'BigBasket Product', price: 0, mrp: 0 };
+            throw new Error("Product not found or blocked by BigBasket");
         }
 
         return data;
     } catch (error) {
-        console.error('BigBasket extraction error:', error);
-        return { title: '', price: 0, mrp: 0 };
+        throw error;
     }
 }

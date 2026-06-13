@@ -6,7 +6,7 @@ export async function extractPurplle(page, url) {
         try {
             html = await page.content();
         } catch (e) {
-            return { success: false, message: e.message };
+            throw new Error(`Failed to get page content: ${e.message}`);
         }
 
         const $ = cheerio.load(html);
@@ -65,6 +65,9 @@ export async function extractPurplle(page, url) {
         }
 
         // 3. Fallback DOM Selection
+        if (!title || (title.includes("Purplle Product") && dealPrice === 0)) {
+            throw new Error("Product not found or blocked by Purplle");
+        }
         if (!dealPrice || dealPrice === 0) {
             const bodyText = $('body').text() || '';
             const priceMatch = bodyText.match(/₹\s*([0-9,]+(\.[0-9]+)?)/);
@@ -104,7 +107,6 @@ export async function extractPurplle(page, url) {
             store: 'Purplle'
         };
     } catch (error) {
-        console.error('Purplle extraction error:', error);
-        return { title: '', price: 0, mrp: 0 };
+        throw error;
     }
 }

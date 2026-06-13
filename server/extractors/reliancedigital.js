@@ -253,6 +253,10 @@ export async function extractRelianceDigital(page) {
             data.mrp = data.price;
         }
 
+        if (!data.title || data.price === '0' || data.price === '' || data.title.includes('Oops! The page was not found') || data.title.includes('404')) {
+            throw new Error("Product not found or blocked by Reliance Digital");
+        }
+
         return data;
     });
 }

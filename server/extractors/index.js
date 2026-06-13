@@ -53,24 +53,7 @@ export async function extractProduct(url) {
         const isCroma = url.toLowerCase().includes('croma.com');
         
         // Many SPAs (React/Angular/Vue) crash if stylesheets/images are blocked
-        const needsFullLoad = isFirstCry || isRelianceDigital || isCroma;
-        
-        const blockedTypes = needsFullLoad 
-            ? [] 
-            : ['image', 'stylesheet', 'font', 'media'];
-            
-        if (blockedTypes.length > 0) {
-            await page.setRequestInterception(true);
-            page.on('request', (request) => {
-                if (request.isInterceptResolutionHandled()) return;
-                const resourceType = request.resourceType();
-                if (blockedTypes.includes(resourceType)) {
-                    request.abort().catch(() => {});
-                } else {
-                    request.continue().catch(() => {});
-                }
-            });
-        }
+        // We no longer block resources because many SPAs crash if stylesheets/images are blocked
 
         await page.setViewport({ width: 1400, height: 1200 });
         await page.setCacheEnabled(false);
