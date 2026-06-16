@@ -181,17 +181,17 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
   const cachedDealsMeta = cachedDealsSnapshot?.meta || null;
   const cachedDealsUpdatedAt = cachedDealsMeta?.updatedAt;
   const cachedDealsMetaVersion = cachedDealsMeta?.version;
-  const hasPreloadedDeals = Array.isArray(preloadedDeals) && preloadedDeals.length > 0;
-  const hasWindowDeals = typeof window !== 'undefined' && Array.isArray(window.__INITIAL_DATA__) && window.__INITIAL_DATA__.length > 0;
+  const hasPreloadedDeals = Array.isArray(preloadedDeals);
+  const hasWindowDeals = typeof window !== 'undefined' && Array.isArray(window.__INITIAL_DATA__);
   const hasCachedDeals = Boolean(cachedDealsSnapshot?.deals?.length);
-  const hasPreloadedCategories = Array.isArray(preloadedCategories) && preloadedCategories.length > 0;
-  const hasWindowCategories = typeof window !== 'undefined' && Array.isArray(window.__INITIAL_CATEGORIES__) && window.__INITIAL_CATEGORIES__.length > 0;
+  const hasPreloadedCategories = Array.isArray(preloadedCategories);
+  const hasWindowCategories = typeof window !== 'undefined' && Array.isArray(window.__INITIAL_CATEGORIES__);
 
   const [deals, setDeals] = useState(() => {
     // 1. High-priority Server Injected Prop (Hydration)
-    if (preloadedDeals && Array.isArray(preloadedDeals) && preloadedDeals.length > 0) return normalizeDealsForUi(preloadedDeals);
+    if (hasPreloadedDeals) return normalizeDealsForUi(preloadedDeals);
     // 2. High-priority Window Global (Dynamic Hydration)
-    if (typeof window !== 'undefined' && window.__INITIAL_DATA__ && Array.isArray(window.__INITIAL_DATA__) && window.__INITIAL_DATA__.length > 0) return normalizeDealsForUi(window.__INITIAL_DATA__);
+    if (hasWindowDeals) return normalizeDealsForUi(window.__INITIAL_DATA__);
 
     // 3. Medium-priority Cache
     if (cachedDealsSnapshot?.deals?.length) return cachedDealsSnapshot.deals;
@@ -208,9 +208,9 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
 
   const [categories, setCategories] = useState(() => {
     // 1. High-priority Server Injected Prop (Hydration)
-    if (preloadedCategories && Array.isArray(preloadedCategories) && preloadedCategories.length > 0) return preloadedCategories;
+    if (hasPreloadedCategories) return preloadedCategories;
     // 2. High-priority Window Global (Dynamic Hydration)
-    if (typeof window !== 'undefined' && window.__INITIAL_CATEGORIES__ && Array.isArray(window.__INITIAL_CATEGORIES__)) return window.__INITIAL_CATEGORIES__;
+    if (hasWindowCategories) return window.__INITIAL_CATEGORIES__;
     return [];
   });
   const [homepageSnapshot, setHomepageSnapshot] = useState(() => ({

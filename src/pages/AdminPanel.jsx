@@ -67,9 +67,6 @@ const deriveStoreFromUrl = (rawUrl = '') => {
         if (host.includes('croma')) return 'Croma';
         if (host.includes('reliancedigital')) return 'Reliance Digital';
         if (host.includes('firstcry')) return 'FirstCry';
-        if (host.includes('bigbasket')) return 'BigBasket';
-        if (host.includes('purplle')) return 'Purplle';
-        if (host.includes('1mg')) return 'Tata 1mg';
         return host.replace(/^www\./, '').split('.')[0]?.replace(/^./, c => c.toUpperCase()) || '';
     } catch {
         return '';
@@ -83,9 +80,6 @@ const detectPlatform = (url = '') => {
     if (low.includes("croma")) return "croma";
     if (low.includes("reliancedigital")) return "reliancedigital";
     if (low.includes("firstcry")) return "firstcry";
-    if (low.includes("bigbasket")) return "bigbasket";
-    if (low.includes("purplle")) return "purplle";
-    if (low.includes("1mg")) return "tata1mg";
     return "unknown";
 };
 
@@ -1797,7 +1791,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                                         id="autoFetchUrl"
                                                         type="text"
                                                         className="w-full bg-transparent py-6 pl-16 pr-6 text-sm font-black placeholder:text-slate-400 focus:outline-none"
-                                                        placeholder="Paste any Amazon, Flipkart, Croma, Reliance Digital, FirstCry, BigBasket, Purplle, or Tata 1mg link..."
+                                                        placeholder="Paste any Amazon, Flipkart, Myntra, Croma, Reliance Digital, or FirstCry link..."
                                                         value={autoFetchUrl}
                                                         onChange={e => setAutoFetchUrl(e.target.value)}
                                                         onKeyDown={e => {

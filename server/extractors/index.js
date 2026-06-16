@@ -5,9 +5,6 @@ import { extractFlipkart } from './flipkart.js';
 import { extractCroma } from './croma.js';
 import { extractRelianceDigital } from './reliancedigital.js';
 import { extractFirstCry } from './firstcry.js';
-import { extractBigBasket } from './bigbasket.js';
-import { extractPurplle } from './purplle.js';
-import { extractTata1mg } from './tata1mg.js';
 import { extractMyntra } from './myntra.js';
 puppeteer.use(StealthPlugin());
 
@@ -120,12 +117,6 @@ export async function extractProduct(url) {
             data = await extractRelianceDigital(page);
         } else if (lowUrl.includes("firstcry") || finalUrl.includes("firstcry")) {
             data = await extractFirstCry(page);
-        } else if (lowUrl.includes("bigbasket") || finalUrl.includes("bigbasket")) {
-            data = await extractBigBasket(page, targetUrl);
-        } else if (lowUrl.includes("purplle") || finalUrl.includes("purplle")) {
-            data = await extractPurplle(page, targetUrl);
-        } else if (lowUrl.includes("1mg") || finalUrl.includes("1mg")) {
-            data = await extractTata1mg(page, targetUrl);
         } else if (lowUrl.includes("myntra") || finalUrl.includes("myntra")) {
             data = await extractMyntra(page, targetUrl);
         } else {
@@ -200,7 +191,11 @@ export async function extractProduct(url) {
 
     } catch (error) {
         console.error("[EXTRACTOR_ERROR]", error);
-        return { success: false, message: error.message };
+        let msg = error.message;
+        if (msg && msg.includes("blocked")) {
+             msg = "Anti-bot protection triggered. These stores require a proxy like ScraperAPI. Please enter details manually.";
+        }
+        return { success: false, message: msg };
     } finally {
         if (page) await page.close().catch(e => console.error("Error closing page:", e));
     }

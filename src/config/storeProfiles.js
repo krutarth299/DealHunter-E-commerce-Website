@@ -5,11 +5,8 @@ export const AFFILIATE_STORE_PROFILES = {
     Croma: { domain: 'croma.com', tier: 1, category: 'Electronics', tagline: 'Live electronics and appliance deals' },
     'Reliance Digital': { domain: 'reliancedigital.in', tier: 1, category: 'Electronics', tagline: 'Live Reliance Digital electronics offers' },
     FirstCry: { domain: 'firstcry.com', tier: 1, category: 'Baby', tagline: 'Live baby, kids and parenting deals' },
-    Purplle: { domain: 'purplle.com', tier: 2, category: 'Beauty', tagline: 'Beauty and personal care offers' },
     Lenskart: { domain: 'lenskart.com', tier: 2, category: 'Eyewear', tagline: 'Eyewear and accessories offers' },
-    'Tata 1mg': { domain: '1mg.com', tier: 2, category: 'Health', tagline: 'Pharmacy and health offers' },
     PharmEasy: { domain: 'pharmeasy.in', tier: 2, category: 'Health', tagline: 'Medicine and healthcare offers' },
-    BigBasket: { domain: 'bigbasket.com', tier: 2, category: 'Grocery', tagline: 'Live supermarket offers' },
     Pepperfry: { domain: 'pepperfry.com', tier: 2, category: 'Furniture', tagline: 'Furniture and home decor offers' },
     'Urban Ladder': { domain: 'urbanladder.com', tier: 2, category: 'Furniture', tagline: 'Furniture and home decor offers' },
     'IKEA India': { domain: 'ikea.com', tier: 2, category: 'Home & Kitchen', tagline: 'Home furnishing offers' },
@@ -26,8 +23,7 @@ export const STORE_DETECTION_PATTERNS = [
         name,
         patterns: [profile.domain, name].filter(Boolean)
     })),
-    { name: 'IKEA India', patterns: ['ikea.com/in', 'ikea india'] },
-    { name: 'Tata 1mg', patterns: ['1mg.com', 'tata 1mg', '1mg'] }
+    { name: 'IKEA India', patterns: ['ikea.com/in', 'ikea india'] }
 ];
 
 const normalizeStoreKey = (value = '') => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
