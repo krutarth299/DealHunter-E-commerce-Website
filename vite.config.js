@@ -112,6 +112,10 @@ export default defineConfig({
       "/robots.txt": {
         target: "http://127.0.0.1:5000",
         changeOrigin: true
+      },
+      "/uploads": {
+        target: "http://127.0.0.1:5000",
+        changeOrigin: true
       }
     }
   }

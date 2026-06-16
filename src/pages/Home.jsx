@@ -12,7 +12,7 @@ import { FEATURED_CATEGORIES, getCategoryStyle, normalizeCategory } from '../uti
 import { selectBalancedDeals } from '../utils/dealCollections';
 import useHasHydrated from '../hooks/useHasHydrated';
 import { getMainProductImage, NO_PRODUCT_IMAGE } from '../utils/imageOptimizer';
-import { formatPriceDisplay, parsePriceNumber } from '../utils/dealUi';
+import { formatPriceDisplay, parsePriceNumber, parseDealPrice, parseDealMrp, parseDealDiscount, shouldShowDealMrp } from '../utils/dealUi';
 import { getCardTitle } from '../utils/productTitles';
 import { getProductPath } from '../utils/productUrls';
 
@@ -20,36 +20,7 @@ import { getProductPath } from '../utils/productUrls';
 const getDealKey = (deal = {}) => String(deal._id || deal.id || deal.productUrl || deal.link || deal.title || '');
 const CATEGORY_SECTION_ID = 'shop-by-category';
 
-const getPrimaryPrice = (deal = {}) => (
-    parsePriceNumber(deal.pricing?.dealPrice || deal.pricing?.currentPrice || deal.dealPrice || deal.currentPrice || deal.price)
-);
 
-const getOriginalPrice = (deal = {}) => {
-    const candidates = [
-        deal.pricing?.mrp,
-        deal.pricing?.originalPrice,
-        deal.mrp,
-        deal.originalPrice
-    ].map(parsePriceNumber).filter((value) => value && value > 0);
-    return candidates.sort((a, b) => b - a)[0] || null;
-};
-
-const shouldShowMrp = (deal = {}, price = 0, mrp = 0) => {
-    const hasExplicitMrp = [
-        deal.pricing?.mrp,
-        deal.pricing?.originalPrice,
-        deal.mrp,
-        deal.originalPrice
-    ].some((value) => (parsePriceNumber(value) || 0) > 0);
-    return Boolean(mrp && price && (mrp > price || (mrp === price && hasExplicitMrp)));
-};
-
-const getDiscountPercent = (deal = {}) => {
-    const price = getPrimaryPrice(deal);
-    const mrp = getOriginalPrice(deal);
-    if (price && mrp && mrp > price) return Math.round(((mrp - price) / mrp) * 100);
-    return Math.max(0, Math.round(Number(deal.discount || deal.discountPercent || deal.pricing?.discount || 0)));
-};
 
 const getDealFreshnessScore = (deal = {}) => {
     const stamp = new Date(deal.updatedAt || deal.publishedAt || deal.createdAt || 0).getTime();
@@ -64,8 +35,8 @@ const getDealFreshnessScore = (deal = {}) => {
 };
 
 const getDealQualityScore = (deal = {}) => {
-    const discount = getDiscountPercent(deal);
-    const price = getPrimaryPrice(deal);
+    const discount = parseDealDiscount(deal);
+    const price = parseDealPrice(deal);
     const rating = Number(deal.rating || deal.averageRating || deal.productRating || 0) || 0;
     const hasImage = Boolean(getMainProductImage(deal) && getMainProductImage(deal) !== NO_PRODUCT_IMAGE);
     const storeTrusted = Boolean(deal.isVerified || deal.verified || deal.featured || deal.isTrending || deal.trending);
@@ -86,7 +57,7 @@ const isLiveHomepageDeal = (deal = {}) => Boolean(
     && (deal.isActive !== false)
     && (deal.isPublished !== false || deal.published === true || deal.visible === true || deal.isVisible === true || deal.featured === true)
     && (deal.title || deal.displayTitle)
-    && getPrimaryPrice(deal) > 0
+    && parseDealPrice(deal) > 0
     && getMainProductImage(deal) !== NO_PRODUCT_IMAGE
 );
 
@@ -107,7 +78,7 @@ const getBestDealsToday = (deals = [], limit = 4) => (
     [...deals]
         .filter(isLiveHomepageDeal)
         .sort((a, b) => {
-            const discountDelta = getDiscountPercent(b) - getDiscountPercent(a);
+            const discountDelta = parseDealDiscount(b) - parseDealDiscount(a);
             if (discountDelta !== 0) return discountDelta;
 
             const qualityDelta = getDealQualityScore(b) - getDealQualityScore(a);
@@ -117,7 +88,7 @@ const getBestDealsToday = (deals = [], limit = 4) => (
             const freshB = new Date(b.updatedAt || b.publishedAt || b.createdAt || 0).getTime();
             if (freshA !== freshB) return freshB - freshA;
 
-            return getPrimaryPrice(a) - getPrimaryPrice(b);
+            return parseDealPrice(a) - parseDealPrice(b);
         })
         .slice(0, limit)
 );
@@ -145,9 +116,9 @@ const dedupeDeals = (items = []) => {
 };
 
 const FeaturedDealCard = React.memo(({ deal, index }) => {
-    const price = getPrimaryPrice(deal);
-    const mrp = getOriginalPrice(deal);
-    const discount = getDiscountPercent(deal);
+    const price = parseDealPrice(deal);
+    const mrp = parseDealMrp(deal);
+    const discount = parseDealDiscount(deal);
     const isFlipkartStore = String(deal.store || deal.storeName || '').toLowerCase().includes('flipkart');
     const title = getCardTitle(deal.displayTitle || deal.title);
     const storeName = deal.store || deal.storeName || 'Online Store';
@@ -205,7 +176,7 @@ const FeaturedDealCard = React.memo(({ deal, index }) => {
                     <span className="text-2xl font-black leading-none tracking-tighter text-slate-950 md:text-3xl">
                         {price ? formatPriceDisplay(price) : 'Live price'}
                     </span>
-                    {shouldShowMrp(deal, price, mrp) && (
+                    {shouldShowDealMrp(deal, price, mrp) && (
                         <span className="pb-1 text-sm font-bold text-slate-400 line-through">
                             {formatPriceDisplay(mrp)}
                         </span>

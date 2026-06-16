@@ -15,7 +15,7 @@ import { resetProductRouteScroll } from '../utils/scroll';
 import { getDisplayTitle } from '../utils/productTitles';
 import { productMatchesParam } from '../utils/productUrls';
 import useHasHydrated from '../hooks/useHasHydrated';
-import { formatPriceDisplay, parsePriceNumber } from '../utils/dealUi';
+import { formatPriceDisplay, parsePriceNumber, parseDealPrice, parseDealMrp, parseDealDiscount, shouldShowDealMrp } from '../utils/dealUi';
 
 const getCurrencySymbol = (price, store, link) => {
     const p = String(price || '');
@@ -46,10 +46,7 @@ const formatProductPrice = (price, store, link) => {
         : symbol + num.toLocaleString('en-US');
 };
 
-const parsePriceValue = (value) => {
-    const parsed = Number(String(value || '').replace(/[^0-9.]/g, ''));
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-};
+
 
 const getReviewCount = (product = {}, reviews = []) => {
     if (Array.isArray(reviews) && reviews.length > 0) return reviews.length;
@@ -134,14 +131,14 @@ const createProductHighlights = (product = {}, title = '') => {
 };
 
 const buildPriceInsight = (product = {}, alternatives = []) => {
-    const current = parsePriceValue(product.dealPrice);
-    const mrp = parsePriceValue(product.mrp || product.price || product.originalPrice);
+    const current = parseDealPrice(product);
+    const mrp = parseDealMrp(product);
     const isFlipkartStore = String(product.store || product.storeName || '').toLowerCase().includes('flipkart');
     const historyPrices = (Array.isArray(product.priceHistory) ? product.priceHistory : [])
-        .map((point) => parsePriceValue(point?.price || point?.dealPrice || point))
+        .map((point) => parsePriceNumber(point?.price || point?.dealPrice || point))
         .filter((price) => price > 0);
     const livePrices = alternatives
-        .map((deal) => parsePriceValue(deal.dealPrice || deal.price))
+        .map((deal) => parseDealPrice(deal))
         .filter((price) => price > 0);
     const comparisonPrices = [current, ...livePrices].filter((price) => price > 0);
     const historyAndCurrent = [current, ...historyPrices].filter((price) => price > 0);
@@ -150,9 +147,7 @@ const buildPriceInsight = (product = {}, alternatives = []) => {
     const average = referencePrices.length
         ? Math.round(referencePrices.reduce((sum, price) => sum + price, 0) / referencePrices.length)
         : current;
-    const discountPercent = mrp > current && current > 0
-        ? Math.round(((mrp - current) / mrp) * 100)
-        : Number(product.discountPercent || parseInt(product.discount, 10) || 0);
+    const discountPercent = parseDealDiscount(product);
 
     const quality = discountPercent >= 50 || (current > 0 && lowest > 0 && current <= lowest)
         ? 'Best Deal'
@@ -166,7 +161,7 @@ const buildPriceInsight = (product = {}, alternatives = []) => {
         lowest,
         average,
         discountPercent,
-        showZeroDiscount: isFlipkartStore && current > 0 && mrp > 0 && discountPercent === 0,
+        showZeroDiscount: false,
         quality,
         liveComparisonCount: comparisonPrices.length,
         hasPriceHistory: historyPrices.length > 0
@@ -223,7 +218,7 @@ const AlternativesSnapshot = ({ alternatives = [], currentStore = '', store = ''
             id: deal.id || deal._id || deal.productUrl,
             title: deal.cardTitle || deal.displayTitle || deal.title,
             store: deal.store || deal.storeName || 'Store',
-            price: parsePriceValue(deal.dealPrice || deal.price)
+            price: parseDealPrice(deal)
         }))
         .filter((deal) => deal.price > 0)
         .slice(0, 4);
@@ -262,7 +257,7 @@ const AlternativesSnapshot = ({ alternatives = [], currentStore = '', store = ''
 };
 
 const MarketInsightPanel = ({ product, insight, alternatives = [], checkedLabel, store, link, onShare }) => {
-    const validAlternativeCount = alternatives.filter((deal) => parsePriceValue(deal.dealPrice || deal.price) > 0).length;
+    const validAlternativeCount = alternatives.filter((deal) => parseDealPrice(deal) > 0).length;
     const savingsVsAverage = insight.average > insight.current ? insight.average - insight.current : 0;
     const savingsVsAveragePercent = savingsVsAverage > 0 && insight.average > 0
         ? Math.round((savingsVsAverage / insight.average) * 100)
@@ -336,9 +331,9 @@ const MobileFloatingBar = ({ product, brand, buyLink }) => {
             <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Buy from {product?.store || 'Store'}</p>
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <span className="text-2xl font-black leading-none text-slate-900 tracking-tighter">{formatProductPrice(product?.price, product?.store, buyLink || product?.link)}</span>
-                    {product?.originalPrice && (
-                        <span className="text-xs text-slate-400 line-through font-bold opacity-60">{formatProductPrice(product.originalPrice, product.store, buyLink || product.link)}</span>
+                    <span className="text-2xl font-black leading-none text-slate-900 tracking-tighter">{formatProductPrice(parseDealPrice(product), product?.store, buyLink || product?.link)}</span>
+                    {shouldShowDealMrp(product, parseDealPrice(product), parseDealMrp(product)) && (
+                        <span className="text-xs text-slate-400 line-through font-bold opacity-60">{formatProductPrice(parseDealMrp(product), product?.store, buyLink || product?.link)}</span>
                     )}
                 </div>
             </div>
@@ -419,6 +414,17 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
             return Boolean(variant.label || variant.title || variant.image);
         });
     }, [product]);
+
+    const handleVariantSelect = (key, variantImage) => {
+        if (key === selectedVariantKey) {
+            setSelectedVariantKey('');
+        } else {
+            setSelectedVariantKey(key);
+            if (variantImage) {
+                setActiveImage(variantImage);
+            }
+        }
+    };
 
     const selectedVariant = React.useMemo(() => (
         variantOptions.find((variant) => (
@@ -743,8 +749,10 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                             referrerPolicy="no-referrer"
                                             className="w-full h-full object-contain filter drop-shadow-2xl p-5 sm:p-8 transition-transform duration-700 md:group-hover/main:scale-110"
                                             onError={(e) => {
-                                                e.target.onerror = null;
-                                                e.target.src = NO_PRODUCT_IMAGE;
+                                                if (e.target.src !== NO_PRODUCT_IMAGE) {
+                                                    e.target.src = NO_PRODUCT_IMAGE;
+                                                    setImageLoading(false);
+                                                }
                                             }}
                                         />
                                         <div className="absolute right-4 top-4 rounded-2xl bg-white/90 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 opacity-0 shadow-lg transition-opacity md:group-hover/main:opacity-100 inline-flex items-center gap-1.5">
@@ -904,10 +912,10 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                 </div>
                                 <div className="flex flex-wrap items-end gap-3">
                                     <span className="font-black text-slate-950 tracking-tighter leading-none text-5xl md:text-7xl">
-                                        {formatProductPrice(activeProduct.dealPrice, activeProduct.store, buyLink || activeProduct.link)}
+                                        {formatProductPrice(parseDealPrice(activeProduct), activeProduct.store, buyLink || activeProduct.link)}
                                     </span>
-                                    {(activeProduct.mrp || activeProduct.price) && (
-                                        <span className="pb-1 text-xl text-slate-400 line-through decoration-2 font-black opacity-80 tracking-tight">{formatProductPrice(activeProduct.mrp || activeProduct.price, activeProduct.store, buyLink || activeProduct.link)}</span>
+                                    {shouldShowDealMrp(activeProduct, parseDealPrice(activeProduct), parseDealMrp(activeProduct)) && (
+                                        <span className="pb-1 text-xl text-slate-400 line-through decoration-2 font-black opacity-80 tracking-tight">{formatProductPrice(parseDealMrp(activeProduct), activeProduct.store, buyLink || activeProduct.link)}</span>
                                     )}
                                     {(priceInsight.discountPercent > 0 || priceInsight.showZeroDiscount) && (
                                         <span className="mb-1 rounded-2xl bg-red-600 px-3 py-2 text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-red-500/20">
@@ -1012,7 +1020,7 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                                             <button
                                                                 key={variantKey}
                                                                 type="button"
-                                                                onClick={() => setSelectedVariantKey(isActive ? '' : variantKey)}
+                                                                onClick={() => handleVariantSelect(isActive ? '' : variantKey, variant?.image)}
                                                                 className={`flex min-h-12 max-w-full items-center gap-2 rounded-2xl border px-3 py-2 text-left transition-all ${isActive ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50'}`}
                                                             >
                                                                 {variant?.image && (

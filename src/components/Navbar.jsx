@@ -6,7 +6,7 @@ import { AuthContext } from '../context/authContextDefinition';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMainProductImage } from '../utils/imageOptimizer';
 import { getCardTitle } from '../utils/productTitles';
-import { formatPriceDisplay, parsePriceNumber } from '../utils/dealUi';
+import { formatPriceDisplay, parsePriceNumber, parseDealPrice } from '../utils/dealUi';
 import { getProductPath } from '../utils/productUrls';
 import logo from '../assets/logo.png';
 
@@ -119,8 +119,8 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
     };
 
     const getDealPriceLabel = (deal) => {
-        const value = parsePriceNumber(deal.dealPrice || deal.price || deal.pricing?.dealPrice || deal.pricing?.price);
-        return value ? formatPriceDisplay(value) : '';
+        const value = parseDealPrice(deal);
+        return value > 0 ? formatPriceDisplay(value) : '';
     };
 
     return (

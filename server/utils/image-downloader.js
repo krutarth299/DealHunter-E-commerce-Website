@@ -38,6 +38,7 @@ const downloadImage = (url, filepath) => {
 };
 
 export const downloadAndSaveImages = async (urls) => {
+    console.log('[IMAGE_DOWNLOADER] urls received:', urls);
     const localUrls = [];
     for (let url of urls) {
         if (!url || url.startsWith('/uploads/')) {

@@ -71,6 +71,49 @@ export const parsePriceNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+export const parseDealPrice = (deal = {}) => {
+  return [
+      deal.dealPrice,
+      deal.price,
+      deal.originalPrice,
+      deal.listPrice
+  ]
+      .map((candidate) => parsePriceNumber(candidate))
+      .filter((price) => price !== null && price > 0)
+      .sort((a, b) => b - a)[0] || 0;
+};
+
+export const parseDealMrp = (deal = {}) => {
+  const pricing = deal.pricing || {};
+  return [
+      pricing.mrp,
+      pricing.originalPrice,
+      pricing.listPrice,
+      deal.mrp,
+      deal.originalPrice,
+      deal.listPrice
+  ]
+      .map((candidate) => parsePriceNumber(candidate))
+      .filter((price) => price !== null && price > 0)
+      .sort((a, b) => b - a)[0] || 0;
+};
+
+export const parseDealDiscount = (deal = {}) => {
+  const dealPrice = parseDealPrice(deal);
+  const mrp = parseDealMrp(deal);
+
+  if (dealPrice > 0 && mrp > dealPrice) {
+      return Math.round(((mrp - dealPrice) / mrp) * 100);
+  }
+
+  const parsed = Number(String(deal.discountPercent || deal.discount || '').match(/\d+/)?.[0] || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+export const shouldShowDealMrp = (deal = {}, dealPrice = 0, mrp = 0) => {
+  return Boolean(mrp > 0 && dealPrice > 0 && mrp > dealPrice);
+};
+
 const pickPreferredPriceNumber = (...candidates) => {
   for (const candidate of candidates.flat()) {
     const parsed = parsePriceNumber(candidate);

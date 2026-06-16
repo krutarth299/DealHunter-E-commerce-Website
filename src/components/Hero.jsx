@@ -12,7 +12,7 @@ import {
     Zap,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { formatPriceDisplay, parsePriceNumber } from '../utils/dealUi';
+import { formatPriceDisplay, parsePriceNumber, parseDealPrice, parseDealMrp, parseDealDiscount } from '../utils/dealUi';
 import { getMainProductImage, NO_PRODUCT_IMAGE } from '../utils/imageOptimizer';
 import { getDisplayTitle } from '../utils/productTitles';
 import { getProductPath } from '../utils/productUrls';
@@ -27,24 +27,10 @@ const getDiscountNum = (discount) => {
 };
 
 const getDealNumbers = (deal) => {
-    const dealPrice = parsePriceNumber(deal?.dealPrice || deal?.price || deal?.pricing?.dealPrice || deal?.pricing?.price);
-    const mrp = parsePriceNumber(
-        deal?.originalPrice ||
-            deal?.mrp ||
-            deal?.pricing?.mrp ||
-            deal?.pricing?.originalPrice ||
-            deal?.listPrice ||
-            deal?.compareAtPrice
-    );
-    const hasExplicitMrp = [
-        deal?.originalPrice,
-        deal?.mrp,
-        deal?.pricing?.mrp,
-        deal?.pricing?.originalPrice,
-        deal?.listPrice,
-        deal?.compareAtPrice
-    ].some((value) => (parsePriceNumber(value) || 0) > 0);
-    const discount = mrp > dealPrice && dealPrice > 0 ? Math.round(((mrp - dealPrice) / mrp) * 100) : getDiscountNum(deal?.discount);
+    const dealPrice = parseDealPrice(deal);
+    const mrp = parseDealMrp(deal);
+    const discount = parseDealDiscount(deal);
+    const hasExplicitMrp = mrp > 0;
     return {
         dealPrice,
         mrp,
@@ -142,7 +128,7 @@ const Hero = ({ deals = [], isLoading = false }) => {
                 image,
                 stat: deal.store ? `Verified on ${deal.store}` : 'Verified deal',
                 store: deal.store,
-                mrpLabel: mrp > 0 && dealPrice > 0 && (mrp > dealPrice || (mrp === dealPrice && hasExplicitMrp)) ? formatPriceDisplay(mrp) : '',
+                mrpLabel: mrp > 0 && dealPrice > 0 && mrp > dealPrice ? formatPriceDisplay(mrp) : '',
             };
         });
     }, [deals]);

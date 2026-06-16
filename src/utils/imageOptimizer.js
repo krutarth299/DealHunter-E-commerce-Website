@@ -67,7 +67,7 @@ export const optimizeImageUrl = (url) => {
 };
 
 // Standard junk image filter to exclude icons, logos, etc.
-export const JUNK_IMAGE_REGEX = /logo|icon|sprite|pixel|loading|placeholder|banner|nav|menu|button|spacer|gif|svg|avatar|profile|captcha|bot|delivery|shipping|portal|pingportal|favicon|blank|default/i;
+export const JUNK_IMAGE_REGEX = /logo|\bicon\b|sprite|\bpixel\b|loading|placeholder|banner|\bnav\b|\bmenu\b|\bbutton\b|spacer|gif|svg|avatar|profile|captcha|bot|delivery|shipping|portal|pingportal|favicon|blank|default/i;
 
 const AMAZON_NON_PRODUCT_IMAGE_REGEX = /\/images\/s\/|aplus-media|aplus|amazon-adsystem|\/images\/g\/|\/widgets\/q|\/x-locale\/|transparent-pixel|grey-pixel|nav-sprite|al-eu-/i;
 const FLIPKART_NON_PRODUCT_IMAGE_REGEX = /static-assets|fk-cp-zion|navigation|header|footer|login|seller|plus/i;
@@ -107,7 +107,7 @@ export const isLikelyProductImage = (url, deal) => {
     const optimized = optimizeImageUrl(url);
     const lower = optimized.toLowerCase();
 
-    if (!/^https?:\/\//i.test(optimized) && !optimized.startsWith('data:image/')) return false;
+    if (!/^https?:\/\//i.test(optimized) && !optimized.startsWith('data:image/') && !optimized.startsWith('/uploads/')) return false;
     if (JUNK_IMAGE_REGEX.test(lower)) return false;
 
     const storeKey = deal ? getStoreKey(deal) : '';

@@ -3,7 +3,7 @@ import { Heart, ArrowRight, Search, Star, Zap, Flame, Clock3, ShieldCheck } from
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getMainProductImage, NO_PRODUCT_IMAGE } from '../utils/imageOptimizer';
-import { formatPriceDisplay, parsePriceNumber } from '../utils/dealUi';
+import { formatPriceDisplay, parsePriceNumber, parseDealPrice, parseDealMrp, parseDealDiscount } from '../utils/dealUi';
 import { getCardTitle } from '../utils/productTitles';
 import { getProductPath } from '../utils/productUrls';
 
@@ -31,20 +31,17 @@ const clampHighestPositiveNumber = (...candidates) => (
 );
 
 const getDealPricing = (deal = {}) => {
-    const dealPrice = deal?.dealPrice || deal?.price || 0;
-    const mrp = deal?.mrp || deal?.originalPrice || 0;
-    const discount = deal?.discount || "";
-
-    const dealPriceValue = parsePriceNumber(dealPrice);
-    const mrpValue = parsePriceNumber(mrp);
+    const dealPriceValue = parseDealPrice(deal);
+    const mrpValue = parseDealMrp(deal);
+    const discountValue = parseDealDiscount(deal);
 
     return {
         dealPriceValue,
         mrpValue,
-        discount,
-        discountValue: parseInt(String(discount).replace(/[^0-9]/g, ''), 10) || 0,
-        dealPriceLabel: dealPriceValue > 0 ? formatPriceDisplay(dealPriceValue) : (dealPrice || ""),
-        mrpLabel: mrpValue > 0 ? formatPriceDisplay(mrpValue) : (mrp || ""),
+        discountValue,
+        discount: discountValue > 0 ? `${discountValue}% OFF` : '',
+        dealPriceLabel: dealPriceValue > 0 ? formatPriceDisplay(dealPriceValue) : '',
+        mrpLabel: mrpValue > 0 ? formatPriceDisplay(mrpValue) : '',
     };
 };
 
@@ -233,7 +230,7 @@ const DealCard = React.memo(({ deal, wishlist = [], toggleWishlist, index = 0 })
                                     <span className="text-[1.5rem] font-black leading-none tracking-tighter text-slate-950 md:text-[1.85rem]">
                                         {dealPriceLabel}
                                     </span>
-                                    {mrpValue > 0 && (
+                                    {mrpValue > dealPriceValue && (
                                         <span className="text-[10px] font-bold tracking-tight text-slate-400 line-through opacity-70 md:text-xs">
                                             {mrpLabel}
                                         </span>

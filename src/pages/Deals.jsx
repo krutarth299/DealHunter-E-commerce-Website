@@ -12,7 +12,7 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import SEO from '../components/SEO';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CATEGORY_MAP, FEATURED_CATEGORIES, getCategoryStyle, normalizeCategory } from '../utils/categoryConstants';
-import { formatPriceDisplay, parsePriceNumber } from '../utils/dealUi';
+import { formatPriceDisplay, parseDealPrice, parseDealMrp, parseDealDiscount, shouldShowDealMrp } from '../utils/dealUi';
 import { getCardTitle } from '../utils/productTitles';
 import { getMainProductImage, NO_PRODUCT_IMAGE } from '../utils/imageOptimizer';
 import { getProductPath } from '../utils/productUrls';
@@ -42,66 +42,6 @@ const SORT_OPTIONS = [
     { label: 'Price: Low to High', value: 'price_asc' },
     { label: 'Price: High to Low', value: 'price_desc' },
 ];
-
-const parseDealPrice = (deal = {}) => {
-    const pricing = deal.pricing || {};
-    const candidates = [
-        pricing.dealPrice,
-        pricing.currentPrice,
-        pricing.salePrice,
-        deal.dealPrice,
-        deal.currentPrice,
-        deal.salePrice,
-        deal.price
-    ];
-
-    for (const candidate of candidates) {
-        const parsed = parsePriceNumber(candidate);
-        if (parsed !== null && parsed > 0) return parsed;
-    }
-
-    return 0;
-};
-
-const parseDealMrp = (deal = {}) => {
-    const pricing = deal.pricing || {};
-    return [
-        pricing.mrp,
-        pricing.originalPrice,
-        pricing.listPrice,
-        deal.mrp,
-        deal.originalPrice,
-        deal.listPrice
-    ]
-        .map((candidate) => parsePriceNumber(candidate))
-        .filter((price) => price !== null && price > 0)
-        .sort((a, b) => b - a)[0] || 0;
-};
-
-const parseDealDiscount = (deal = {}) => {
-    const dealPrice = parseDealPrice(deal);
-    const mrp = parseDealMrp(deal);
-
-    if (dealPrice > 0 && mrp > dealPrice) {
-        return Math.round(((mrp - dealPrice) / mrp) * 100);
-    }
-
-    const parsed = Number(String(deal.discountPercent || deal.discount || '').match(/\d+/)?.[0] || 0);
-    return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const shouldShowDealMrp = (deal = {}, dealPrice = 0, mrp = 0) => {
-    const pricing = deal.pricing || {};
-    const hasExplicitMrp = [
-        pricing.mrp,
-        pricing.originalPrice,
-        pricing.listPrice,
-        deal.mrp,
-        deal.originalPrice,
-        deal.listPrice
-    ].some((candidate) => (parsePriceNumber(candidate) || 0) > 0);
-    return Boolean(mrp > 0 && dealPrice > 0 && (mrp > dealPrice || (mrp === dealPrice && hasExplicitMrp)));
-};
 
 const getDealTimestamp = (deal = {}) => {
     const time = new Date(deal.createdAt || deal.updatedAt || deal.publishedAt || 0).getTime();
@@ -435,6 +375,9 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
                     else if (selectedDiscount.value === 25) query.set('discount', '25+');
                 }
                 
+                if (priceRange.min > 0) query.set('minPrice', priceRange.min);
+                if (priceRange.max < Infinity) query.set('maxPrice', Math.min(priceRange.max, effectiveMaxPrice));
+                
                 let backendSort = 'newest';
                 if (sortBy === 'price_asc') backendSort = 'price-low';
                 else if (sortBy === 'price_desc') backendSort = 'price-high';
@@ -458,7 +401,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
             }
         };
         fetchDeals();
-    }, [deferredSearchQuery, selectedCategory, selectedStore, selectedDiscount.value, sortBy, apiBase]);
+    }, [deferredSearchQuery, selectedCategory, selectedStore, selectedDiscount.value, sortBy, priceRange.min, priceRange.max, effectiveMaxPrice, apiBase]);
 
     const handleLoadMore = useCallback(async () => {
         if (currentPage >= totalPages || isFetchingDeals || !apiBase) return;
@@ -475,6 +418,9 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
                 if (selectedDiscount.value === 50) query.set('discount', '50+');
                 else if (selectedDiscount.value === 25) query.set('discount', '25+');
             }
+            
+            if (priceRange.min > 0) query.set('minPrice', priceRange.min);
+            if (priceRange.max < Infinity) query.set('maxPrice', Math.min(priceRange.max, effectiveMaxPrice));
             
             let backendSort = 'newest';
             if (sortBy === 'price_asc') backendSort = 'price-low';
@@ -499,24 +445,17 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
         } finally {
             setIsFetchingDeals(false);
         }
-    }, [currentPage, totalPages, isFetchingDeals, deferredSearchQuery, selectedCategory, selectedStore, selectedDiscount.value, sortBy, apiBase]);
+    }, [currentPage, totalPages, isFetchingDeals, deferredSearchQuery, selectedCategory, selectedStore, selectedDiscount.value, sortBy, priceRange.min, priceRange.max, effectiveMaxPrice, apiBase]);
 
-    const filteredDeals = useMemo(() => {
-        // Price filtering is done client-side since slider max is derived from allDeals
-        return fetchedDeals.filter(d => {
-            const price = parseDealPrice(d);
-            const maxPrice = Math.min(priceRange.max, effectiveMaxPrice);
-            return price >= priceRange.min && price <= maxPrice;
-        });
-    }, [fetchedDeals, priceRange.max, priceRange.min, effectiveMaxPrice]);
+    const filteredDeals = useMemo(() => fetchedDeals, [fetchedDeals]);
     const featuredDeals = useMemo(() => getTopDeals(filteredDeals, filteredDeals.length > 8 ? 3 : 0), [filteredDeals]);
     const featuredIdentitySet = useMemo(() => new Set(featuredDeals.map(getDealIdentity)), [featuredDeals]);
     const gridDeals = featuredDeals.length > 0
         ? filteredDeals.filter((deal) => !featuredIdentitySet.has(getDealIdentity(deal)))
         : filteredDeals;
-    const trendingDeals = useMemo(() => getTopDeals(gridDeals, Math.min(6, gridDeals.length)), [gridDeals]);
-    const trendingIdentitySet = useMemo(() => new Set(trendingDeals.map(getDealIdentity)), [trendingDeals]);
-    const gridDealsPostTrending = gridDeals.filter(deal => !trendingIdentitySet.has(getDealIdentity(deal)));
+    const trendingDeals = [];
+    const trendingIdentitySet = new Set();
+    const gridDealsPostTrending = gridDeals;
 
     const gridSections = useMemo(() => {
         const firstPage = gridDealsPostTrending.slice(0, 12);

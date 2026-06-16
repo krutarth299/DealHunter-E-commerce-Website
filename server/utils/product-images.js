@@ -76,7 +76,7 @@ const STORE_IMAGE_CDNS = {
 
 export const NO_PRODUCT_IMAGE = '';
 
-export const PRODUCT_IMAGE_JUNK_REGEX = /logo|icon|sprite|pixel|loading|placeholder|banner|nav|menu|button|spacer|gif|svg|avatar|profile|captcha|bot|delivery|shipping|portal|pingportal|favicon|blank|thumbnail|thumb|swatch/i;
+export const PRODUCT_IMAGE_JUNK_REGEX = /logo|\bicon\b|sprite|\bpixel\b|loading|placeholder|banner|\bnav\b|\bmenu\b|\bbutton\b|spacer|gif|svg|avatar|profile|captcha|bot|delivery|shipping|portal|pingportal|favicon|blank|default/i;
 const IMAGE_CONTEXT_JUNK_REGEX = /recommend|recommended|similar product|related product|you may also like|frequently bought|sponsored|ad(?:vert)?|banner|carousel|cross[- ]sell|upsell|more from|explore more/i;
 
 const AMAZON_NON_PRODUCT_IMAGE_REGEX = /\/images\/s\/|aplus-media|aplus|amazon-adsystem|\/images\/g\/|\/widgets\/q|\/x-locale\/|transparent-pixel|grey-pixel|nav-sprite|al-eu-/i;
@@ -151,6 +151,7 @@ const getAmazonAsin = (productUrl = '') => {
 const addProtocol = (url) => {
     if (!url || typeof url !== 'string') return '';
     const trimmed = url.trim();
+    if (trimmed.startsWith('/uploads/')) return trimmed;
     if (trimmed.startsWith('//')) return `https:${trimmed}`;
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
     return '';
@@ -431,11 +432,13 @@ export const normalizeProductImages = ({
         const isTrustedAmazonProductImage = storeKey === 'amazon'
             && STORE_IMAGE_CDNS.amazon.some((cdn) => optimized.toLowerCase().includes(cdn))
             && !AMAZON_NON_PRODUCT_IMAGE_REGEX.test(optimized.toLowerCase());
+        const isLocalUpload = optimized.startsWith('/uploads/');
         if (
             titleSignals.length >= 2
             && modelMatchCount === 0
             && !optimized.includes('/images/p/')
             && !isTrustedAmazonProductImage
+            && !isLocalUpload
         ) {
             rejectedReasons.model_mismatch = (rejectedReasons.model_mismatch || 0) + 1;
             return;

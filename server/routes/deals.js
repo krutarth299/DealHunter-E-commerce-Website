@@ -19,8 +19,19 @@ import {
     injectStealth
 } from '../scraper-utils.js';
 
+// === DEAL NORMALIZATION UTILS ===
+import { normalizeDealPayload } from '../utils/deal-normalizer.js';
+
+router.get('/debug-deal/:id', async (req, res) => {
+    try {
+        const deal = await Deal.findById(req.params.id);
+        res.json({ dbImages: deal.images, dbVariants: deal.variants });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 import {
-    normalizeDealPayload,
     normalizeDealForResponse
 } from '../utils/deal-normalizer.js';
 
@@ -361,6 +372,15 @@ router.get('/', async (req, res) => {
             }
         }
 
+        const minPrice = parseFloat(req.query.minPrice);
+        const maxPrice = parseFloat(req.query.maxPrice);
+        if (!isNaN(minPrice) || !isNaN(maxPrice)) {
+            const priceCondition = {};
+            if (!isNaN(minPrice)) priceCondition.$gte = minPrice;
+            if (!isNaN(maxPrice)) priceCondition.$lte = maxPrice;
+            andConditions.push({ dealPrice: priceCondition });
+        }
+
         if (dateFilter && dateFilter !== 'All') {
             const now = new Date();
             let dateThreshold;
@@ -530,6 +550,8 @@ router.post('/', async (req, res) => {
         const normalizedPayload =
             normalizeDealPayload(req.body);
 
+        console.log('[DEBUG_DEALS] finalPayload.images:', normalizedPayload.images);
+
         if (normalizedPayload.images && normalizedPayload.images.length > 0) {
             const localImages = await downloadAndSaveImages(normalizedPayload.images);
             normalizedPayload.images = localImages;
@@ -583,8 +605,12 @@ router.post('/', async (req, res) => {
                 mergedPayload
             );
 
+            console.log('[DEBUG_DEALS] Before save, existingDeal.images:', existingDeal.images);
+
             const updatedDeal =
                 await existingDeal.save();
+
+            console.log('[DEBUG_DEALS] After save, updatedDeal.images:', updatedDeal.images);
 
             const io = req.app.get('socketio');
             if (io) io.emit('updateDeal', updatedDeal);
@@ -666,6 +692,12 @@ router.put('/:id', async (req, res) => {
             if (localImages.length > 0) {
                 normalizedPayload.image = localImages[0];
                 normalizedPayload.thumbnail = localImages[0];
+            }
+            if (normalizedPayload.variants && normalizedPayload.variants.length > 0) {
+                normalizedPayload.variants[0].images = localImages;
+                if (localImages.length > 0) {
+                    normalizedPayload.variants[0].image = localImages[0];
+                }
             }
         }
 
