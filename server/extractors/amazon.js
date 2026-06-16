@@ -54,53 +54,78 @@ export async function extractAmazon(page) {
 
     const finalImages = [...new Set(imageList)];
 
-    // Price extraction
-    const getPriceText = () => {
-        const selectors = [
-            "#corePriceDisplay_desktop_feature_div .a-price-whole",
-            "#corePriceDisplay_desktop_feature_div .a-offscreen",
-            "#corePrice_desktop .a-price-whole",
-            "#corePrice_desktop .a-offscreen",
-            ".a-price .a-offscreen",
-            ".a-price-whole",
-            "#priceblock_ourprice",
-            "#priceblock_dealprice"
-        ];
-        for (const sel of selectors) {
-            const txt = $(sel).first().text().trim();
-            if (txt && txt.replace(/[^\d]/g, '')) return txt;
-        }
-        return '';
+    // Helper to clean price strings
+    const extractNumClean = (str) => {
+        const match = String(str).match(/[0-9,]+(\.[0-9]+)?/);
+        return match ? String(Math.round(parseFloat(match[0].replace(/,/g, '')))) : '';
     };
 
-    const rawPrice = getPriceText().replace(/[\.,]\d{2}$/, '').replace(/[^\d]/g, '');
-
-    // MRP extraction
-    const getMrpText = () => {
-        const selectors = [
-            ".a-text-strike",
-            ".aok-nowrap.a-text-strike",
-            "#corePriceDisplay_desktop_feature_div .a-text-price span[aria-hidden='true']",
-            "#corePriceDisplay_desktop_feature_div .a-price.a-text-price .a-offscreen",
-            "#corePrice_desktop .a-text-price span[aria-hidden='true']",
-            "span.a-price.a-text-price span.a-offscreen"
-        ];
-        for (const sel of selectors) {
-            const txt = $(sel).first().text().trim();
-            if (txt && txt.replace(/[^\d]/g, '')) return txt;
+    // Robust Heuristic Price extraction
+    const getPrices = () => {
+        let prices = new Set();
+        
+        // Find the main product container
+        let searchArea = $('body');
+        const containers = ['#corePriceDisplay_desktop_feature_div', '#corePrice_desktop', '#centerCol', '#desktop_buybox'];
+        for (const c of containers) {
+            if ($(c).length > 0 && $(c).text().trim().length > 0) {
+                searchArea = $(c);
+                break;
+            }
         }
-        return '';
+
+        const selectors = [
+            '.a-price-whole', 
+            '.a-offscreen', 
+            '.a-text-strike', 
+            '.a-text-price span[aria-hidden="true"]',
+            '#priceblock_ourprice',
+            '#priceblock_dealprice'
+        ];
+
+        for (const sel of selectors) {
+            searchArea.find(sel).each((i, el) => {
+                const $el = $(el);
+                // Skip related products, carousels, and hidden expanders
+                if ($el.closest('.a-carousel').length === 0 && 
+                    $el.closest('.a-expander-content').length === 0 &&
+                    $el.closest('[id*="sims-consolidated"]').length === 0 &&
+                    $el.closest('[data-a-carousel-options]').length === 0) {
+                    
+                    const num = extractNumClean($el.text());
+                    if (num) prices.add(parseInt(num));
+                }
+            });
+        }
+
+        const priceArr = Array.from(prices).filter(p => p > 0).sort((a, b) => a - b);
+        let dealPrice = '';
+        let mrp = '';
+
+        if (priceArr.length > 0) {
+            dealPrice = String(priceArr[0]);
+            mrp = String(priceArr[priceArr.length - 1]);
+        }
+
+        return { price: dealPrice, mrp: mrp };
     };
 
-    const rawMrp = getMrpText().replace(/[\.,]\d{2}$/, '').replace(/[^\d]/g, '');
+    const extracted = getPrices();
+    let finalMrp = extracted.mrp;
+    let finalPrice = extracted.price;
+
+    // Ensure MRP is valid relative to Deal Price
+    if (!finalMrp || parseInt(finalMrp) <= parseInt(finalPrice)) {
+        finalMrp = finalPrice; // If no strike price, MRP = Deal Price
+    }
 
     return {
         title: getText("#productTitle"),
         store: "Amazon",
         category: getText("#wayfinding-breadcrumbs_feature_div"),
         description: getText("#feature-bullets"),
-        mrp: rawMrp,
-        price: rawPrice,
+        mrp: finalMrp,
+        price: finalPrice,
         images: finalImages
     };
 }

@@ -1,7 +1,9 @@
 import { extractProduct } from './server/extractors/index.js';
 
 const TEST_URLS = {
-  flipkart: 'https://www.flipkart.com/leiox-silicone-press-release-earbuds-case-vivo-tws-3e-buds/p/itmab5e4d4fc3400?pid=HPPH7ZEQPHG8AUBF&lid=LSTHPPH7ZEQPHG8AUBFCIWC95&marketplace=FLIPKART',
+  amazon1: 'https://www.amazon.in/boAt-Airdopes-141-Playtime-Resistance/dp/B09N3ZNHTY/',
+  amazon2: 'https://www.amazon.in/All-new-Echo-Dot-4th-Gen/dp/B084K8S25N/',
+  // flipkart: 'https://www.flipkart.com/leiox-silicone-press-release-earbuds-case-vivo-tws-3e-buds/p/itmab5e4d4fc3400?pid=HPPH7ZEQPHG8AUBF&lid=LSTHPPH7ZEQPHG8AUBFCIWC95&marketplace=FLIPKART',
   // croma: 'https://www.croma.com/apple-iphone-15-128gb-black-/p/300652',
   // reliancedigital: 'https://www.reliancedigital.in/apple-iphone-15-128-gb-black-/p/493832004',
   // firstcry: 'https://www.firstcry.com/pampers/pampers-premium-care-pants-diapers-medium-60-pieces/15291249/product-detail',
