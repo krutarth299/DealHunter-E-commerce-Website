@@ -323,7 +323,7 @@ export const normalizeDealForUi = (deal = {}) => {
     publishedAt: rawDeal.publishedAt || rawDeal.createdAt || '',
     lastSyncedAt: rawDeal.lastSyncedAt || rawDeal.updatedAt || rawDeal.lastFetchedAt || '',
     canonicalUrl: rawDeal.canonicalUrl || '',
-    createdAt: rawDeal.createdAt || rawDeal.updatedAt || rawDeal.publishedAt || null
+    createdAt: rawDeal.createdAt || rawDeal.updatedAt || rawDeal.publishedAt || new Date().toISOString()
   };
   const rawVariants = Array.isArray(rawDeal.variants)
     ? rawDeal.variants

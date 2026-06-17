@@ -233,12 +233,10 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
     
     // 4. Main Grid Deals (Remaining up to 12)
     const mainGridDeals = useMemo(() => {
-        const remaining = uniqueDeals.filter(d => 
-            !heroDealKeys.has(getDealKey(d)) && 
-            !featuredDealKeys.has(getDealKey(d))
-        );
-        return selectBalancedDeals(remaining, { limit: 12 });
-    }, [uniqueDeals, heroDealKeys, featuredDealKeys]);
+        // We no longer strictly exclude heroDealKeys so that featured deals ALSO show in the Live Deals Worth Clicking grid,
+        // fulfilling the user's intent to have maximum visibility.
+        return selectBalancedDeals(uniqueDeals, { limit: 12 });
+    }, [uniqueDeals]);
 
     const goToCategory = useCallback((catName) => {
         navigate('/category/' + encodeURIComponent(slugify(catName)), {
