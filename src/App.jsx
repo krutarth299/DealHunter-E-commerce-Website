@@ -328,9 +328,6 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
 
     const normalizedCoupons = Array.isArray(snapshotData?.coupons) ? snapshotData.coupons : [];
 
-    console.log("[COUPONS_RAW]", snapshotData?.coupons);
-    console.log("[COUPONS_NORMALIZED]", normalizedCoupons);
-
     console.info(`[HOMEPAGE_FETCH] deals=${normalizedDeals.length} coupons=${normalizedCoupons.length} stores=${normalizedStores.length} categories=${normalizedCategories.length}`);
     console.info(`[DEALS_FRONTEND] source=homepage-api fetched=${normalizedDeals.length}`);
 

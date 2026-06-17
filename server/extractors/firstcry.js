@@ -2,7 +2,7 @@ export async function extractFirstCry(page) {
     // Wait for the main elements to load
     await page.waitForSelector('h1', { timeout: 15000 }).catch(() => {});
     // Give the SPA time to populate prices and product data
-    await new Promise(r => setTimeout(r, 4500));
+    await new Promise(r => setTimeout(r, 1500));
     // Wait for price content to appear
     await page.waitForFunction(() => {
         const bodyText = document.body.textContent || '';
@@ -271,8 +271,8 @@ export async function extractFirstCry(page) {
             }
         });
         
-        // Deduplicate images
-        data.images = [...new Set(data.images)];
+        // Deduplicate and limit images
+        data.images = [...new Set(data.images)].slice(0, 4);
 
         // Normalization
         if (data.price) data.price = String(extractNumber(data.price) || data.price);

@@ -64,11 +64,10 @@ const isLiveHomepageDeal = (deal = {}) => Boolean(
 const getFeaturedDeals = (deals = [], limit = 3) => (
     [...deals]
         .filter(isLiveHomepageDeal)
+        .filter(d => d.featured === true)
         .sort((a, b) => {
-            const explicitFeaturedA = a.featured ? 80 : 0;
-            const explicitFeaturedB = b.featured ? 80 : 0;
-            const scoreA = explicitFeaturedA + getDealQualityScore(a);
-            const scoreB = explicitFeaturedB + getDealQualityScore(b);
+            const scoreA = getDealQualityScore(a);
+            const scoreB = getDealQualityScore(b);
             return scoreB - scoreA;
         })
         .slice(0, limit)
@@ -207,27 +206,39 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
         return dedupeDeals([...liveDeals, ...snapshotDeals]);
     }, [deals, homepageSnapshot]);
     const uniqueDeals = useMemo(() => dedupeDeals(sourceDeals), [sourceDeals]);
-    const homepageDeals = useMemo(() => selectBalancedDeals(uniqueDeals, { limit: 12 }), [uniqueDeals]);
     const liveDealPool = useMemo(() => (
         uniqueDeals.filter(isLiveHomepageDeal)
     ), [uniqueDeals]);
+    
+    // 1. Hero Deals (Top 5)
     const heroDeals = useMemo(() => getFeaturedDeals(liveDealPool, 5), [liveDealPool]);
     const heroDealKeys = useMemo(() => new Set(heroDeals.map(getDealKey)), [heroDeals]);
     
-    // Pick featured deals that are NOT in the hero slider
+    // 2. Featured Deals (Next 3)
     const featuredHomepageDeals = useMemo(() => {
         const remaining = liveDealPool.filter(d => !heroDealKeys.has(getDealKey(d)));
         return getFeaturedDeals(remaining, 3);
     }, [liveDealPool, heroDealKeys]);
-    
     const featuredDealKeys = useMemo(() => new Set(featuredHomepageDeals.map(getDealKey)), [featuredHomepageDeals]);
     
-    const mainGridDeals = useMemo(() => {
-        // Show all balanced deals in the main grid
-        return homepageDeals;
-    }, [homepageDeals]);
+    // 3. Best Deals Today (Next 4)
+    const bestDealsToday = useMemo(() => {
+        const remaining = liveDealPool.filter(d => 
+            !heroDealKeys.has(getDealKey(d)) && 
+            !featuredDealKeys.has(getDealKey(d))
+        );
+        return getBestDealsToday(remaining, 4);
+    }, [liveDealPool, heroDealKeys, featuredDealKeys]);
+    const bestDealKeys = useMemo(() => new Set(bestDealsToday.map(getDealKey)), [bestDealsToday]);
     
-    const bestDealsToday = useMemo(() => getBestDealsToday(liveDealPool, 4), [liveDealPool]);
+    // 4. Main Grid Deals (Remaining up to 12)
+    const mainGridDeals = useMemo(() => {
+        const remaining = uniqueDeals.filter(d => 
+            !heroDealKeys.has(getDealKey(d)) && 
+            !featuredDealKeys.has(getDealKey(d))
+        );
+        return selectBalancedDeals(remaining, { limit: 12 });
+    }, [uniqueDeals, heroDealKeys, featuredDealKeys]);
 
     const goToCategory = useCallback((catName) => {
         navigate('/category/' + encodeURIComponent(slugify(catName)), {
@@ -265,7 +276,7 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
             <SEO
                 title="Verified Online Deals & Price Drops"
                 description="Shop verified online deals, live discounts and price drops from all active DealSphere stores."
-                itemList={homepageDeals}
+                itemList={mainGridDeals}
             />
             <Navbar user={user} onSearch={onSearch} onAddDealClick={() => setIsAddDealOpen(true)} wishlistCount={wishlist?.length ?? 0} wishlist={wishlist} />
 
@@ -370,9 +381,9 @@ const Home = ({ deals, user, onSearch, setIsAddDealOpen, wishlist, toggleWishlis
                                 </p>
                             </div>
                         </div>
-                        {homepageDeals.length > 0 && (
+                        {mainGridDeals.length > 0 && (
                             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-500 shadow-sm">
-                                {homepageDeals.length} featured now
+                                {mainGridDeals.length} featured now
                             </div>
                         )}
                     </div>

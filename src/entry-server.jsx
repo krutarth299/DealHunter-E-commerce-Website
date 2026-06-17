@@ -5,6 +5,7 @@ import { StaticRouter } from 'react-router';
 import { PassThrough } from 'stream';
 import { App, AppContent } from './App';
 import ErrorBoundary from './ErrorBoundary';
+import { HelmetProvider } from 'react-helmet-async';
 
 export async function render(url, preloadedDeals = [], preloadedCategories = []) {
   const helmetContext = {};
@@ -30,18 +31,20 @@ export async function render(url, preloadedDeals = [], preloadedCategories = [])
       stream.on('error', reject);
 
       const { pipe, abort } = renderToPipeableStream(
-        <StrictMode>
-            <ErrorBoundary>
-              <App>
-                <StaticRouter location={url}>
-                  <AppContent
-                    preloadedDeals={preloadedDeals}
-                    preloadedCategories={preloadedCategories}
-                  />
-                </StaticRouter>
-              </App>
-            </ErrorBoundary>
-        </StrictMode>,
+        <HelmetProvider context={helmetContext}>
+          <StrictMode>
+              <ErrorBoundary>
+                <App>
+                  <StaticRouter location={url}>
+                    <AppContent
+                      preloadedDeals={preloadedDeals}
+                      preloadedCategories={preloadedCategories}
+                    />
+                  </StaticRouter>
+                </App>
+              </ErrorBoundary>
+          </StrictMode>
+        </HelmetProvider>,
         {
           onAllReady() {
             pipe(stream);

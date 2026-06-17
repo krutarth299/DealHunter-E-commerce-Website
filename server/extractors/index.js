@@ -6,6 +6,7 @@ import { extractCroma } from './croma.js';
 import { extractRelianceDigital } from './reliancedigital.js';
 import { extractFirstCry } from './firstcry.js';
 import { extractMyntra } from './myntra.js';
+import { extractUniversal } from './universal.js';
 puppeteer.use(StealthPlugin());
 
 let globalBrowser = null;
@@ -37,7 +38,8 @@ export async function extractProduct(url) {
         const browser = await getBrowser();
         page = await browser.newPage();
         
-        // Anti-bot webdriver bypass
+        // Anti-bot webdriver bypass & Realistic User-Agent
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         await page.evaluateOnNewDocument(() => {
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => false,
@@ -48,13 +50,10 @@ export async function extractProduct(url) {
         const isFirstCry = url.toLowerCase().includes('firstcry.com');
         const isRelianceDigital = url.toLowerCase().includes('reliancedigital.in');
         const isCroma = url.toLowerCase().includes('croma.com');
-        
-        // Many SPAs (React/Angular/Vue) crash if stylesheets/images are blocked
-        // We no longer block resources because many SPAs crash if stylesheets/images are blocked
-
         await page.setViewport({ width: 1400, height: 1200 });
         await page.setCacheEnabled(false);
-        
+
+    // Resources are not blocked because many modern SPAs (React/Next.js) wait for images/fonts to finish before rendering content.
         let cleanUrl = (url || '').trim();
         if (!cleanUrl) {
             return { success: false, message: "URL cannot be empty" };
@@ -96,8 +95,8 @@ export async function extractProduct(url) {
             }
         } else {
             try {
-                await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-                await new Promise(r => setTimeout(r, 2000));
+                await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+                await new Promise(r => setTimeout(r, 3500)); // wait for SPA to hydrate and render
             } catch (e) {
                 console.log("Navigation timeout, proceeding with available DOM...");
             }
@@ -120,7 +119,8 @@ export async function extractProduct(url) {
         } else if (lowUrl.includes("myntra") || finalUrl.includes("myntra")) {
             data = await extractMyntra(page, targetUrl);
         } else {
-            return { success: false, message: "Store not supported" };
+            // Fallback to the Universal Extractor for any other store (AJIO, Mamaearth, etc.)
+            data = await extractUniversal(page, targetUrl);
         }
 
         // Final normalization and cleaning

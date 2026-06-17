@@ -862,11 +862,11 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
             </div>
 
             {/* ─── Main Content ─── */}
-            <div className="flex-grow w-full mx-auto px-4 sm:px-8 lg:px-12 py-10 pb-24 lg:pb-10">
-                <div className="flex flex-col lg:flex-row gap-10">
+            <div className="flex-grow w-full mx-auto px-4 sm:px-8 lg:px-12 py-10 pb-24 lg:pb-10 flex flex-col">
+                <div className="flex flex-col lg:flex-row gap-10 flex-grow h-full min-h-[80vh]">
                     {/* Desktop Sidebar */}
-                    <aside className="hidden lg:block w-64 shrink-0 relative">
-                        <div className="sticky top-36 bg-white rounded-3xl border border-slate-100 p-6 lg:p-8 shadow-sm max-h-[calc(100vh-10rem)] flex flex-col">
+                    <aside className="hidden lg:block w-64 shrink-0 relative h-full">
+                        <div className="sticky bg-white rounded-3xl border border-slate-100 p-6 lg:p-8 shadow-sm flex flex-col" style={{ top: '180px', maxHeight: 'calc(100vh - 200px)' }}>
                             <h2 className="text-base font-black text-slate-900 mb-6 flex-shrink-0 flex items-center gap-2">
                                 <SlidersHorizontal size={18} className="text-[#FF6A00]" /> Filters
                             </h2>

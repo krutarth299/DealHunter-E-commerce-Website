@@ -3,7 +3,7 @@ import { App, AppContent } from './App.jsx'
 import { BrowserRouter } from 'react-router-dom'
 
 import ErrorBoundary from './ErrorBoundary.jsx'
-
+import { HelmetProvider } from 'react-helmet-async';
 import { setManualScrollRestoration } from './utils/scroll.js'
 
 const rootElement = document.getElementById('root');
@@ -14,13 +14,15 @@ const initialData = window.__INITIAL_DATA__;
 const initialCategories = window.__INITIAL_CATEGORIES__;
 
 const app = (
-    <ErrorBoundary>
-      <App>
-        <BrowserRouter>
-          <AppContent preloadedDeals={initialData} preloadedCategories={initialCategories} />
-        </BrowserRouter>
-      </App>
-    </ErrorBoundary>
+    <HelmetProvider>
+      <ErrorBoundary>
+        <App>
+          <BrowserRouter>
+            <AppContent preloadedDeals={initialData} preloadedCategories={initialCategories} />
+          </BrowserRouter>
+        </App>
+      </ErrorBoundary>
+    </HelmetProvider>
 );
 
 if (initialData && rootElement.hasChildNodes()) {

@@ -354,7 +354,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
             console.error('[Admin] Affiliate settings JSON fetch fail', e);
         }
 
-        console.log("[AFFILIATE_SETTINGS_TYPE]", typeof data, data);
+
         const safeData = Array.isArray(data) ? data : [];
         const mergedSettings = mergeAffiliateSettings(safeData, storeNames);
         setAffiliateSettings(Array.isArray(mergedSettings) ? mergedSettings : []);
@@ -667,7 +667,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
     const handleChange = (e) => {
         const { name, value } = e.target;
         if (name === 'productUrl') {
-            console.log('[PRODUCT_URL_INPUT]', value);
+
         }
         setDealForm((prev) => ({
             ...prev,
@@ -693,21 +693,27 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
         const deal = normalizeAdminDeal(rawDeal);
         setEditMode(true);
         setEditId(getDealId(deal));
+        const primaryVariant = Array.isArray(deal?.variants) && deal?.variants?.length > 0 ? deal.variants[0] : {};
+        const safeDealPrice = deal?.dealPrice || deal?.price || primaryVariant?.dealPrice || primaryVariant?.price || '';
+        const safeMrp = deal?.mrp || deal?.originalPrice || primaryVariant?.mrp || primaryVariant?.originalPrice || '';
+        const safeDiscount = deal?.discount || deal?.discountPercent || primaryVariant?.discount || primaryVariant?.discountPercent || '';
+        const safeProductUrl = deal?.productUrl || deal?.link || primaryVariant?.productUrl || primaryVariant?.link || '';
+
         setDealForm({
             title: deal?.title || '',
             store: deal?.store || '',
-            dealPrice: deal?.dealPrice || deal?.price || '',
-            mrp: deal?.mrp || deal?.price || deal?.originalPrice || '',
-            discount: deal?.discount || '',
+            dealPrice: safeDealPrice,
+            mrp: safeMrp,
+            discount: safeDiscount,
             image: deal?.imageUrl || deal?.image || '',
             imageUrl: deal?.imageUrl || deal?.image || '',
             images: safeArray(deal?.images),
             videos: safeArray(deal?.videos),
-            productUrl: sanitizeOriginalUrl(deal?.productUrl || deal?.link || ''),
-            affiliateOverrideLink: deal?.affiliateOverrideLink || '',
-            affiliateLink: deal?.affiliateLink || '',
+            productUrl: sanitizeOriginalUrl(safeProductUrl),
+            affiliateOverrideLink: deal?.affiliateOverrideLink || primaryVariant?.affiliateOverrideLink || '',
+            affiliateLink: deal?.affiliateLink || primaryVariant?.affiliateLink || '',
             category: deal?.category || '',
-            description: deal?.description || '',
+            description: deal?.description || deal?.shortDescription || '',
             featured: deal?.featured || false,
             isExpired: deal?.isExpired || false,
             brand: deal?.brand || ''

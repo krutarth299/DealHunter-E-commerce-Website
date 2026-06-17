@@ -137,14 +137,6 @@ const Hero = ({ deals = [], isLoading = false }) => {
 
     useEffect(() => {
         if (!slides.length) return;
-        const durationMs = loadStartRef.current
-            ? Math.round((typeof performance !== 'undefined' ? performance.now() : loadStartRef.current) - loadStartRef.current)
-            : 0;
-        console.log(`[SLIDER_LOAD] ${JSON.stringify({
-            slideCount: slides.length,
-            firstSlideTitle: slides[0]?.title || '',
-            durationMs
-        })}`);
     }, [slides]);
 
     useEffect(() => {

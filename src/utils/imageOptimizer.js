@@ -154,16 +154,6 @@ export const getProductImageGallery = (deal, maxImages = 8) => {
         ? deal.images 
         : (deal?.image ? [deal.image] : []);
 
-    // Dev-only logging
-    if (process.env.NODE_ENV === 'development') {
-        console.log("[IMAGE_GALLERY_INPUT]", {
-            id: deal?._id || deal?.id,
-            title: deal?.title,
-            totalImages: gallerySource.length,
-            hasImagesArray: Array.isArray(deal?.images)
-        });
-    }
-
     const candidates = [
         ...gallerySource
     ]

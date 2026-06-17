@@ -3,7 +3,7 @@ export async function extractRelianceDigital(page) {
     // First wait for any content indicator
     await page.waitForSelector('h1, .pdp__title, .pdp-title, [class*="pdp"], [data-qa="productTitle"]', { timeout: 20000 }).catch(() => {});
     // Then give extra time for price/product data to load via API calls
-    await new Promise(r => setTimeout(r, 4500));
+    await new Promise(r => setTimeout(r, 1500));
     // Wait specifically for price or product content to appear
     await page.waitForFunction(() => {
         const bodyText = document.body.textContent || '';
@@ -244,7 +244,7 @@ export async function extractRelianceDigital(page) {
             }
         });
         
-        data.images = [...new Set(data.images)];
+        data.images = [...new Set(data.images)].slice(0, 4);
 
         // Final normalization
         if (data.price) data.price = String(extractNumber(data.price) || data.price);

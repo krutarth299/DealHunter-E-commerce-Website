@@ -62,6 +62,30 @@ export async function extractFlipkart(page) {
     });
 
     // 2. DOM Fallbacks
+    let mainPriceText = $('.aMaAEs .Nx9bqj.CxhGGd').first().text().trim() ||
+                        $('.aMaAEs .Nx9bqj').first().text().trim() ||
+                        $('.Nx9bqj.CxhGGd').first().text().trim() ||
+                        $('._30jeq3._16Jk6d').first().text().trim() ||
+                        $('.UOCQB1 .Nx9bqj').first().text().trim();
+                        
+    if (mainPriceText) {
+        let pVal = extractNumber(mainPriceText);
+        if (pVal > 0) data.price = String(pVal);
+    } else if (!data.price || parseInt(data.price) === 0) {
+        let possible = [];
+        $('div, span').each((i, el) => {
+            const txt = $(el).text().trim();
+            if (txt.startsWith('₹') && txt.length < 15 && $(el).children().length === 0 && !txt.includes('/mo') && !txt.includes('EMI')) {
+                let num = extractNumber(txt);
+                if (num > 0) possible.push(num);
+            }
+        });
+        if (possible.length > 0) {
+            data.price = String(possible[0]);
+        }
+    }
+
+    // 2. DOM Fallbacks
     if (!data.title) {
         data.title = $('meta[name="twitter:title"]').attr('content') || $('meta[property="og:title"]').attr('content') || $('title').text().split('|')[0].trim();
     }
@@ -73,11 +97,9 @@ export async function extractFlipkart(page) {
         data.description = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || $('meta[name="twitter:description"]').attr('content') || '';
     }
 
-    if (!data.price) {
-        const p1 = $('.Nx9bqj.CxhGGd').first().text().trim();
-        const p2 = $('._30jeq3._16Jk6d').first().text().trim();
-        const p3 = $('div[class*="Nx9bqj"]').first().text().trim();
-        data.price = p1 || p2 || p3;
+    // Ensure price is cleaned up at the end
+    if (data.price) {
+        data.price = String(extractNumber(data.price));
     }
 
     if (!data.mrp) {
