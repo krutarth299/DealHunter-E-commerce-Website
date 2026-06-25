@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Disallow admin routes from crawling
+Disallow: /admin
+Disallow: /admin/*
+
+# Sitemap declaration
+Sitemap: https://dealsphere.com/sitemap.xml

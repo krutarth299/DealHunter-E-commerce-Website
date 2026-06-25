@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, CalendarDays, Check, Copy, MessageSquare, ShoppingBag, Tag } from 'lucide-react';
 import Navbar from '../components/Navbar';
@@ -13,7 +13,7 @@ const renderBlock = (block, index) => {
     switch (block.type) {
         case 'heading':
             return (
-                <h2 key={`${block.type}-${index}`} className="mt-12 text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
+                <h2 key={`${block.type}-${index}`} className="mt-10 text-xl font-black tracking-tight text-slate-950 md:text-2xl">
                     {block.text}
                 </h2>
             );
@@ -28,31 +28,45 @@ const renderBlock = (block, index) => {
             return (
                 <div key={`${block.type}-${index}`} className="rounded-[32px] bg-slate-950 px-8 py-10 text-white shadow-[0_24px_50px_-28px_rgba(15,23,42,0.45)]">
                     <p className="text-[11px] font-black uppercase tracking-[0.22em] text-orange-300">Final Take</p>
-                    <p className="mt-4 text-xl font-black leading-relaxed md:text-2xl">{block.text}</p>
+                    <p className="mt-4 text-lg font-bold leading-relaxed md:text-xl">{block.text}</p>
                 </div>
             );
         case 'intro':
             return (
-                <p key={`${block.type}-${index}`} className="rounded-r-[28px] border-l-4 border-orange-500 bg-orange-50/70 px-6 py-4 text-xl font-medium leading-relaxed text-slate-700 italic">
+                <p key={`${block.type}-${index}`} className="rounded-r-[28px] border-l-4 border-orange-500 bg-orange-50/70 px-6 py-4 text-base font-medium leading-relaxed text-slate-700 italic">
                     {block.text}
                 </p>
             );
         default:
             return (
-                <p key={`${block.type}-${index}`} className="text-lg font-medium leading-relaxed text-slate-700">
-                    {block.text}
-                </p>
+                <div 
+                    key={`${block.type}-${index}`} 
+                    className="text-base font-medium leading-relaxed text-slate-700 prose prose-slate max-w-none prose-p:my-2 prose-ul:my-2 prose-strong:text-slate-900" 
+                    dangerouslySetInnerHTML={{ __html: block.text }} 
+                />
             );
     }
 };
 
-const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOpen }) => {
+const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOpen, preloadedBlog = null }) => {
     const { slug } = useParams();
-    const [blog, setBlog] = useState(null);
+    const navigate = useNavigate();
+    
+    // Support SSR Initial Data
+    const getInitialBlog = () => {
+        if (preloadedBlog && preloadedBlog.slug === slug) return preloadedBlog;
+        if (typeof window !== 'undefined' && window.__INITIAL_BLOG__ && window.__INITIAL_BLOG__.slug === slug) return window.__INITIAL_BLOG__;
+        if (typeof global !== 'undefined' && global.__INITIAL_BLOG__ && global.__INITIAL_BLOG__.slug === slug) return global.__INITIAL_BLOG__;
+        return null;
+    };
+    const initialBlogRaw = getInitialBlog();
+    const initialBlog = initialBlogRaw ? normalizeBlogForUi(initialBlogRaw) : null;
+
+    const [blog, setBlog] = useState(initialBlog);
     const [comments, setComments] = useState([]);
     const [name, setName] = useState('');
     const [comment, setComment] = useState('');
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!initialBlog);
     const [error, setError] = useState('');
     const [copied, setCopied] = useState(false);
 
@@ -98,7 +112,13 @@ const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOp
         };
 
         if (apiBase && slug) {
-            loadBlog();
+            if (!blog) {
+                loadBlog();
+            } else {
+                setLoading(false);
+                // Background refresh
+                loadBlog();
+            }
         }
 
         return () => {
@@ -200,6 +220,7 @@ const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOp
                     { name: 'Blog', url: '/blog' },
                     { name: blog.title, url: canonicalPath }
                 ]}
+                keywords={blog.seoKeywords?.length ? blog.seoKeywords.join(', ') : (blog.tags || []).join(', ')}
                 structuredData={{
                     '@context': 'https://schema.org',
                     '@type': 'BlogPosting',
@@ -242,10 +263,10 @@ const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOp
                             <span>{blog.readTime}</span>
                         </div>
 
-                        <h1 className="mt-6 text-4xl font-black tracking-tight text-slate-950 md:text-6xl">
+                        <h1 className="mt-6 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
                             {blog.title}
                         </h1>
-                        <p className="mt-6 max-w-3xl text-lg font-medium leading-relaxed text-slate-600">
+                        <p className="mt-4 max-w-3xl text-base font-medium leading-relaxed text-slate-600">
                             {blog.summary}
                         </p>
 
@@ -268,11 +289,12 @@ const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOp
                             </button>
                         </div>
 
-                        <div className="mt-10 overflow-hidden rounded-[36px] shadow-[0_28px_60px_-30px_rgba(15,23,42,0.25)]">
+                        <div className="mt-8 overflow-hidden rounded-[32px] bg-slate-50 border border-slate-100 flex justify-center items-center h-[350px] relative group">
+                            <div className="absolute inset-0 bg-gradient-to-tr from-slate-200/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                             <img
                                 src={optimizeImageUrl(blog.featuredImage || blog.image)}
                                 alt={blog.title}
-                                className="h-full max-h-[520px] w-full object-cover"
+                                className="h-[90%] w-auto object-contain drop-shadow-xl transition-transform duration-500 group-hover:scale-105"
                             />
                         </div>
                     </div>

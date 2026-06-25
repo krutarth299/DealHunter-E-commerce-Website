@@ -71,31 +71,43 @@ export const parsePriceNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const pickPreferredPriceNumber = (...candidates) => {
+  for (const candidate of candidates.flat()) {
+    const parsed = parsePriceNumber(candidate);
+    if (parsed !== null && parsed > 0) {
+      return parsed;
+    }
+  }
+  return 0;
+};
+
+const pickHighestPriceNumber = (...candidates) => (
+  candidates
+    .flat()
+    .map((candidate) => parsePriceNumber(candidate))
+    .filter((parsed) => parsed !== null && parsed > 0)
+    .sort((a, b) => b - a)[0] || 0
+);
+
 export const parseDealPrice = (deal = {}) => {
-  return [
+  return pickPreferredPriceNumber(
       deal.dealPrice,
       deal.price,
       deal.originalPrice,
       deal.listPrice
-  ]
-      .map((candidate) => parsePriceNumber(candidate))
-      .filter((price) => price !== null && price > 0)
-      .sort((a, b) => b - a)[0] || 0;
+  );
 };
 
 export const parseDealMrp = (deal = {}) => {
   const pricing = deal.pricing || {};
-  return [
+  return pickHighestPriceNumber(
       pricing.mrp,
       pricing.originalPrice,
       pricing.listPrice,
       deal.mrp,
       deal.originalPrice,
       deal.listPrice
-  ]
-      .map((candidate) => parsePriceNumber(candidate))
-      .filter((price) => price !== null && price > 0)
-      .sort((a, b) => b - a)[0] || 0;
+  );
 };
 
 export const parseDealDiscount = (deal = {}) => {
@@ -114,23 +126,7 @@ export const shouldShowDealMrp = (deal = {}, dealPrice = 0, mrp = 0) => {
   return Boolean(mrp > 0 && dealPrice > 0 && mrp > dealPrice);
 };
 
-const pickPreferredPriceNumber = (...candidates) => {
-  for (const candidate of candidates.flat()) {
-    const parsed = parsePriceNumber(candidate);
-    if (parsed !== null && parsed > 0) {
-      return parsed;
-    }
-  }
-  return 0;
-};
 
-const pickHighestPriceNumber = (...candidates) => (
-  candidates
-    .flat()
-    .map((candidate) => parsePriceNumber(candidate))
-    .filter((parsed) => parsed !== null && parsed > 0)
-    .sort((a, b) => b - a)[0] || 0
-);
 
 const normalizePricePair = ({ dealPriceCandidates = [], mrpCandidates = [] } = {}) => {
   const cleanedMrpCandidates = mrpCandidates

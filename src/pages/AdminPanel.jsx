@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Helmet } from 'react-helmet-async';
+import SEO from '../components/SEO';
 
 import {
     LayoutDashboard, Package, PlusCircle, Search, Trash2,
@@ -12,6 +14,7 @@ import { useNavigate, Link, Routes, Route, useLocation, Navigate } from 'react-r
 import { optimizeImageUrl } from '../utils/imageOptimizer';
 import { buildAffiliateUrl, sanitizeOriginalUrl } from '../utils/affiliateLinks';
 import { normalizeDealForUi, normalizeDealsForUi } from '../utils/dealUi';
+import { generateSeoTitle, generateSeoDescription } from '../utils/seoBuilder';
 import { SITE_NAME } from '../config/brand';
 import { getStoreLogoUrl, AFFILIATE_STORE_PROFILES } from '../config/storeProfiles';
 import { safeObject, safeString, normalizeAdminDeal } from '../utils/safety';
@@ -52,6 +55,8 @@ const DEFAULT_DEAL_FORM = {
     category: '',
     description: '',
     brand: '',
+    seoTitle: '',
+    seoDescription: '',
     featured: false,
     isExpired: false
 };
@@ -714,6 +719,9 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
             affiliateLink: deal?.affiliateLink || primaryVariant?.affiliateLink || '',
             category: deal?.category || '',
             description: deal?.description || deal?.shortDescription || '',
+            seoTitle: deal?.seoTitle || '',
+            seoDescription: deal?.seoDescription || '',
+            focusKeyword: deal?.focusKeyword || '',
             featured: deal?.featured || false,
             isExpired: deal?.isExpired || false,
             brand: deal?.brand || ''
@@ -803,7 +811,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                 if (typeof setDeals === 'function') {
                     setDeals(prev => {
                         const next = prev.filter(d => (d._id || d.id) !== id);
-                        localStorage.setItem('dealhunter_deals_cache', JSON.stringify(next));
+                        sessionStorage.setItem('dealhunter_deals_cache', JSON.stringify(next));
                         return next;
                     });
                 }
@@ -1138,11 +1146,10 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
     /* ─── render ─── */
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans">
-            <>
-                <title>Admin Panel | {SITE_NAME}</title>
-                <meta name="robots" content="noindex,nofollow" />
-                <meta name="application-name" content={SITE_NAME} />
-            </>
+            <SEO 
+                title={`${NAV.find(n => n.id === activeTab)?.label || 'Admin'} - Admin Panel`} 
+                noindex={true} 
+            />
 
             {/* Mobile overlay */}
             {isSidebarOpen && (
@@ -2114,6 +2121,31 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                             </div>
                                         </div>
 
+                                        {/* SEO Overrides */}
+                                        <div className="bg-white/80 backdrop-blur-2xl rounded-[2rem] border border-white shadow-xl shadow-slate-200/40 p-6 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50 mt-6">
+                                            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                                                <Search size={14} className="text-blue-500" />
+                                                <span className="text-xs font-black text-slate-500 uppercase tracking-wider">SEO Metadata (Optional Overrides)</span>
+                                            </div>
+                                            <div className="space-y-4">
+                                                 <div>
+                                                     <div className="flex items-center justify-between mb-1.5">
+                                                         <label className="text-xs font-black text-slate-600 uppercase tracking-wide">SEO Title Override</label>
+                                                     </div>
+                                                     <input type="text" name="seoTitle" className={inputCls} placeholder={`Auto: ${generateSeoTitle(dealForm).substring(0, 50)}...`}
+                                                         value={dealForm.seoTitle || ''} onChange={handleChange} />
+                                                 </div>
+                                                 <div>
+                                                     <div className="flex items-center justify-between mb-1.5">
+                                                         <label className="text-xs font-black text-slate-600 uppercase tracking-wide">SEO Description Override</label>
+                                                     </div>
+                                                     <textarea name="seoDescription" className={`${inputCls} min-h-[60px] resize-none`} placeholder={`Auto: ${generateSeoDescription(dealForm).substring(0, 80)}...`}
+                                                         value={dealForm.seoDescription || ''} onChange={handleChange} />
+                                                 </div>
+                                                 <p className="text-[11px] text-slate-500 font-medium">Leave these blank to let the system auto-generate highly optimized affiliate SEO metadata based on the title, price, and store.</p>
+                                            </div>
+                                        </div>
+
                                         <div className="flex flex-col sm:flex-row gap-4 mt-6">
                                             {/* Featured Deal Toggle */}
                                             <div className="flex-1 flex items-center justify-between p-4 bg-indigo-50 rounded-xl border border-indigo-100">
@@ -2222,6 +2254,19 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                                                         <button disabled className="w-full bg-slate-900 text-white text-[13px] font-black py-4 rounded-2xl mt-4 flex items-center justify-center gap-2 transition-all duration-300 shadow-md shadow-slate-900/10 opacity-90">
                                                             <span>GET DEAL NOW</span> <ExternalLink size={14} className="opacity-80" />
                                                         </button>
+
+                                                        {/* Live SEO Preview Box */}
+                                                        <div className="mt-4 pt-4 border-t border-slate-100">
+                                                            <div className="flex items-center gap-1.5 mb-2">
+                                                                <Search size={12} className="text-blue-500" />
+                                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Search Engine View</span>
+                                                            </div>
+                                                            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                                                                <p className="text-[#1a0dab] text-[13px] font-bold line-clamp-1 truncate">{dealForm.seoTitle || generateSeoTitle(dealForm)}</p>
+                                                                <p className="text-[#006621] text-[11px] mb-1">dealsphere.com/product/...</p>
+                                                                <p className="text-slate-600 text-[11px] leading-snug line-clamp-2">{dealForm.seoDescription || generateSeoDescription(dealForm)}</p>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ) : (

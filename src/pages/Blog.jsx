@@ -8,10 +8,21 @@ import SEO from '../components/SEO';
 import { optimizeImageUrl } from '../utils/imageOptimizer';
 import { formatBlogDate, normalizeBlogForUi } from '../utils/blogs';
 
-const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen, apiBase }) => {
+const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen, apiBase, preloadedBlogs = null }) => {
     const navigate = useNavigate();
-    const [blogs, setBlogs] = useState([]);
-    const [categories, setCategories] = useState([]);
+    
+    // Support SSR Initial Data
+    const getInitialBlogs = () => {
+        if (preloadedBlogs) return preloadedBlogs;
+        if (typeof window !== 'undefined' && window.__INITIAL_BLOGS__) return window.__INITIAL_BLOGS__;
+        if (typeof global !== 'undefined' && global.__INITIAL_BLOGS__) return global.__INITIAL_BLOGS__;
+        return null;
+    };
+    const initialBlogsRaw = getInitialBlogs();
+    const initialBlogs = initialBlogsRaw ? (Array.isArray(initialBlogsRaw) ? initialBlogsRaw.map(normalizeBlogForUi) : []) : null;
+
+    const [blogs, setBlogs] = useState(initialBlogs || []);
+    const [categories, setCategories] = useState(['All']);
     const [tags, setTags] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [selectedTag, setSelectedTag] = useState('All');
@@ -49,7 +60,14 @@ const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen, apiBase }
         };
 
         if (apiBase) {
-            loadBlogs();
+            // Only fetch if we don't have preloaded data OR if we want to hydrate fresh data in background
+            if (blogs.length === 0) {
+                loadBlogs();
+            } else {
+                setLoading(false);
+                // Background refresh for latest data silently
+                loadBlogs();
+            }
         }
 
         return () => {
@@ -188,13 +206,13 @@ const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen, apiBase }
                                     onClick={() => navigate(`/blog/${featuredBlog.slug}`)}
                                     className="group mb-14 grid w-full overflow-hidden rounded-[36px] border border-slate-200/60 bg-white/70 backdrop-blur-xl text-left shadow-premium hover:shadow-premium-lg transition-all lg:grid-cols-[1.2fr_0.8fr]"
                                 >
-                                    <div className="relative min-h-[320px] overflow-hidden">
+                                    <div className="relative min-h-[320px] overflow-hidden bg-white flex items-center justify-center p-8">
                                         <img
                                             src={optimizeImageUrl(featuredBlog.featuredImage || featuredBlog.image)}
                                             alt={featuredBlog.title}
-                                            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                            className="max-h-[260px] w-auto object-contain transition-transform duration-700 group-hover:scale-105 mix-blend-multiply"
                                         />
-                                        <div className="absolute left-6 top-6 rounded-full bg-white/95 px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-orange-600 shadow-lg">
+                                        <div className="absolute left-6 top-6 rounded-full bg-white/95 border border-slate-100 px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-orange-600 shadow-sm">
                                             Featured
                                         </div>
                                     </div>
@@ -203,10 +221,10 @@ const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen, apiBase }
                                             <span className="rounded-full bg-orange-50 px-3 py-1 text-orange-600">{featuredBlog.category}</span>
                                             <span className="inline-flex items-center gap-1"><CalendarDays size={13} /> {formatBlogDate(featuredBlog.publishedAt || featuredBlog.date)}</span>
                                         </div>
-                                        <h2 className="mt-5 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
+                                        <h2 className="mt-5 text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
                                             {featuredBlog.title}
                                         </h2>
-                                        <p className="mt-5 text-base font-medium leading-relaxed text-slate-600">
+                                        <p className="mt-4 text-sm font-medium leading-relaxed text-slate-600">
                                             {featuredBlog.summary}
                                         </p>
                                         <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -234,11 +252,11 @@ const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen, apiBase }
                                             onClick={() => navigate(`/blog/${blog.slug}`)}
                                             className="group overflow-hidden rounded-[28px] border border-slate-200/60 bg-white/70 backdrop-blur-md text-left shadow-sm transition-all hover:-translate-y-2 hover:shadow-premium-lg"
                                         >
-                                            <div className="relative h-56 overflow-hidden">
+                                            <div className="relative h-48 overflow-hidden bg-white border-b border-slate-100 flex items-center justify-center p-6">
                                                 <img
                                                     src={optimizeImageUrl(blog.featuredImage || blog.image)}
                                                     alt={blog.title}
-                                                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                                    className="max-h-36 w-auto object-contain transition-transform duration-700 group-hover:scale-105 mix-blend-multiply"
                                                 />
                                             </div>
                                             <div className="p-6">
@@ -246,7 +264,7 @@ const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen, apiBase }
                                                     <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">{blog.category}</span>
                                                     <span>{blog.readTime}</span>
                                                 </div>
-                                                <h3 className="mt-4 line-clamp-2 text-2xl font-black tracking-tight text-slate-950 transition-colors group-hover:text-orange-600">
+                                                <h3 className="mt-3 line-clamp-2 text-lg font-black leading-snug tracking-tight text-slate-950 transition-colors group-hover:text-orange-600">
                                                     {blog.title}
                                                 </h3>
                                                 <p className="mt-4 line-clamp-3 text-sm font-medium leading-relaxed text-slate-600">

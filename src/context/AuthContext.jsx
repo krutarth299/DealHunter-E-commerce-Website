@@ -10,7 +10,7 @@ export const AuthProvider = ({ children }) => {
 
     useEffect(() => {
         const initAuth = () => {
-            const storedUser = localStorage.getItem('user');
+            const storedUser = sessionStorage.getItem('user');
             if (storedUser) {
                 setUser(JSON.parse(storedUser));
             }
@@ -24,25 +24,25 @@ export const AuthProvider = ({ children }) => {
         if (email.includes('admin')) {
             const adminUser = { role: 'admin', name: 'Admin User', email };
             setUser(adminUser);
-            localStorage.setItem('user', JSON.stringify(adminUser));
+            sessionStorage.setItem('user', JSON.stringify(adminUser));
             return { success: true, user: adminUser };
         }
         const guestUser = { role: 'user', name: 'App User', email };
         setUser(guestUser);
-        localStorage.setItem('user', JSON.stringify(guestUser));
+        sessionStorage.setItem('user', JSON.stringify(guestUser));
         return { success: true, user: guestUser };
     };
 
     const register = async (name, email, password) => {
         const newUser = { role: 'user', name, email };
         setUser(newUser);
-        localStorage.setItem('user', JSON.stringify(newUser));
+        sessionStorage.setItem('user', JSON.stringify(newUser));
         return { success: true, user: newUser };
     };
 
     const logout = () => {
         setUser(null);
-        localStorage.removeItem('user');
+        sessionStorage.removeItem('user');
     };
 
     return (

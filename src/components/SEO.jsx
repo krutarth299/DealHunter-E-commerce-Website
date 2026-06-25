@@ -246,7 +246,8 @@ const SEO = ({
     product,
     itemList,
     breadcrumbs,
-    structuredData
+    structuredData,
+    keywords
 }) => {
     const location = useLocation();
     
@@ -264,7 +265,10 @@ const SEO = ({
     const finalImage = toAbsoluteUrl(image || SITE_SOCIAL_IMAGE);
     
     // SEO Step 5: Auto Keyword Generation
-    const metaKeywords = React.useMemo(() => generateSeoKeywords(productData), [productData]);
+    const metaKeywords = React.useMemo(() => {
+        if (keywords) return keywords;
+        return generateSeoKeywords(productData);
+    }, [productData, keywords]);
 
     const robotsContent = noindex ? 'noindex, nofollow, noarchive' : robots;
     const productSchema = createProductSchema({
@@ -288,7 +292,7 @@ const SEO = ({
         breadcrumbSchema,
         ...asSchemaArray(structuredData)
     ].filter(Boolean);
-    const schemaJson = JSON.stringify(schemas.length === 1 ? schemas[0] : { '@context': 'https://schema.org', '@graph': schemas });
+    const schemaJson = JSON.stringify(schemas.length === 1 ? schemas[0] : { '@context': 'https://schema.org', '@graph': schemas }, null, 2);
 
     return (
         <Helmet>

@@ -2,6 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/authContextDefinition';
 import { Lock, User, KeyRound, AlertCircle, Loader2 } from 'lucide-react';
+import SEO from '../components/SEO';
 
 export default function AdminLogin() {
     const [email, setEmail] = useState('');
@@ -42,6 +43,7 @@ export default function AdminLogin() {
 
     return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+            <SEO title="Admin Login" noindex={true} />
             <div className="bg-white rounded-3xl shadow-xl p-8 w-full max-w-md border border-slate-100">
                 <div className="flex flex-col items-center mb-8">
                     <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4">

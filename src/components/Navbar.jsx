@@ -35,7 +35,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                     
                     // Check if the newest deal is unread
                     if (data.length > 0) {
-                        const lastSeenId = localStorage.getItem('lastSeenDealId');
+                        const lastSeenId = sessionStorage.getItem('lastSeenDealId');
                         const currentNewestId = String(data[0]._id || data[0].id);
                         if (lastSeenId !== currentNewestId) {
                             setHasUnread(true);
@@ -147,12 +147,12 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                 <div className="absolute inset-0 bg-white/70 backdrop-blur-2xl border-b border-slate-100 shadow-premium-sm" />
                 
                 <nav className="relative py-3">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex items-center justify-between gap-4 relative h-16">
+                    <div className="w-full mx-auto px-4 sm:px-8 lg:px-12 xl:px-16">
+                        <div className="flex items-center justify-between relative py-2 sm:py-3">
 
                             {/* Logo */}
-                            <Link to="/" className="flex items-center gap-2 sm:gap-3.5 shrink-0 group">
-                                <div className="flex items-center h-12 sm:h-14">
+                            <Link to="/" className="flex items-center gap-2 shrink-0 group">
+                                <div className="flex items-center h-10 sm:h-12">
                                     <img 
                                         src={logo} 
                                         alt="DealSphere" 
@@ -160,18 +160,92 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                     />
                                 </div>
                                 <div className="flex flex-col leading-none">
-                                    <span className="font-[1000] tracking-tighter flex items-baseline transition-all duration-300 text-xl sm:text-3xl">
+                                    <span className="font-[1000] tracking-tighter flex items-baseline transition-all duration-300 text-xl sm:text-2xl">
                                         <span className="text-[#0F172A]">Deal</span>
                                         <span className="text-[#FF6A00]">Sphere</span>
-                                    </span>
-                                    <span className="font-bold text-slate-400 uppercase tracking-widest mt-0.5 ml-0.5 transition-all duration-300 hidden sm:block text-[8px] sm:text-[9px]">
-                                        Smart Deals Around the World
                                     </span>
                                 </div>
                             </Link>
 
-                            {/* Search Bar */}
-                            <form onSubmit={handleSearch} className="flex-1 max-w-2xl mx-4 lg:mx-8 hidden md:flex items-center relative group/search">
+                            {/* Center Section: Search + Links */}
+                            <div className="flex-1 hidden lg:flex items-center justify-center gap-4 xl:gap-8 px-4 max-w-[1000px] mx-auto">
+                                {/* Search Bar */}
+                                <form onSubmit={handleSearch} className="flex-1 w-full max-w-[600px] flex items-center relative group/search">
+                                    <div className="absolute left-5 text-slate-400 group-focus-within/search:text-[#FF6A00] transition-colors">
+                                        <Search size={18} strokeWidth={2.5} />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={searchVal}
+                                        onChange={e => { setSearchVal(e.target.value); if (onSearch) onSearch(e.target.value); }}
+                                        placeholder="Search 10,000+ verified deals..."
+                                        className="w-full bg-slate-100/30 border border-slate-200/60 rounded-2xl py-2.5 pl-12 pr-6 text-sm font-semibold focus:outline-none focus:bg-white focus:border-[#FF6A00]/50 focus:ring-[6px] focus:ring-[#FF6A00]/5 transition-all"
+                                    />
+                                    <AnimatePresence>
+                                        {searchVal.trim().length >= 2 && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                                                className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-50 overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white/98 shadow-2xl shadow-slate-900/12 backdrop-blur-xl"
+                                            >
+                                                {searchSuggestions.length > 0 ? searchSuggestions.map((deal) => {
+                                                    const productPath = getProductPath(deal);
+                                                    return (
+                                                        <Link
+                                                            key={deal._id || deal.id || deal.title}
+                                                            to={productPath}
+                                                            onClick={() => {
+                                                                closeSearch();
+                                                            }}
+                                                            className="flex items-center gap-4 border-b border-slate-50 p-3 transition-colors hover:bg-orange-50/60"
+                                                        >
+                                                            <div className="h-14 w-14 shrink-0 rounded-2xl bg-slate-50 p-2">
+                                                                <img src={getMainProductImage(deal)} alt="" className="h-full w-full object-contain" />
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="line-clamp-1 text-xs font-black text-slate-900">{getCardTitle(deal.displayTitle || deal.title)}</p>
+                                                                <div className="mt-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                                    <span>{deal.store || deal.storeName || 'Store'}</span>
+                                                                    {getDealPriceLabel(deal) && <span className="text-orange-600">{getDealPriceLabel(deal)}</span>}
+                                                                </div>
+                                                            </div>
+                                                            <ArrowRight size={16} className="text-slate-300" />
+                                                        </Link>
+                                                    );
+                                                }) : (
+                                                    <div className="px-5 py-4 text-xs font-bold text-slate-500">Press Enter to search all live deals for “{searchVal.trim()}”.</div>
+                                                )}
+                                                <Link
+                                                    to={`/deals?search=${encodeURIComponent(searchVal)}`}
+                                                    onClick={closeSearch}
+                                                    className="flex items-center justify-between bg-[#0F172A] px-5 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white transition-colors hover:bg-[#FF6A00]"
+                                                >
+                                                    Search all deals
+                                                    <ArrowRight size={15} />
+                                                </Link>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </form>
+
+                                {/* Desktop Links */}
+                                <div className="flex items-center gap-2 xl:gap-4 shrink-0">
+                                    {[
+                                        { to: '/', label: '🔥 Hot Deals' },
+                                        { to: '/deals', label: 'All Deals' },
+                                        { to: '/stores', label: 'Stores' },
+                                        { to: '/blog', label: 'Blog' }
+                                    ].map(link => (
+                                        <Link key={link.to} to={link.to} className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${isActive(link.to) ? 'bg-[#FF6A00] text-white shadow-lg shadow-orange-500/20' : 'text-slate-500 hover:text-[#FF6A00] hover:bg-orange-50/50'}`}>
+                                            {link.label}
+                                        </Link>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            {/* Mobile/Tablet Search (shows when Center Section is hidden) */}
+                            <form onSubmit={handleSearch} className="flex-1 mx-4 lg:hidden hidden md:flex items-center relative group/search">
                                 <div className="absolute left-5 text-slate-400 group-focus-within/search:text-[#FF6A00] transition-colors">
                                     <Search size={18} strokeWidth={2.5} />
                                 </div>
@@ -179,64 +253,18 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                     type="text"
                                     value={searchVal}
                                     onChange={e => { setSearchVal(e.target.value); if (onSearch) onSearch(e.target.value); }}
-                                    placeholder="Search 10,000+ verified deals..."
-                                    className="w-full bg-slate-100/30 border border-slate-200/60 rounded-2xl py-3.5 pl-12 pr-6 text-sm font-semibold focus:outline-none focus:bg-white focus:border-[#FF6A00]/50 focus:ring-[6px] focus:ring-[#FF6A00]/5 transition-all"
+                                    placeholder="Search deals..."
+                                    className="w-full bg-slate-100/30 border border-slate-200/60 rounded-2xl py-2.5 pl-12 pr-6 text-sm font-semibold focus:outline-none focus:bg-white focus:border-[#FF6A00]/50 focus:ring-[6px] focus:ring-[#FF6A00]/5 transition-all"
                                 />
-                                <AnimatePresence>
-                                    {searchVal.trim().length >= 2 && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                                            exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                                            className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-50 overflow-hidden rounded-[1.75rem] border border-slate-100 bg-white/98 shadow-2xl shadow-slate-900/12 backdrop-blur-xl"
-                                        >
-                                            {searchSuggestions.length > 0 ? searchSuggestions.map((deal) => {
-                                                const productPath = getProductPath(deal);
-                                                return (
-                                                    <Link
-                                                        key={deal._id || deal.id || deal.title}
-                                                        to={productPath}
-                                                        onClick={() => {
-                                                            closeSearch();
-                                                        }}
-                                                        className="flex items-center gap-4 border-b border-slate-50 p-3 transition-colors hover:bg-orange-50/60"
-                                                    >
-                                                        <div className="h-14 w-14 shrink-0 rounded-2xl bg-slate-50 p-2">
-                                                            <img src={getMainProductImage(deal)} alt="" className="h-full w-full object-contain" />
-                                                        </div>
-                                                        <div className="min-w-0 flex-1">
-                                                            <p className="line-clamp-1 text-xs font-black text-slate-900">{getCardTitle(deal.displayTitle || deal.title)}</p>
-                                                            <div className="mt-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                                                <span>{deal.store || deal.storeName || 'Store'}</span>
-                                                                {getDealPriceLabel(deal) && <span className="text-orange-600">{getDealPriceLabel(deal)}</span>}
-                                                            </div>
-                                                        </div>
-                                                        <ArrowRight size={16} className="text-slate-300" />
-                                                    </Link>
-                                                );
-                                            }) : (
-                                                <div className="px-5 py-4 text-xs font-bold text-slate-500">Press Enter to search all live deals for “{searchVal.trim()}”.</div>
-                                            )}
-                                            <Link
-                                                to={`/deals?search=${encodeURIComponent(searchVal)}`}
-                                                onClick={closeSearch}
-                                                className="flex items-center justify-between bg-[#0F172A] px-5 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white transition-colors hover:bg-[#FF6A00]"
-                                            >
-                                                Search all deals
-                                                <ArrowRight size={15} />
-                                            </Link>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
                             </form>
 
                             {/* Right Actions */}
-                            <div className="flex items-center gap-1 sm:gap-3">
+                            <div className="flex items-center gap-3 sm:gap-5 shrink-0">
                                 {/* Wishlist */}
-                                <Link to="/wishlist" ref={wishlistRef} className="relative flex items-center justify-center w-11 h-11 rounded-2xl hover:bg-orange-50 transition-all group">
-                                    <Heart size={22} className={`${wishlistCount > 0 ? 'text-[#FF6A00] fill-[#FF6A00]' : 'text-slate-500'} group-hover:text-[#FF6A00] transition-colors`} />
+                                <Link to="/wishlist" ref={wishlistRef} className="relative flex items-center justify-center w-10 h-10 rounded-2xl hover:bg-orange-50 transition-all group">
+                                    <Heart size={20} className={`${wishlistCount > 0 ? 'text-[#FF6A00] fill-[#FF6A00]' : 'text-slate-500'} group-hover:text-[#FF6A00] transition-colors`} />
                                     {wishlistCount > 0 && (
-                                        <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-[#FF6A00] text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                                        <span className="absolute top-0 right-0 w-4 h-4 bg-[#FF6A00] text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-lg border-2 border-white">
                                             {wishlistCount}
                                         </span>
                                     )}
@@ -253,17 +281,17 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                             // Clear notification dot when opening
                                             if (nextState && latestDeals.length > 0) {
                                                 setHasUnread(false);
-                                                localStorage.setItem('lastSeenDealId', String(latestDeals[0]._id || latestDeals[0].id));
+                                                sessionStorage.setItem('lastSeenDealId', String(latestDeals[0]._id || latestDeals[0].id));
                                             }
                                         }} 
-                                        className={`relative flex items-center justify-center w-11 h-11 rounded-2xl transition-all ${isNotificationsOpen ? 'bg-orange-50 text-[#FF6A00]' : 'text-slate-500 hover:bg-slate-100'}`}
+                                        className={`relative flex items-center justify-center w-10 h-10 rounded-2xl transition-all ${isNotificationsOpen ? 'bg-orange-50 text-[#FF6A00]' : 'text-slate-500 hover:bg-slate-100'}`}
                                     >
-                                        <Bell size={22} />
-                                        {hasUnread && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#FF6A00] rounded-full border-2 border-white animate-pulse" />}
+                                        <Bell size={20} />
+                                        {hasUnread && <span className="absolute top-1 right-1 w-2 h-2 bg-[#FF6A00] rounded-full border-2 border-white animate-pulse" />}
                                     </button>
                                     <AnimatePresence>
                                         {isNotificationsOpen && (
-                                            <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute top-14 right-0 w-80 bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl border border-slate-100 z-50 overflow-hidden transform origin-top-right">
+                                            <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute top-12 right-0 w-80 bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl border border-slate-100 z-50 overflow-hidden transform origin-top-right">
                                                 <div className="p-5 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
                                                     <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest">New Deals</h4>
                                                     <span className="text-[10px] font-black bg-[#FF6A00] text-white px-2 py-0.5 rounded-lg">{latestDeals.length}</span>
@@ -302,44 +330,20 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
 
                                 {/* User Profile */}
                                 {user && (
-                                    <div className="hidden md:flex items-center gap-3 bg-slate-50 p-1 rounded-xl border border-slate-100 hover:bg-white hover:border-orange-200 transition-all cursor-pointer group">
-                                        <div className="w-9 h-9 rounded-lg bg-orange-100 flex items-center justify-center text-[#FF6A00] font-black text-sm border border-white shadow-sm overflow-hidden">
+                                    <div className="hidden md:flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-100 hover:bg-white hover:border-orange-200 transition-all cursor-pointer group ml-1">
+                                        <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center text-[#FF6A00] font-black text-xs border border-white shadow-sm overflow-hidden">
                                             {user.name && user.name.charAt(0)}
                                         </div>
-                                        <div className="flex flex-col pr-3">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-1">Account</span>
-                                            <span className="text-xs font-black text-slate-900 leading-none">{user.name.split(' ')[0]}</span>
-                                        </div>
-                                        <button onClick={logout} className="p-1.5 text-slate-300 hover:text-[#FF6A00] transition-colors">
+                                        <button onClick={logout} className="p-1 text-slate-300 hover:text-[#FF6A00] transition-colors">
                                             <X size={14} />
                                         </button>
                                     </div>
                                 )}
 
                                 {/* Mobile menu toggle */}
-                                <button onClick={() => setIsOpen(!isOpen)} className="md:hidden flex items-center justify-center w-11 h-11 rounded-2xl hover:bg-slate-100 transition-colors">
-                                    {isOpen ? <X size={22} className="text-slate-900" /> : <Menu size={22} className="text-slate-900" />}
+                                <button onClick={() => setIsOpen(!isOpen)} className="xl:hidden flex items-center justify-center w-10 h-10 rounded-2xl hover:bg-slate-100 transition-colors">
+                                    {isOpen ? <X size={20} className="text-slate-900" /> : <Menu size={20} className="text-slate-900" />}
                                 </button>
-                            </div>
-                        </div>
-
-                        {/* Secondary Desktop Navigation Row */}
-                        <div className="hidden md:block overflow-hidden">
-                            <div className="max-w-7xl mx-auto border-t border-slate-100/50 py-2 mt-4 flex items-center gap-1">
-                                {[
-                                    { to: '/', label: '🔥 Hot Deals' },
-                                    { to: '/deals', label: 'All Deals' },
-                                    { to: '/stores', label: 'Stores' },
-                                    { to: '/blog', label: 'Blog' }
-                                ].map(link => (
-                                    <Link key={link.to} to={link.to} className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${isActive(link.to) ? 'bg-[#FF6A00] text-white shadow-lg shadow-orange-500/20' : 'text-slate-500 hover:text-[#FF6A00] hover:bg-orange-50/50'}`}>
-                                        {link.label}
-                                    </Link>
-                                ))}
-                                <div className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Live Updates</span>
-                                </div>
                             </div>
                         </div>
 

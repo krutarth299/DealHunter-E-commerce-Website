@@ -3,6 +3,13 @@ import Deal from '../models/Deal.js';
 import Blog from '../models/Blog.js';
 import { slugifyProductTitle } from '../../src/utils/productUrls.js';
 import { couponsEnabled } from '../config/features.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
@@ -16,6 +23,21 @@ const sitemapCache = new Map();
 
 export const clearSitemapCache = () => {
     sitemapCache.clear();
+};
+
+export const triggerSitemapUpdate = () => {
+    // Clear in-memory cache instantly
+    clearSitemapCache();
+    
+    // Spawn background process to update manual links JSON
+    const scriptPath = path.resolve(__dirname, '../generate-manual-sitemap.js');
+    exec(`node "${scriptPath}"`, { env: process.env }, (error, stdout, stderr) => {
+        if (error) {
+            console.error('[SITEMAP_UPDATE] Failed to run automated sitemap script:', error.message);
+            return;
+        }
+        console.log('[SITEMAP_UPDATE] Automated sitemap successfully generated.');
+    });
 };
 
 const stripTrailingSlash = (value = '') => String(value || '').replace(/\/+$/, '');
@@ -256,7 +278,7 @@ const buildBlogEntries = (blogs = []) => uniqueByLoc(
 
 const getCacheKey = (req) => `${getSiteOrigin()}|db`;
 
-const getSitemapData = async (req) => {
+export const getSitemapData = async (req) => {
     const cacheKey = getCacheKey(req);
     const cached = sitemapCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.data;
@@ -268,15 +290,30 @@ const getSitemapData = async (req) => {
     const stores = buildStoreEntries(deals);
     const blogs = buildBlogEntries(await getBlogsForSitemap(req));
 
+    let manualProducts = [];
+    try {
+        const manualPath = path.join(__dirname, '../data/manual-sitemap.json');
+        if (fs.existsSync(manualPath)) {
+            const manualData = JSON.parse(fs.readFileSync(manualPath, 'utf-8'));
+            if (Array.isArray(manualData)) {
+                manualProducts = manualData;
+            }
+        }
+    } catch (err) {
+        console.error('Failed to read manual sitemap links:', err.message);
+    }
+
+    const allProducts = uniqueByLoc([...products, ...manualProducts]);
+
     const data = {
         pages,
-        products,
+        products: allProducts,
         categories,
         stores,
         blogs,
         lastmod: {
             pages: latestTimestamp(pages),
-            products: latestTimestamp(products),
+            products: latestTimestamp(allProducts),
             categories: latestTimestamp(categories),
             stores: latestTimestamp(stores),
             blogs: latestTimestamp(blogs)
@@ -341,6 +378,10 @@ router.get('/robots.txt', (req, res) => {
         `Sitemap: ${absoluteUrl('/sitemap.xml')}`,
         ''
     ].join('\n'));
+});
+
+router.get('/sitemap', (req, res) => {
+    res.redirect(301, '/sitemap.xml');
 });
 
 router.get('/sitemap.xml', async (req, res, next) => {

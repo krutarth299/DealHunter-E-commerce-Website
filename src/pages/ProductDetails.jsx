@@ -147,7 +147,10 @@ const buildPriceInsight = (product = {}, alternatives = []) => {
     const average = referencePrices.length
         ? Math.round(referencePrices.reduce((sum, price) => sum + price, 0) / referencePrices.length)
         : current;
-    const discountPercent = parseDealDiscount(product);
+    let discountPercent = parseDealDiscount(product);
+    if (!discountPercent && mrp > current && current > 0) {
+        discountPercent = Math.round(((mrp - current) / mrp) * 100);
+    }
 
     const quality = discountPercent >= 50 || (current > 0 && lowest > 0 && current <= lowest)
         ? 'Best Deal'
@@ -823,9 +826,9 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                     <span className="text-[10px] font-black bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-full flex items-center gap-1 border border-emerald-100">
                                         <CheckCircle2 size={12} /> VERIFIED DEAL
                                     </span>
-                                    {parseInt(activeProduct?.discount || "0") > 40 && (
+                                    {parseInt(activeProduct?.discount || priceInsight.discountPercent || "0") > 40 && (
                                         <span className="text-[10px] font-black bg-indigo-50 text-[#4f46e5] px-2.5 py-1 rounded-full flex items-center gap-1 animate-pulse border border-indigo-100">
-                                            ?? BEST PRICE
+                                            🔥 BEST PRICE
                                         </span>
                                     )}
                                 </div>

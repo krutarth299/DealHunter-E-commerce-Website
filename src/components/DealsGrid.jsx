@@ -33,7 +33,11 @@ const clampHighestPositiveNumber = (...candidates) => (
 const getDealPricing = (deal = {}) => {
     const dealPriceValue = parseDealPrice(deal);
     const mrpValue = parseDealMrp(deal);
-    const discountValue = parseDealDiscount(deal);
+    let discountValue = parseDealDiscount(deal);
+
+    if (!discountValue && mrpValue > dealPriceValue && dealPriceValue > 0) {
+        discountValue = Math.round(((mrpValue - dealPriceValue) / mrpValue) * 100);
+    }
 
     return {
         dealPriceValue,
@@ -41,7 +45,7 @@ const getDealPricing = (deal = {}) => {
         discountValue,
         discount: discountValue > 0 ? `${discountValue}% OFF` : '',
         dealPriceLabel: dealPriceValue > 0 ? formatPriceDisplay(dealPriceValue) : '',
-        mrpLabel: mrpValue > 0 ? formatPriceDisplay(mrpValue) : '',
+        mrpLabel: mrpValue > dealPriceValue ? formatPriceDisplay(mrpValue) : '',
     };
 };
 
@@ -99,7 +103,7 @@ const DealCard = React.memo(({ deal, wishlist = [], toggleWishlist, index = 0 })
         return wishlistId && dealId && String(wishlistId) === String(dealId);
     });
 
-    const { dealPriceValue, mrpValue, discountValue, dealPriceLabel, mrpLabel, showZeroDiscount } = getDealPricing(deal);
+    const { dealPriceValue, mrpValue, discountValue, dealPriceLabel, mrpLabel, discount } = getDealPricing(deal);
     const storeName = deal.store || deal.storeName || 'Online Store';
     const storeStyle = getStoreStyle(storeName);
     const shortTitle = deal.cardTitle || getShortTitle(deal.displayTitle || deal.title);
@@ -148,10 +152,10 @@ const DealCard = React.memo(({ deal, wishlist = [], toggleWishlist, index = 0 })
                 </div>
 
                 <div className="absolute left-3 top-3 z-10 flex flex-col gap-2 md:left-4 md:top-4">
-                    {deal?.discount && (
+                    {discount && (
                         <div className="flex items-center gap-1 rounded-xl bg-[#FF6A00] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest text-white shadow-lg md:gap-1.5 md:px-3 md:text-[10px]">
                             <Zap size={12} fill="currentColor" />
-                            {deal.discount}
+                            {discount}
                         </div>
                     )}
                     {trending && (
@@ -243,10 +247,10 @@ const DealCard = React.memo(({ deal, wishlist = [], toggleWishlist, index = 0 })
                             )}
                         </div>
                         <div className="flex min-h-[1.35rem] flex-wrap items-center gap-2 text-[9px] font-black uppercase tracking-widest">
-                            {deal?.discount ? (
+                            {discount ? (
                                 <span className="inline-flex items-center gap-1 rounded-lg border border-orange-100 bg-orange-50 px-2 py-1 text-[#FF6A00]">
                                     <Zap size={11} fill="currentColor" />
-                                    {deal.discount}
+                                    {discount}
                                 </span>
                             ) : (
                                 <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-1 text-[#22C55E]">

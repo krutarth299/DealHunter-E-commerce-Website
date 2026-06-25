@@ -12,6 +12,15 @@ import {
 
 import storesRouter from './stores.js';
 import { groupDealsIntoListings } from '../utils/product-identity.js';
+import { getSitemapData, triggerSitemapUpdate } from './sitemap.js';
+import { exec } from 'child_process';
+import util from 'util';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const execPromise = util.promisify(exec);
 
 const router = express.Router();
 
@@ -92,6 +101,15 @@ router.get('/stats', async (req, res) => {
     }
 });
 
+router.get('/sitemap-data', async (req, res) => {
+    try {
+        const data = await getSitemapData(req);
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ message: error.message || 'Failed to fetch sitemap data' });
+    }
+});
+
 router.get('/stores', async (req, res) => {
     try {
         const stats = await Deal.aggregate([
@@ -169,6 +187,8 @@ router.put('/affiliate-settings', async (req, res) => {
             reapplyUpdated: reapply.updated || 0
         });
 
+        triggerSitemapUpdate();
+
         res.json({ settings, reapply });
     } catch (error) {
         res.status(400).json({ message: error.message || 'Failed to save affiliate settings' });
@@ -223,6 +243,9 @@ router.post('/deals/cleanup', async (req, res) => {
             const result = await Deal.deleteMany({ _id: { $in: badDeals.map(d => d._id) } });
             deletedCount = result.deletedCount;
             removedDeals = badDeals.map(d => ({ id: d._id, title: d.title, store: d.store || d.storeName }));
+            
+            // Automatically trigger SEO / Sitemap regeneration
+            triggerSitemapUpdate();
         }
 
         res.json({
@@ -232,6 +255,17 @@ router.post('/deals/cleanup', async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ message: error.message || 'Failed to clean up deals' });
+    }
+});
+
+router.post('/generate-manual-sitemap', async (req, res) => {
+    try {
+        const scriptPath = path.join(__dirname, '../generate-manual-sitemap.js');
+        const { stdout, stderr } = await execPromise(`node "${scriptPath}"`);
+        res.json({ success: true, message: 'Generated manual links successfully', output: stdout });
+    } catch (error) {
+        console.error('Manual sitemap generation error:', error);
+        res.status(500).json({ message: 'Failed to generate manual links', error: error.message });
     }
 });
 

@@ -173,7 +173,7 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-export function AppContent({ preloadedDeals = null, preloadedCategories = null }) {
+export function AppContent({ preloadedDeals = null, preloadedCategories = null, preloadedBlogs = null, preloadedBlog = null }) {
   console.count("APP RENDER");
   const authContext = useContext(AuthContext);
   const { user, logout, loading, apiBase } = authContext || { user: null, logout: () => { }, loading: false, apiBase: '' };
@@ -181,10 +181,10 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
   const cachedDealsMeta = cachedDealsSnapshot?.meta || null;
   const cachedDealsUpdatedAt = cachedDealsMeta?.updatedAt;
   const cachedDealsMetaVersion = cachedDealsMeta?.version;
-  const hasPreloadedDeals = Array.isArray(preloadedDeals);
+  const hasPreloadedDeals = preloadedDeals && preloadedDeals.length > 0;
   const hasWindowDeals = typeof window !== 'undefined' && Array.isArray(window.__INITIAL_DATA__);
   const hasCachedDeals = Boolean(cachedDealsSnapshot?.deals?.length);
-  const hasPreloadedCategories = Array.isArray(preloadedCategories);
+  const hasPreloadedCategories = preloadedCategories && preloadedCategories.length > 0;
   const hasWindowCategories = typeof window !== 'undefined' && Array.isArray(window.__INITIAL_CATEGORIES__);
 
   const [deals, setDeals] = useState(() => {
@@ -698,8 +698,8 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null }
 
             <Route path="/deals" element={<Deals {...sharedProps} deals={filteredDeals} onSearch={setSearchQuery} />} />
             <Route path="/wishlist" element={<Wishlist {...sharedProps} wishlist={wishlist} wishlistCount={wishlist.length} />} />
-            <Route path="/blog" element={<Blog {...sharedProps} />} />
-            <Route path="/blog/:slug" element={<BlogPost {...sharedProps} />} />
+            <Route path="/blog" element={<Blog {...sharedProps} preloadedBlogs={preloadedBlogs} />} />
+            <Route path="/blog/:slug" element={<BlogPost {...sharedProps} preloadedBlog={preloadedBlog} />} />
             <Route path="/stores" element={<Stores {...sharedProps} deals={publicDeals} />} />
             <Route path="/deal/:id" element={<ProductDetails {...sharedProps} deals={publicDeals} />} />
             <Route path="/product/:id" element={<ProductDetails {...sharedProps} deals={publicDeals} />} />

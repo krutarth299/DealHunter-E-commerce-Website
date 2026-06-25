@@ -61,17 +61,11 @@ const isLiveHomepageDeal = (deal = {}) => Boolean(
     && getMainProductImage(deal) !== NO_PRODUCT_IMAGE
 );
 
-const getFeaturedDeals = (deals = [], limit = 3) => (
-    [...deals]
-        .filter(isLiveHomepageDeal)
-        .filter(d => d.featured === true)
-        .sort((a, b) => {
-            const scoreA = getDealQualityScore(a);
-            const scoreB = getDealQualityScore(b);
-            return scoreB - scoreA;
-        })
-        .slice(0, limit)
-);
+const getFeaturedDeals = (deals = [], limit = 5) => {
+    const liveDeals = [...deals].filter(isLiveHomepageDeal);
+    const featured = liveDeals.filter(d => d.featured === true).sort((a, b) => getDealQualityScore(b) - getDealQualityScore(a));
+    return featured.slice(0, limit);
+};
 
 const getBestDealsToday = (deals = [], limit = 4) => (
     [...deals]
@@ -117,7 +111,10 @@ const dedupeDeals = (items = []) => {
 const FeaturedDealCard = React.memo(({ deal, index }) => {
     const price = parseDealPrice(deal);
     const mrp = parseDealMrp(deal);
-    const discount = parseDealDiscount(deal);
+    let discount = parseDealDiscount(deal);
+    if (!discount && mrp > price && price > 0) {
+        discount = Math.round(((mrp - price) / mrp) * 100);
+    }
     const isFlipkartStore = String(deal.store || deal.storeName || '').toLowerCase().includes('flipkart');
     const title = getCardTitle(deal.displayTitle || deal.title);
     const storeName = deal.store || deal.storeName || 'Online Store';
@@ -148,9 +145,9 @@ const FeaturedDealCard = React.memo(({ deal, index }) => {
                     <div className="absolute left-4 top-4 rounded-2xl bg-slate-950/90 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-white backdrop-blur">
                         Featured
                     </div>
-                    {(discount > 0 || (isFlipkartStore && price && mrp)) && (
+                    {(discount > 0 || (isFlipkartStore && price && mrp && mrp > price)) && (
                         <div className="absolute right-4 top-4 rounded-2xl bg-[#FF6A00] px-3 py-2 text-[10px] font-black text-white shadow-lg">
-                            {discount || 0}% OFF
+                            {discount || Math.round(((mrp - price) / mrp) * 100)}% OFF
                         </div>
                     )}
                 </div>

@@ -4,22 +4,29 @@ import { seoKeywords } from '../seo/seoKeywords';
  * Generates an SEO-optimized title for a product deal
  */
 export const generateSeoTitle = (product) => {
-  if (!product) return "Best Deals & Discounts | Latest Online Offers";
+  if (!product) return "Best Deals, Offers & Coupons | Save Money Shopping Online";
   
-  const discountText = product.discount > 0 ? `| ${product.discount}% OFF` : "";
-  const storeText = product.store ? `on ${product.store}` : "";
+  const discountText = product.discountPercent > 0 ? `| ${product.discountPercent}% OFF` : (product.discount ? `| ${product.discount} OFF` : "");
+  const storeText = product.store ? `at ${product.store}` : "";
+  const priceText = product.dealPrice > 0 ? `- Just ₹${product.dealPrice}` : "";
   
-  return `${product.title} Deal ${storeText} ${discountText} | Best Price Today`.replace(/\s+/g, ' ').trim();
+  return `Buy ${product.title} ${priceText} ${storeText} ${discountText} | Today's Best Deal`.replace(/\s+/g, ' ').trim();
 };
 
 /**
  * Generates an SEO-optimized meta description
  */
 export const generateSeoDescription = (product) => {
-  if (!product) return "Find the latest online shopping deals, discounts, and offers from Amazon, Flipkart, Myntra and more. Get best prices on electronics, fashion and more.";
+  if (!product) return "Discover the biggest discounts, exclusive coupons, and lowest prices on electronics, fashion, and home appliances from top stores like Amazon and Flipkart.";
   
   const store = product.store || "online";
-  return `Get the best deal on ${product.title} from ${store}. Latest price, ${product.discount}% discount, hot offers and complete product details available now.`.replace(/\s+/g, ' ').trim();
+  const discount = product.discountPercent > 0 ? `Save ${product.discountPercent}%` : (product.discount ? `Save ${product.discount}` : "Get huge savings");
+  const priceText = product.dealPrice > 0 ? ` for just ₹${product.dealPrice}` : "";
+  const mrpText = (product.mrp || product.originalPrice) > product.dealPrice ? ` (Original Price: ₹${product.mrp || product.originalPrice})` : "";
+  const categoryText = product.category ? ` Top rated in ${product.category}.` : "";
+  const ratingText = product.rating > 0 ? ` ⭐ ${product.rating}/5 Rated.` : "";
+  
+  return `Looking for the best price? ${discount} on ${product.title}${priceText}${mrpText} at ${store}.${categoryText}${ratingText} Click here to grab this exclusive deal before it expires! Verified affiliate offers & lowest price guaranteed.`.replace(/\s+/g, ' ').trim();
 };
 
 /**
@@ -49,25 +56,42 @@ export const generateSeoKeywords = (product) => {
 export const generateProductSchema = (product) => {
   if (!product) return null;
 
-  return {
+  const schema = {
     "@context": "https://schema.org/",
     "@type": "Product",
     "name": product.title,
-    "image": product.imageUrl || product.images?.[0],
-    "description": product.description || product.title,
+    "image": product.imageUrl || product.images?.[0] || product.thumbnail,
+    "description": product.shortDescription || product.description || product.title,
     "brand": {
       "@type": "Brand",
-      "name": product.store || "Retail"
+      "name": product.brand || product.store || "Retail"
     },
     "offers": {
       "@type": "Offer",
       "url": typeof window !== 'undefined' ? window.location.href : '',
       "priceCurrency": "INR",
-      "price": product.dealPrice,
+      "price": product.dealPrice || product.price,
+      "priceValidUntil": product.isExpired ? new Date().toISOString() : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       "itemCondition": "https://schema.org/NewCondition",
-      "availability": "https://schema.org/InStock"
+      "availability": product.availability?.toLowerCase() === 'out of stock' || product.isExpired 
+          ? "https://schema.org/OutOfStock" 
+          : "https://schema.org/InStock"
     }
   };
+
+  if (product.rating && product.reviewCount) {
+      schema.aggregateRating = {
+          "@type": "AggregateRating",
+          "ratingValue": product.rating,
+          "reviewCount": product.reviewCount
+      };
+  }
+
+  if (product.category) {
+      schema.category = product.category;
+  }
+
+  return schema;
 };
 
 /**

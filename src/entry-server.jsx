@@ -7,11 +7,11 @@ import { App, AppContent } from './App';
 import ErrorBoundary from './ErrorBoundary';
 import { HelmetProvider } from 'react-helmet-async';
 
-export async function render(url, preloadedDeals = [], preloadedCategories = []) {
+export async function render(url, preloadedDeals = [], preloadedCategories = [], preloadedBlogs = null, preloadedBlog = null) {
   const helmetContext = {};
 
   try {
-    const html = await new Promise((resolve, reject) => {
+    let html = await new Promise((resolve, reject) => {
       let didError = false;
       const stream = new PassThrough();
       let htmlBuffer = '';
@@ -39,6 +39,8 @@ export async function render(url, preloadedDeals = [], preloadedCategories = [])
                     <AppContent
                       preloadedDeals={preloadedDeals}
                       preloadedCategories={preloadedCategories}
+                      preloadedBlogs={preloadedBlogs}
+                      preloadedBlog={preloadedBlog}
                     />
                   </StaticRouter>
                 </App>
@@ -64,17 +66,25 @@ export async function render(url, preloadedDeals = [], preloadedCategories = [])
       }, 10000);
     });
 
-    const { helmet } = helmetContext;
+    // Extract react-helmet-async tags from HTML body
+    const helmetRegex = /(<title[^>]*>.*?<\/title>|<meta(?!\s+charset)[^>]+>|<link(?!\s+(?:rel="stylesheet"|rel="preload"))[^>]+>|<script[^>]+type="application\/ld\+json"[^>]*>[\s\S]*?<\/script>)/gi;
+    let extractedTags = [];
+    html = html.replace(helmetRegex, (match) => {
+      extractedTags.push(match);
+      return ''; // remove them from body
+    });
 
     return { 
       html, 
       helmet: {
-        title: helmet?.title,
-        meta: helmet?.meta,
-        link: helmet?.link,
-        script: helmet?.script
+        title: extractedTags.filter(t => t.startsWith('<title')).join('\n'),
+        meta: extractedTags.filter(t => t.startsWith('<meta')).join('\n'),
+        link: extractedTags.filter(t => t.startsWith('<link')).join('\n'),
+        script: extractedTags.filter(t => t.startsWith('<script')).join('\n')
       }
     };
+
+
   } catch (error) {
     console.error('[SSR Entry Server Error]:', error);
     // Fallback minimal render to prevent complete crash

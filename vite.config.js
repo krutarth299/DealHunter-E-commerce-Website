@@ -20,7 +20,6 @@ export default defineConfig({
             !accept.includes('text/html') ||
             req.url.startsWith('/api') ||
             req.url.includes('/socket.io') ||
-            req.url.startsWith('/admin') ||
             req.url.includes('sitemap') ||
             req.url === '/robots.txt'
           ) {
@@ -47,18 +46,49 @@ export default defineConfig({
               console.error('[Dev SSR] Failed to fetch data from backend:', err.message);
             }
 
+            let ssrBlogDataScript = '';
+            
+            console.log('[Dev SSR] Handling URL:', req.url);
+
+            try {
+              if (req.url === '/blog' || req.url === '/blog/') {
+                  const apiRes = await fetch('http://127.0.0.1:5000/api/blog?limit=100');
+                  if (apiRes.ok) {
+                      const data = await apiRes.json();
+                      global.__INITIAL_BLOGS__ = data.items || [];
+                      ssrBlogDataScript = `\nwindow.__INITIAL_BLOGS__ = ${JSON.stringify(data.items || []).replace(/</g, '\\u003c')};`;
+                  }
+              } else if (req.url.startsWith('/blog/')) {
+                  const slug = req.url.split('/')[2];
+                  if (slug) {
+                      const apiRes = await fetch(`http://127.0.0.1:5000/api/blog/${slug}`);
+                      if (apiRes.ok) {
+                          const data = await apiRes.json();
+                          global.__INITIAL_BLOG__ = data;
+                          ssrBlogDataScript = `\nwindow.__INITIAL_BLOG__ = ${JSON.stringify(data).replace(/</g, '\\u003c')};`;
+                      }
+                  }
+              }
+            } catch (err) {
+              console.error('[Dev SSR] Failed to fetch blog data:', err.message);
+            }
+
             const { render } = await server.ssrLoadModule('/src/entry-server.jsx');
             const { html, helmet } = await render(req.url, preloadedDeals, preloadedCategories);
-``
+
+            delete global.__INITIAL_BLOGS__;
+            delete global.__INITIAL_BLOG__;
+
             const helmetTags = helmet ? [
               helmet.title?.toString() || '',
               helmet.meta?.toString() || '',
-              helmet.link?.toString() || ''
+              helmet.link?.toString() || '',
+              helmet.script?.toString() || ''
             ].filter(Boolean).join('\n') : '';
 
             const ssrDataScript = `<script>
                 window.__INITIAL_DATA__ = ${JSON.stringify(preloadedDeals)};
-                window.__INITIAL_CATEGORIES__ = ${JSON.stringify(preloadedCategories)};
+                window.__INITIAL_CATEGORIES__ = ${JSON.stringify(preloadedCategories)};${ssrBlogDataScript}
             </script>`;
 
             template = template
@@ -105,7 +135,7 @@ export default defineConfig({
         target: "http://127.0.0.1:5000",
         ws: true
       },
-      "^/sitemap.*\\.xml$": {
+      "^/sitemap.*": {
         target: "http://127.0.0.1:5000",
         changeOrigin: true
       },

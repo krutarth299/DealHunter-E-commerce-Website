@@ -349,7 +349,7 @@ const Hero = ({ deals = [], isLoading = false }) => {
                                             to="/deals"
                                             className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/22 bg-white/6 px-8 text-[11px] font-black uppercase tracking-[0.18em] text-white backdrop-blur-lg transition-all hover:bg-white/12 hover:translate-y-[-1px]"
                                         >
-                                            View Details
+                                            Explore All Deals
                                         </Link>
                                     </motion.div>
                                 </div>

@@ -11,6 +11,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 import Deal from '../models/Deal.js';
+import { triggerSitemapUpdate } from './sitemap.js';
+import { autoGenerateBlogForDeal } from '../utils/auto-blog-generator.js';
 import AffiliateSetting from '../models/AffiliateSetting.js';
 import {
     sleep,
@@ -144,6 +146,11 @@ const buildDuplicateLookupQuery = (deal = {}) => {
 const assignDealFields = (dealDoc, normalizedPayload) => {
     const allowedUpdates = [
         'title',
+        'shortTitle',
+        'seoTitle',
+        'seoDescription',
+        'canonicalUrl',
+        'focusKeyword',
         'image',
         'images',
         'videos',
@@ -174,6 +181,13 @@ const assignDealFields = (dealDoc, normalizedPayload) => {
         'affiliateOverrideLink',
         'affiliateLink',
         'description',
+        'shortDescription',
+        'brand',
+        'model',
+        'availability',
+        'isVerified',
+        'isTrending',
+        'isBestseller',
         'featured',
         'isExpired',
         'views'
@@ -615,6 +629,9 @@ router.post('/', async (req, res) => {
             const io = req.app.get('socketio');
             if (io) io.emit('updateDeal', updatedDeal);
 
+            // Automatically trigger SEO / Sitemap regeneration
+            triggerSitemapUpdate();
+
             return res.json(
                 decorateDealForResponse(
                     updatedDeal,
@@ -627,8 +644,14 @@ router.post('/', async (req, res) => {
 
         const newDeal = await deal.save();
 
+        // Auto-generate blog for the new deal
+        await autoGenerateBlogForDeal(newDeal);
+
         const io = req.app.get('socketio');
         if (io) io.emit('newDeal', newDeal);
+
+        // Automatically trigger SEO / Sitemap regeneration
+        triggerSitemapUpdate();
 
         res.status(201).json(
             decorateDealForResponse(
@@ -676,12 +699,17 @@ router.put('/:id', async (req, res) => {
                 });
         }
 
+        const baseNormalized = normalizeDealPayload({
+            ...deal.toObject(),
+            ...req.body
+        });
+
         const normalizedPayload =
             applyAffiliateSettingsToDeal({
-                deal: normalizeDealPayload({
-                    ...deal.toObject(),
-                    ...req.body
-                }),
+                deal: {
+                    ...baseNormalized,
+                    ...req.body // manual edits take precedence
+                },
                 settings:
                     affiliateSettings
             });
@@ -711,6 +739,9 @@ router.put('/:id', async (req, res) => {
 
         const io = req.app.get('socketio');
         if (io) io.emit('updateDeal', updatedDeal);
+
+        // Automatically trigger SEO / Sitemap regeneration
+        triggerSitemapUpdate();
 
         res.json(
             decorateDealForResponse(
@@ -759,6 +790,9 @@ router.delete('/:id', async (req, res) => {
 
         const io = req.app.get('socketio');
         if (io) io.emit('deleteDeal', req.params.id);
+
+        // Automatically trigger SEO / Sitemap regeneration
+        triggerSitemapUpdate();
 
         res.json({
             message: 'Deleted Deal'

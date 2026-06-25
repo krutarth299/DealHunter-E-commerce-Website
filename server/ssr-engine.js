@@ -7,7 +7,9 @@ import { normalizeDealForResponse } from './utils/deal-normalizer.js';
 import { groupDealsIntoListings } from './utils/product-identity.js';
 import AffiliateSetting from './models/AffiliateSetting.js';
 import Deal from './models/Deal.js';
+import Blog from './models/Blog.js';
 import logger from './utils/logger.js';
+import { getSitemapData } from './routes/sitemap.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,10 +55,131 @@ export const handleSSR = async (req, res, next) => {
             logger.error('SSR_DATA', e.message);
         }
 
+        let ssrSitemapHtml = '';
+        try {
+            const sitemapData = await getSitemapData(req);
+            const allLinks = [
+                ...(sitemapData.pages || []),
+                ...(sitemapData.products || []),
+                ...(sitemapData.categories || []),
+                ...(sitemapData.stores || []),
+                ...(sitemapData.blogs || [])
+            ];
+            
+            const seenLocs = new Set();
+            const anchors = [];
+            for (const link of allLinks) {
+                if (link && link.loc && !seenLocs.has(link.loc)) {
+                    seenLocs.add(link.loc);
+                    anchors.push(`<a href="${link.loc}"></a>`);
+                }
+            }
+            ssrSitemapHtml = `<div id="seo-sitemap-links" style="display:none;" aria-hidden="true">${anchors.join('')}</div>`;
+        } catch (error) {
+            logger.error('SSR_SITEMAP', error.message);
+        }
+
         const ssrDataScript = `<script>
-            window.__INITIAL_DATA__ = ${JSON.stringify(preloadedDeals)};
-            window.__INITIAL_CATEGORIES__ = ${JSON.stringify(preloadedCategories)};
+            window.__INITIAL_DATA__ = ${JSON.stringify(preloadedDeals).replace(/</g, '\\u003c')};
+            window.__INITIAL_CATEGORIES__ = ${JSON.stringify(preloadedCategories).replace(/</g, '\\u003c')};
         </script>`;
+
+        let dynamicSeoTags = '';
+        const rawUrl = req.originalUrl.split('?')[0];
+
+        let ssrBlogDataScript = '';
+
+        if (rawUrl === '/blog') {
+            try {
+                const blogs = await Blog.find({ status: 'published' }).sort({ createdAt: -1 }).limit(100).lean();
+                // Pass to SSR process
+                global.__INITIAL_BLOGS__ = blogs;
+                ssrBlogDataScript = `window.__INITIAL_BLOGS__ = ${JSON.stringify(blogs).replace(/</g, '\\u003c')};`;
+
+                const title = 'DealSphere Blog | Buying Guides, Savings Tips & Live Deal Roundups';
+                const description = 'Read live deal roundups, shopping guides, category savings tips, and store-specific buying advice powered by DealSphere data.';
+                const keywords = 'Deals, Offers, Amazon, Flipkart, Tech Deals, Gadgets, Shopping Guides, DealSphere Blog';
+                const image = 'https://dealsphere.com/og-image.jpg'; // Assuming default site OG image
+                const url = 'https://dealsphere.com/blog';
+
+                const schema = {
+                    "@context": "https://schema.org",
+                    "@type": "Blog",
+                    "name": title,
+                    "description": description,
+                    "url": url,
+                    "publisher": {
+                        "@type": "Organization",
+                        "name": "DealSphere"
+                    }
+                };
+
+                dynamicSeoTags = `
+                    <title data-rh="true">${title}</title>
+                    <meta data-rh="true" name="description" content="${description}">
+                    <meta data-rh="true" name="keywords" content="${keywords}">
+                    <meta data-rh="true" property="og:title" content="${title}">
+                    <meta data-rh="true" property="og:description" content="${description}">
+                    <meta data-rh="true" property="og:url" content="${url}">
+                    <meta data-rh="true" property="og:type" content="website">
+                    <meta data-rh="true" name="twitter:card" content="summary_large_image">
+                    <meta data-rh="true" name="twitter:title" content="${title}">
+                    <meta data-rh="true" name="twitter:description" content="${description}">
+                    <script data-rh="true" type="application/ld+json">${JSON.stringify(schema)}</script>
+                `;
+            } catch (err) {
+                logger.error('BLOG_INDEX_SEO', err.message);
+            }
+        } else if (rawUrl.startsWith('/blog/')) {
+            try {
+                const slug = rawUrl.split('/')[2];
+                if (slug) {
+                    const blogPost = await Blog.findOne({ slug }).lean();
+                    if (blogPost) {
+                        // Pass to SSR process
+                        global.__INITIAL_BLOG__ = blogPost;
+                        ssrBlogDataScript = `window.__INITIAL_BLOG__ = ${JSON.stringify(blogPost).replace(/</g, '\\u003c')};`;
+
+                        const title = blogPost.seoTitle || blogPost.title || 'DealSphere Blog';
+                        const description = (blogPost.seoDescription || blogPost.summary || '').replace(/"/g, '&quot;');
+                        const keywords = (blogPost.seoKeywords?.length ? blogPost.seoKeywords : (blogPost.tags || [])).join(', ').replace(/"/g, '&quot;');
+                        let image = blogPost.featuredImage || blogPost.image || '';
+                        if (image && !image.startsWith('http')) image = 'https://dealsphere.com' + image;
+                        const url = `https://dealsphere.com/blog/${slug}`;
+                        
+                        const schema = {
+                            "@context": "https://schema.org",
+                            "@type": "BlogPosting",
+                            "headline": title,
+                            "description": description,
+                            "image": image,
+                            "author": { "@type": "Person", "name": blogPost.author || "DealHunter Team" },
+                            "publisher": { "@type": "Organization", "name": "DealSphere" },
+                            "mainEntityOfPage": url,
+                            "keywords": keywords
+                        };
+                        
+                        dynamicSeoTags = `
+                            <title data-rh="true">${title}</title>
+                            <meta data-rh="true" name="description" content="${description}">
+                            <meta data-rh="true" name="keywords" content="${keywords}">
+                            <meta data-rh="true" property="og:title" content="${title}">
+                            <meta data-rh="true" property="og:description" content="${description}">
+                            <meta data-rh="true" property="og:image" content="${image}">
+                            <meta data-rh="true" property="og:url" content="${url}">
+                            <meta data-rh="true" property="og:type" content="article">
+                            <meta data-rh="true" name="twitter:card" content="summary_large_image">
+                            <meta data-rh="true" name="twitter:title" content="${title}">
+                            <meta data-rh="true" name="twitter:description" content="${description}">
+                            <meta data-rh="true" name="twitter:image" content="${image}">
+                            <script data-rh="true" type="application/ld+json">${JSON.stringify(schema)}</script>
+                        `;
+                    }
+                }
+            } catch (seoErr) {
+                logger.error('DYNAMIC_SEO', seoErr.message);
+            }
+        }
 
         const serverEntryPath = path.resolve(__dirname, '../dist/server/entry-server.js');
         if (fs.existsSync(serverEntryPath)) {
@@ -65,18 +188,32 @@ export const handleSSR = async (req, res, next) => {
             const { render } = await import(entryUrl);
             const { html, helmet } = await render(req.originalUrl, preloadedDeals, preloadedCategories);
             
+            // Clean up globals after render
+            delete global.__INITIAL_BLOGS__;
+            delete global.__INITIAL_BLOG__;
+
             const helmetTags = helmet ? [
                 helmet.title?.toString() || '',
                 helmet.meta?.toString() || '',
-                helmet.link?.toString() || ''
-            ].join('') : '';
+                helmet.link?.toString() || '',
+                helmet.script?.toString() || ''
+            ].filter(Boolean).join('\n') : '';
 
             // Using callback functions in replace to avoid string mangling by `$` characters
             template = template
-                .replace(/<!--\s*ssr-head\s*-->/gi, () => helmetTags)
+                .replace(/<!--\s*ssr-head\s*-->/gi, () => dynamicSeoTags + helmetTags)
                 .replace(/<!--\s*ssr-outlet\s*-->/gi, () => html)
-                .replace(/<!--\s*ssr-data\s*-->/gi, () => ssrDataScript)
+                .replace(/<!--\s*ssr-data\s*-->/gi, () => ssrDataScript + '\n<script>' + ssrBlogDataScript + '</script>')
+                .replace(/<!--\s*ssr-sitemap\s*-->/gi, () => ssrSitemapHtml)
                 .replace(/<div\s+id=["']root["']\s*>/gi, () => '<div id="root" data-ssr-status="active">');
+        } else {
+            // If no SSR entry exists (dev mode CSR), still inject dynamic SEO and blog data
+            delete global.__INITIAL_BLOGS__;
+            delete global.__INITIAL_BLOG__;
+
+            if (dynamicSeoTags) {
+                template = template.replace(/<\/head>/i, () => dynamicSeoTags + '\n<script>' + ssrBlogDataScript + '</script>\n</head>');
+            }
         }
 
         res.setHeader('Content-Type', 'text/html');
