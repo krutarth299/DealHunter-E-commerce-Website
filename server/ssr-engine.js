@@ -35,6 +35,20 @@ export const handleSSR = async (req, res, next) => {
         }
 
         let template = fs.readFileSync(templatePath, 'utf8');
+
+        // Bypass SSR for Admin routes (Client-Side Rendering only)
+        if (req.originalUrl.startsWith('/admin')) {
+            const adminSeoTags = `
+                <title>Admin Panel - DealSphere</title>
+                <meta name="robots" content="noindex, nofollow, noarchive" />
+            `;
+            template = template
+              .replace(/<!--\s*ssr-head\s*-->/gi, () => adminSeoTags)
+              .replace(/<!--\s*ssr-outlet\s*-->/gi, () => '');
+            res.setHeader('Content-Type', 'text/html');
+            return res.status(200).send(template);
+        }
+
         let preloadedDeals = [];
         let preloadedCategories = [];
         
