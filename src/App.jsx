@@ -44,6 +44,8 @@ const ProductDetails = lazyWithRetry(() => import('./pages/ProductDetails'), 'Pr
 const Wishlist = lazyWithRetry(() => import('./pages/Wishlist'), 'Wishlist');
 const Blog = lazyWithRetry(() => import('./pages/Blog'), 'Blog');
 const BlogPost = lazyWithRetry(() => import('./pages/BlogPost'), 'BlogPost');
+const Freebies = lazyWithRetry(() => import('./pages/Freebies'), 'Freebies');
+const FreebieDetail = lazyWithRetry(() => import('./pages/FreebieDetail'), 'FreebieDetail');
 const CategoryDetails = lazyWithRetry(() => import('./pages/CategoryDetails'), 'CategoryDetails');
 const InfoPage = lazyWithRetry(() => import('./pages/InfoPage'), 'InfoPage');
 const AdminPanel = lazyWithRetry(() => import('./pages/AdminPanel'), 'AdminPanel');
@@ -700,6 +702,8 @@ export function AppContent({ preloadedDeals = null, preloadedCategories = null, 
             <Route path="/wishlist" element={<Wishlist {...sharedProps} wishlist={wishlist} wishlistCount={wishlist.length} />} />
             <Route path="/blog" element={<Blog {...sharedProps} preloadedBlogs={preloadedBlogs} />} />
             <Route path="/blog/:slug" element={<BlogPost {...sharedProps} preloadedBlog={preloadedBlog} />} />
+            <Route path="/freebies" element={<Freebies {...sharedProps} />} />
+            <Route path="/freebies/:slug" element={<FreebieDetail {...sharedProps} />} />
             <Route path="/stores" element={<Stores {...sharedProps} deals={publicDeals} />} />
             <Route path="/deal/:id" element={<ProductDetails {...sharedProps} deals={publicDeals} />} />
             <Route path="/product/:id" element={<ProductDetails {...sharedProps} deals={publicDeals} />} />

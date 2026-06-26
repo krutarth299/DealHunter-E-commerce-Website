@@ -16,6 +16,7 @@ import blogRouter from './routes/blog.js';
 import adminRouter from './routes/admin.js';
 import storesRouter from './routes/stores.js';
 import sitemapRouter from './routes/sitemap.js';
+import freebieRouter from './routes/freebie.js';
 
 import portManager from './utils/portManager.js';
 import { extractProduct } from './extractors/index.js';
@@ -87,6 +88,7 @@ app.post('/api/admin/deals/fetch-deal', async (req, res) => {
 app.use('/api/blog', blogRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/stores', storesRouter);
+app.use('/api/freebies', freebieRouter);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ success: true, timestamp: Date.now() }));

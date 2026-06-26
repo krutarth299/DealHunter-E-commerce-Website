@@ -8,7 +8,7 @@ import {
     TrendingUp, Shield, ExternalLink, Edit3, Image as ImageIcon,
     Zap, DollarSign, Flame, Menu, X, CheckCircle, AlertCircle, Pencil, Activity,
     TrendingDown, Sparkles, Smartphone, Shirt, Gamepad2, Plane, Utensils, ShoppingBag, Layers,
-    ChevronLeft, ChevronRight, Home as HomeIcon, Loader2, Filter
+    ChevronLeft, ChevronRight, Home as HomeIcon, Loader2, Filter, BookOpen, Gift
 } from 'lucide-react';
 import { useNavigate, Link, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { optimizeImageUrl } from '../utils/imageOptimizer';
@@ -25,6 +25,8 @@ import logo from '../assets/logo.png';
 import Dashboard from '../components/admin/Dashboard';
 
 import { DealAutomationChecklist, DuplicateCandidatesPanel } from '../components/admin/AdminComponents';
+import AdminBlogManager from '../components/admin/AdminBlogManager';
+import AdminFreebieManager from '../components/admin/AdminFreebieManager';
 
 const CATEGORY_MAP = {
     'Electronics': Smartphone,
@@ -1130,6 +1132,8 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'manage-deals', label: 'Manage Deals', icon: Package },
         { id: 'add-deal', label: 'Add Deal', icon: PlusCircle },
+        { id: 'manage-blogs', label: 'Manage Blogs', icon: BookOpen },
+        { id: 'manage-freebies', label: 'Manage Freebies', icon: Gift },
         { id: 'affiliate-tags', label: 'Affiliate Tags', icon: ExternalLink },
     ];
 
@@ -2302,6 +2306,30 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
                             </motion.div>
                         )}
 
+
+                        {activeTab === 'manage-blogs' && (
+                            <motion.div
+                                key="manage-blogs"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="space-y-6"
+                            >
+                                <AdminBlogManager showToast={showToast} />
+                            </motion.div>
+                        )}
+
+                        {activeTab === 'manage-freebies' && (
+                            <motion.div
+                                key="manage-freebies"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="space-y-6"
+                            >
+                                <AdminFreebieManager showToast={showToast} />
+                            </motion.div>
+                        )}
 
                         {activeTab === 'affiliate-tags' && (
                             <motion.div

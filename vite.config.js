@@ -30,19 +30,6 @@ export default defineConfig({
             let template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
             template = await server.transformIndexHtml(req.url, template);
 
-            // Bypass SSR for Admin routes (Client-Side Rendering only)
-            if (req.url.startsWith('/admin')) {
-                const adminSeoTags = `
-                    <title>Admin Panel - DealSphere</title>
-                    <meta name="robots" content="noindex, nofollow, noarchive" />
-                `;
-                template = template
-                  .replace(/<!--\s*ssr-head\s*-->/gi, () => adminSeoTags)
-                  .replace(/<!--\s*ssr-outlet\s*-->/gi, () => '');
-                res.setHeader('Content-Type', 'text/html');
-                return res.end(template);
-            }
-
             let preloadedDeals = [];
             let preloadedCategories = [];
             try {
@@ -69,7 +56,7 @@ export default defineConfig({
                   if (apiRes.ok) {
                       const data = await apiRes.json();
                       global.__INITIAL_BLOGS__ = data.items || [];
-                      ssrBlogDataScript = `\nwindow.__INITIAL_BLOGS__ = ${JSON.stringify(data.items || []).replace(/</g, '\\u003c')};`;
+                      ssrBlogDataScript += `\nwindow.__INITIAL_BLOGS__ = ${JSON.stringify(data.items || []).replace(/</g, '\\u003c')};`;
                   }
               } else if (req.url.startsWith('/blog/')) {
                   const slug = req.url.split('/')[2];
@@ -78,7 +65,24 @@ export default defineConfig({
                       if (apiRes.ok) {
                           const data = await apiRes.json();
                           global.__INITIAL_BLOG__ = data;
-                          ssrBlogDataScript = `\nwindow.__INITIAL_BLOG__ = ${JSON.stringify(data).replace(/</g, '\\u003c')};`;
+                          ssrBlogDataScript += `\nwindow.__INITIAL_BLOG__ = ${JSON.stringify(data).replace(/</g, '\\u003c')};`;
+                      }
+                  }
+              } else if (req.url === '/freebies' || req.url === '/freebies/') {
+                  const apiRes = await fetch('http://127.0.0.1:5000/api/freebies');
+                  if (apiRes.ok) {
+                      const data = await apiRes.json();
+                      global.__INITIAL_FREEBIES__ = data || { items: [], types: [] };
+                      ssrBlogDataScript += `\nwindow.__INITIAL_FREEBIES__ = ${JSON.stringify(data || { items: [], types: [] }).replace(/</g, '\\u003c')};`;
+                  }
+              } else if (req.url.startsWith('/freebies/')) {
+                  const slug = req.url.split('/')[2];
+                  if (slug) {
+                      const apiRes = await fetch(`http://127.0.0.1:5000/api/freebies/${slug}`);
+                      if (apiRes.ok) {
+                          const data = await apiRes.json();
+                          global.__INITIAL_FREEBIE__ = data;
+                          ssrBlogDataScript += `\nwindow.__INITIAL_FREEBIE__ = ${JSON.stringify(data).replace(/</g, '\\u003c')};`;
                       }
                   }
               }
@@ -91,6 +95,8 @@ export default defineConfig({
 
             delete global.__INITIAL_BLOGS__;
             delete global.__INITIAL_BLOG__;
+            delete global.__INITIAL_FREEBIES__;
+            delete global.__INITIAL_FREEBIE__;
 
             const helmetTags = helmet ? [
               helmet.title?.toString() || '',

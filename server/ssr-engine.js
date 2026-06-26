@@ -8,6 +8,7 @@ import { groupDealsIntoListings } from './utils/product-identity.js';
 import AffiliateSetting from './models/AffiliateSetting.js';
 import Deal from './models/Deal.js';
 import Blog from './models/Blog.js';
+import Freebie from './models/Freebie.js';
 import logger from './utils/logger.js';
 import { getSitemapData } from './routes/sitemap.js';
 
@@ -35,20 +36,6 @@ export const handleSSR = async (req, res, next) => {
         }
 
         let template = fs.readFileSync(templatePath, 'utf8');
-
-        // Bypass SSR for Admin routes (Client-Side Rendering only)
-        if (req.originalUrl.startsWith('/admin')) {
-            const adminSeoTags = `
-                <title>Admin Panel - DealSphere</title>
-                <meta name="robots" content="noindex, nofollow, noarchive" />
-            `;
-            template = template
-              .replace(/<!--\s*ssr-head\s*-->/gi, () => adminSeoTags)
-              .replace(/<!--\s*ssr-outlet\s*-->/gi, () => '');
-            res.setHeader('Content-Type', 'text/html');
-            return res.status(200).send(template);
-        }
-
         let preloadedDeals = [];
         let preloadedCategories = [];
         
@@ -193,6 +180,94 @@ export const handleSSR = async (req, res, next) => {
             } catch (seoErr) {
                 logger.error('DYNAMIC_SEO', seoErr.message);
             }
+        } else if (rawUrl === '/freebies') {
+            try {
+                const freebies = await Freebie.find({ status: 'active' }).sort({ createdAt: -1 }).limit(100).lean();
+                const types = [...new Set(freebies.map(f => f.type).filter(Boolean))];
+                
+                global.__INITIAL_FREEBIES__ = { items: freebies, types };
+                ssrBlogDataScript += `window.__INITIAL_FREEBIES__ = ${JSON.stringify({ items: freebies, types }).replace(/</g, '\\u003c')};`;
+
+                const title = '100% Free Games, Software, and Samples | DealSphere Freebies';
+                const description = 'Discover the best daily freebies including free PC games, premium software licenses, and physical product samples. 100% free with no hidden costs.';
+                const keywords = 'Freebies, Free Games, Free Software, Free Samples, Giveaways, DealSphere Freebies';
+                const url = 'https://dealsphere.com/freebies';
+
+                const schema = {
+                    "@context": "https://schema.org",
+                    "@type": "CollectionPage",
+                    "name": title,
+                    "description": description,
+                    "url": url
+                };
+
+                dynamicSeoTags = `
+                    <title data-rh="true">${title}</title>
+                    <meta data-rh="true" name="description" content="${description}">
+                    <meta data-rh="true" name="keywords" content="${keywords}">
+                    <meta data-rh="true" property="og:title" content="${title}">
+                    <meta data-rh="true" property="og:description" content="${description}">
+                    <meta data-rh="true" property="og:url" content="${url}">
+                    <meta data-rh="true" property="og:type" content="website">
+                    <meta data-rh="true" name="twitter:card" content="summary_large_image">
+                    <meta data-rh="true" name="twitter:title" content="${title}">
+                    <meta data-rh="true" name="twitter:description" content="${description}">
+                    <script data-rh="true" type="application/ld+json">${JSON.stringify(schema)}</script>
+                `;
+            } catch (err) {
+                logger.error('FREEBIES_INDEX_SEO', err.message);
+            }
+        } else if (rawUrl.startsWith('/freebies/')) {
+            try {
+                const slug = rawUrl.split('/')[2];
+                if (slug) {
+                    const freebie = await Freebie.findOne({ slug }).lean();
+                    if (freebie) {
+                        global.__INITIAL_FREEBIE__ = freebie;
+                        ssrBlogDataScript += `window.__INITIAL_FREEBIE__ = ${JSON.stringify(freebie).replace(/</g, '\\u003c')};`;
+
+                        const title = freebie.seoTitle || `${freebie.title} - 100% Free`;
+                        const description = (freebie.seoDescription || freebie.description || '').replace(/"/g, '&quot;');
+                        const keywords = (freebie.seoKeywords?.length ? freebie.seoKeywords : ['freebie', 'free stuff', 'giveaway']).join(', ').replace(/"/g, '&quot;');
+                        let image = freebie.image || '';
+                        if (image && !image.startsWith('http')) image = 'https://dealsphere.com' + image;
+                        const url = `https://dealsphere.com/freebies/${slug}`;
+                        
+                        const schema = {
+                            "@context": "https://schema.org",
+                            "@type": "Product",
+                            "name": freebie.title,
+                            "description": description,
+                            "image": image,
+                            "offers": {
+                                "@type": "Offer",
+                                "price": "0.00",
+                                "priceCurrency": "INR",
+                                "availability": freebie.status === 'active' ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+                                "url": url
+                            }
+                        };
+                        
+                        dynamicSeoTags = `
+                            <title data-rh="true">${title}</title>
+                            <meta data-rh="true" name="description" content="${description}">
+                            <meta data-rh="true" name="keywords" content="${keywords}">
+                            <meta data-rh="true" property="og:title" content="${title}">
+                            <meta data-rh="true" property="og:description" content="${description}">
+                            <meta data-rh="true" property="og:image" content="${image}">
+                            <meta data-rh="true" property="og:url" content="${url}">
+                            <meta data-rh="true" property="og:type" content="product">
+                            <meta data-rh="true" name="twitter:card" content="summary_large_image">
+                            <meta data-rh="true" name="twitter:title" content="${title}">
+                            <meta data-rh="true" name="twitter:description" content="${description}">
+                            <meta data-rh="true" name="twitter:image" content="${image}">
+                            <script data-rh="true" type="application/ld+json">${JSON.stringify(schema)}</script>
+                        `;
+                    }
+                }
+            } catch (seoErr) {
+                logger.error('DYNAMIC_SEO', seoErr.message);
+            }
         }
 
         const serverEntryPath = path.resolve(__dirname, '../dist/server/entry-server.js');
@@ -205,6 +280,8 @@ export const handleSSR = async (req, res, next) => {
             // Clean up globals after render
             delete global.__INITIAL_BLOGS__;
             delete global.__INITIAL_BLOG__;
+            delete global.__INITIAL_FREEBIES__;
+            delete global.__INITIAL_FREEBIE__;
 
             const helmetTags = helmet ? [
                 helmet.title?.toString() || '',
@@ -221,9 +298,11 @@ export const handleSSR = async (req, res, next) => {
                 .replace(/<!--\s*ssr-sitemap\s*-->/gi, () => ssrSitemapHtml)
                 .replace(/<div\s+id=["']root["']\s*>/gi, () => '<div id="root" data-ssr-status="active">');
         } else {
-            // If no SSR entry exists (dev mode CSR), still inject dynamic SEO and blog data
+            // If no SSR entry exists (dev mode CSR), still inject dynamic SEO and data
             delete global.__INITIAL_BLOGS__;
             delete global.__INITIAL_BLOG__;
+            delete global.__INITIAL_FREEBIES__;
+            delete global.__INITIAL_FREEBIE__;
 
             if (dynamicSeoTags) {
                 template = template.replace(/<\/head>/i, () => dynamicSeoTags + '\n<script>' + ssrBlogDataScript + '</script>\n</head>');

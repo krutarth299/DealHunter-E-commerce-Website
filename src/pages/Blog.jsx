@@ -86,15 +86,15 @@ const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen, apiBase, 
     }, [blogs, searchTerm, selectedCategory, selectedTag]);
 
     const featuredBlog = useMemo(
-        () => blogs.find((blog) => blog.featured) || blogs[0] || null,
-        [blogs]
+        () => filteredBlogs.find((blog) => blog.featured) || filteredBlogs[0] || null,
+        [filteredBlogs]
     );
 
-    const isShowingFeatured = featuredBlog && selectedCategory === 'All' && selectedTag === 'All' && !searchTerm;
+    const isShowingFeatured = !!featuredBlog;
 
     const regularBlogs = useMemo(
-        () => filteredBlogs.filter((blog) => !isShowingFeatured || !featuredBlog || blog.slug !== featuredBlog.slug),
-        [filteredBlogs, featuredBlog, isShowingFeatured]
+        () => filteredBlogs.filter((blog) => !featuredBlog || blog.slug !== featuredBlog.slug),
+        [filteredBlogs, featuredBlog]
     );
 
     return (

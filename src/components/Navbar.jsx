@@ -235,7 +235,8 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                         { to: '/', label: '🔥 Hot Deals' },
                                         { to: '/deals', label: 'All Deals' },
                                         { to: '/stores', label: 'Stores' },
-                                        { to: '/blog', label: 'Blog' }
+                                        { to: '/blog', label: 'Blog' },
+                                        { to: '/freebies', label: '🎁 Freebies' }
                                     ].map(link => (
                                         <Link key={link.to} to={link.to} className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${isActive(link.to) ? 'bg-[#FF6A00] text-white shadow-lg shadow-orange-500/20' : 'text-slate-500 hover:text-[#FF6A00] hover:bg-orange-50/50'}`}>
                                             {link.label}
@@ -382,7 +383,8 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                             { to: '/', label: '🔥 Hot Deals' },
                                             { to: '/deals', label: 'All Deals' },
                                             { to: '/stores', label: 'Stores' },
-                                            { to: '/blog', label: '✍️ Shopping Blog' }
+                                            { to: '/blog', label: '✍️ Shopping Blog' },
+                                            { to: '/freebies', label: '🎁 Freebies' }
                                         ].map(link => (
                                             <Link key={link.to} to={link.to} onClick={() => setIsOpen(false)} className={`block px-5 py-4 rounded-2xl font-black text-sm transition-all ${isActive(link.to) ? 'bg-orange-50 text-[#FF6A00]' : 'text-slate-700 hover:bg-slate-50'}`}>
                                                 {link.label}

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, CalendarDays, Check, Copy, MessageSquare, ShoppingBag, Tag } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Copy, MessageSquare, ShoppingBag, Tag, ExternalLink } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import SEO from '../components/SEO';
@@ -130,6 +130,17 @@ const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOp
         () => normalizeBlogBlocks(blog?.contentBlocks, blog?.content),
         [blog]
     );
+
+    const uniqueRelatedDeals = useMemo(() => {
+        if (!blog?.relatedDeals) return [];
+        const seen = new Set();
+        return blog.relatedDeals.filter(deal => {
+            const key = deal.dealId || deal.productUrl || deal.title;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    }, [blog]);
 
     const handleShare = async () => {
         try {
@@ -301,7 +312,48 @@ const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOp
 
                     <div className="mx-auto mt-14 grid max-w-7xl gap-12 lg:grid-cols-[minmax(0,1fr)_320px]">
                         <article className="mx-auto max-w-4xl space-y-8">
-                            {contentBlocks.map(renderBlock)}
+                            
+                            {/* Primary Deal CTA (Top) */}
+                            {uniqueRelatedDeals?.length > 0 && (
+                                <div className="mb-8 rounded-3xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-6 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-sm">
+                                    <div className="flex-1">
+                                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-600 mb-2">Featured Product</p>
+                                        <h3 className="text-xl font-black text-slate-900 leading-tight">{uniqueRelatedDeals[0].title}</h3>
+                                        <div className="flex items-center gap-3 mt-3">
+                                            <span className="text-2xl font-black text-slate-900">₹{Number(uniqueRelatedDeals[0].dealPrice || 0).toLocaleString('en-IN')}</span>
+                                            {uniqueRelatedDeals[0].mrp > uniqueRelatedDeals[0].dealPrice && (
+                                                <span className="text-sm font-bold text-slate-400 line-through">₹{Number(uniqueRelatedDeals[0].mrp).toLocaleString('en-IN')}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <Link 
+                                        to={uniqueRelatedDeals[0].dealId ? `/product/${uniqueRelatedDeals[0].dealId}` : (uniqueRelatedDeals[0].productUrl || '/deals')}
+                                        className="shrink-0 flex items-center justify-center gap-2 rounded-2xl bg-orange-600 px-8 py-4 text-sm font-black uppercase tracking-[0.1em] text-white shadow-lg shadow-orange-600/30 transition-transform active:scale-95 hover:bg-orange-700 w-full sm:w-auto"
+                                    >
+                                        Buy Now <ExternalLink size={16} />
+                                    </Link>
+                                </div>
+                            )}
+
+                            <div className="space-y-8">
+                                {contentBlocks.map(renderBlock)}
+                            </div>
+
+                            {/* Primary Deal CTA (Bottom) */}
+                            {uniqueRelatedDeals?.length > 0 && (
+                                <div className="mt-12 rounded-[32px] border border-slate-200 bg-slate-950 p-8 flex flex-col sm:flex-row items-center justify-between gap-8 shadow-xl">
+                                    <div className="flex-1 text-center sm:text-left">
+                                        <h3 className="text-2xl font-black text-white leading-tight mb-2">Ready to buy?</h3>
+                                        <p className="text-sm font-medium text-slate-400">Get the best deal on {uniqueRelatedDeals[0].store} right now.</p>
+                                    </div>
+                                    <Link 
+                                        to={uniqueRelatedDeals[0].dealId ? `/product/${uniqueRelatedDeals[0].dealId}` : (uniqueRelatedDeals[0].productUrl || '/deals')}
+                                        className="shrink-0 flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-10 py-4 text-sm font-black uppercase tracking-[0.1em] text-white shadow-lg shadow-orange-500/30 transition-transform active:scale-95 hover:bg-orange-400 w-full sm:w-auto"
+                                    >
+                                        Buy Now <ExternalLink size={18} />
+                                    </Link>
+                                </div>
+                            )}
 
                             {(blog.tags || []).length > 0 && (
                                 <div className="rounded-[28px] border border-slate-200 bg-slate-50 px-6 py-5">
@@ -361,14 +413,14 @@ const BlogPost = ({ user, wishlist, showToast, apiBase, onSearch, setIsAddDealOp
                         </article>
 
                         <aside className="space-y-6">
-                            {blog.relatedDeals?.length > 0 && (
+                            {uniqueRelatedDeals?.length > 0 && (
                                 <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
                                     <div className="flex items-center gap-3">
                                         <ShoppingBag size={18} className="text-orange-500" />
                                         <h3 className="text-xl font-black tracking-tight text-slate-950">Related deals</h3>
                                     </div>
                                     <div className="mt-5 space-y-4">
-                                        {blog.relatedDeals.map((deal) => (
+                                        {uniqueRelatedDeals.map((deal) => (
                                             <Link
                                                 key={`${deal.dealId || deal.productUrl}-${deal.title}`}
                                                 to={deal.dealId ? `/product/${deal.dealId}` : (deal.productUrl || '/deals')}
