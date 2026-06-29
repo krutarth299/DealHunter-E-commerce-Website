@@ -365,7 +365,7 @@ export const normalizeProductImages = ({
     store,
     productUrl,
     title,
-    maxImages = 4,
+    maxImages = 5,
     strictStore = true
 } = {}) => {
     const storeKey = toStoreKey(store, productUrl);
