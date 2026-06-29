@@ -38,19 +38,22 @@ export const handleSSR = async (req, res, next) => {
         let template = fs.readFileSync(templatePath, 'utf8');
         let preloadedDeals = [];
         let preloadedCategories = [];
+        let hasActiveFreebies = false;
         
         try {
             const affiliateSettings = await getAffiliateSettings(AffiliateSetting, false, req.app.locals);
             
-            const [d, c] = await Promise.all([
+            const [d, c, activeFreebieObj] = await Promise.all([
                 Deal.find(LIVE_DEAL_QUERY, SSR_PROJECTION).sort({ createdAt: -1 }).limit(20).lean(),
-                Deal.distinct('category', LIVE_DEAL_QUERY)
+                Deal.distinct('category', LIVE_DEAL_QUERY),
+                Freebie.exists({ status: 'active' })
             ]);
 
             preloadedDeals = groupDealsIntoListings((d || []).map(item => 
                 normalizeDealForResponse(applyAffiliateSettingsToDeal({ deal: item, settings: affiliateSettings }))
             )).slice(0, 20);
             preloadedCategories = (c || []).filter(Boolean);
+            hasActiveFreebies = !!activeFreebieObj;
             
         } catch(e) {
             logger.error('SSR_DATA', e.message);
@@ -83,6 +86,7 @@ export const handleSSR = async (req, res, next) => {
         const ssrDataScript = `<script>
             window.__INITIAL_DATA__ = ${JSON.stringify(preloadedDeals).replace(/</g, '\\u003c')};
             window.__INITIAL_CATEGORIES__ = ${JSON.stringify(preloadedCategories).replace(/</g, '\\u003c')};
+            window.__HAS_ACTIVE_FREEBIES__ = ${JSON.stringify(hasActiveFreebies)};
         </script>`;
 
         let dynamicSeoTags = '';

@@ -59,6 +59,11 @@ export const optimizeImageUrl = (url) => {
         if (url.includes('bigbasket.com/media/uploads/p/')) {
             optimized = optimized.replace(/\/s\/|\/m\//i, '/l/');
         }
+
+        if (optimized.startsWith('/uploads/')) {
+            const separator = optimized.includes('?') ? '&' : '?';
+            optimized = `${optimized}${separator}cb=20260628`;
+        }
     } catch (e) {
         return url;
     }
@@ -115,9 +120,11 @@ export const isLikelyProductImage = (url, deal) => {
 
     if (storeKey === 'amazon') {
         if (AMAZON_NON_PRODUCT_IMAGE_REGEX.test(lower)) return false;
+        if (optimized.startsWith('/uploads/')) return true;
         if (allowedCdns && allowedCdns.some((cdn) => lower.includes(cdn))) return true;
     } else if (storeKey === 'flipkart') {
         if (FLIPKART_NON_PRODUCT_IMAGE_REGEX.test(lower)) return false;
+        if (optimized.startsWith('/uploads/')) return true;
         if (allowedCdns && allowedCdns.some((cdn) => lower.includes(cdn))) return true;
     } else {
         if (allowedCdns && allowedCdns.some((cdn) => lower.includes(cdn))) return true;
@@ -158,7 +165,7 @@ export const getProductImageGallery = (deal, maxImages = 8) => {
         ...gallerySource
     ]
         .map(optimizeImageUrl)
-        .filter(Boolean)
+        .filter(url => url && typeof url === 'string' && url.trim() !== '')
         .filter((url, index, list) => list.indexOf(url) === index)
         .filter((url) => isLikelyProductImage(url, deal))
         .map((url, sourceIndex) => ({ url, sourceIndex, score: getImageScore(url, deal) }))

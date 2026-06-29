@@ -199,18 +199,18 @@ const Blog = ({ user, wishlist, showToast, onSearch, setIsAddDealOpen, apiBase, 
                         </div>
                     ) : (
                         <>
-                            {featuredBlog && selectedCategory === 'All' && selectedTag === 'All' && !searchTerm && (
+                            {isShowingFeatured && (
                                 <motion.button
                                     initial={{ opacity: 0, y: 18 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     onClick={() => navigate(`/blog/${featuredBlog.slug}`)}
                                     className="group mb-14 grid w-full overflow-hidden rounded-[36px] border border-slate-200/60 bg-white/70 backdrop-blur-xl text-left shadow-premium hover:shadow-premium-lg transition-all lg:grid-cols-[1.2fr_0.8fr]"
                                 >
-                                    <div className="relative min-h-[320px] overflow-hidden bg-white flex items-center justify-center p-8">
+                                    <div className="relative min-h-[240px] lg:min-h-[320px] overflow-hidden bg-white flex items-center justify-center p-6 lg:p-8">
                                         <img
                                             src={optimizeImageUrl(featuredBlog.featuredImage || featuredBlog.image)}
                                             alt={featuredBlog.title}
-                                            className="max-h-[260px] w-auto object-contain transition-transform duration-700 group-hover:scale-105 mix-blend-multiply"
+                                            className="max-h-[180px] lg:max-h-[260px] w-auto object-contain transition-transform duration-700 group-hover:scale-105 mix-blend-multiply"
                                         />
                                         <div className="absolute left-6 top-6 rounded-full bg-white/95 border border-slate-100 px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-orange-600 shadow-sm">
                                             Featured

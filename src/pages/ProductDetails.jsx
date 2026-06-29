@@ -752,9 +752,9 @@ const ProductDetails = ({ deals, user, wishlist, toggleWishlist, showToast, onSe
                                             referrerPolicy="no-referrer"
                                             className="w-full h-full object-contain filter drop-shadow-2xl p-5 sm:p-8 transition-transform duration-700 md:group-hover/main:scale-110"
                                             onError={(e) => {
-                                                if (e.target.src !== NO_PRODUCT_IMAGE) {
+                                                if (!e.target.dataset.error) {
+                                                    e.target.dataset.error = true;
                                                     e.target.src = NO_PRODUCT_IMAGE;
-                                                    setImageLoading(false);
                                                 }
                                             }}
                                         />

@@ -14,7 +14,7 @@ const Footer = ({ showToast }) => {
     };
 
     return (
-        <footer className="relative overflow-hidden border-t border-slate-800 bg-[#0F172A] pt-16 pb-8 text-sm text-slate-300">
+        <footer className="relative overflow-hidden border-t border-slate-800 bg-[#0F172A] pt-16 pb-28 md:pb-8 text-sm text-slate-300">
             <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-[#FF6A00] via-[#FF8C42] to-[#22C55E]" />
 
             <div className="mx-auto mb-12 grid max-w-7xl grid-cols-1 gap-10 px-6 md:grid-cols-2 lg:grid-cols-4">

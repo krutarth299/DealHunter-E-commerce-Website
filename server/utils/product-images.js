@@ -282,18 +282,7 @@ const flattenImageCandidate = (candidate) => {
     return [];
 };
 
-const buildProductOwnedCandidates = ({ productUrl = '', storeKey = '' }) => {
-    const candidates = [];
 
-    if (storeKey === 'amazon') {
-        const asin = getAmazonAsin(productUrl);
-        if (asin) {
-            candidates.push(`https://images-na.ssl-images-amazon.com/images/P/${asin}.01.LZZZZZZZ.jpg`);
-        }
-    }
-
-    return candidates;
-};
 
 export const isLikelyProductImage = (url, { store = '', productUrl = '', strictStore = true } = {}) => {
     const normalized = optimizeProductImageUrl(url);
@@ -384,9 +373,7 @@ export const normalizeProductImages = ({
     const titleSignals = getModelSignals(title);
     const preferredMainImage = optimizeProductImageUrl(flattenImageCandidate(image)[0]?.url || '');
     const rawCandidates = [
-        ...flattenImageCandidate(image),
-        ...flattenImageCandidate(images),
-        ...buildProductOwnedCandidates({ productUrl, storeKey }).map((url) => ({ url, meta: 'product owned candidate' }))
+        ...flattenImageCandidate(images)
     ];
     const candidates = [];
     const seen = new Set();

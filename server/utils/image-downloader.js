@@ -54,6 +54,45 @@ export const downloadAndSaveImages = async (urls) => {
             const filepath = path.join(UPLOADS_DIR, filename);
             
             await downloadImage(url, filepath);
+            
+            // Check file size to weed out 1x1 tracking pixels (typically < 100 bytes)
+            const stats = fs.statSync(filepath);
+            if (stats.size < 500) {
+                fs.unlinkSync(filepath);
+                console.log(`[IMAGE_DOWNLOADER] Skipped ${url} (too small: ${stats.size} bytes)`);
+                continue;
+            }
+            
+            // Use Jimp to check if the image is mostly a solid color (e.g. blank white video placeholders)
+            try {
+                const jimpModule = await import('jimp');
+                const Jimp = jimpModule.Jimp || jimpModule.default?.Jimp || jimpModule.default;
+                
+                const buffer = fs.readFileSync(filepath);
+                const image = await Jimp.read(buffer);
+                const data = image.bitmap.data;
+                
+                let minR = 255, maxR = 0, minG = 255, maxG = 0, minB = 255, maxB = 0;
+                // Sample pixels (skip some to make it faster for large images)
+                const step = data.length > 500000 ? 16 : 4;
+                for (let i = 0; i < data.length; i += step) {
+                    const r = data[i], g = data[i+1], b = data[i+2];
+                    if (r < minR) minR = r; if (r > maxR) maxR = r;
+                    if (g < minG) minG = g; if (g > maxG) maxG = g;
+                    if (b < minB) minB = b; if (b > maxB) maxB = b;
+                }
+                const diff = Math.max(maxR - minR, maxG - minG, maxB - minB);
+                
+                if (diff < 15) {
+                    fs.unlinkSync(filepath);
+                    console.log(`[IMAGE_DOWNLOADER] Skipped ${url} (solid color image, diff: ${diff})`);
+                    continue;
+                }
+            } catch (err) {
+                console.warn(`[IMAGE_DOWNLOADER] Jimp check failed for ${filepath}:`, err.message);
+                // Keep the image if Jimp fails to read it (might be valid webp/avif that Jimp doesn't support)
+            }
+            
             localUrls.push(`/uploads/images/${filename}`);
         } catch (error) {
             console.error(`[IMAGE_DOWNLOADER] Failed to download image ${url}:`, error.message);

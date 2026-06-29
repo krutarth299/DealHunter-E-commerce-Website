@@ -3,7 +3,14 @@ import { logger } from '../utils/logger.js';
 
 export const getFreebies = async (req, res) => {
     try {
-        const freebies = await Freebie.find({ status: 'active' }).sort({ createdAt: -1 });
+        const now = new Date();
+        const freebies = await Freebie.find({
+            status: 'active',
+            $or: [
+                { expiresAt: null },
+                { expiresAt: { $gt: now } }
+            ]
+        }).sort({ createdAt: -1 });
         const types = [...new Set(freebies.map(f => f.type).filter(Boolean))];
         const providers = [...new Set(freebies.map(f => f.provider).filter(Boolean))];
         

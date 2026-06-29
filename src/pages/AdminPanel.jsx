@@ -743,6 +743,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
         const finalUrl = affiliatePreviewUrl || dealForm?.affiliateLink || '';
         const payload = {
             ...dealForm,
+            images: Array.isArray(dealForm?.images) ? dealForm.images.filter(img => img && String(img).trim() !== '') : [],
             image: dealForm?.imageUrl,
             link: sanitizeUrl(dealForm?.productUrl),
             productUrl: sanitizeUrl(dealForm?.productUrl),

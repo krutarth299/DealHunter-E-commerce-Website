@@ -214,7 +214,7 @@ const Hero = ({ deals = [], isLoading = false }) => {
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
         >
-            <div className="relative min-h-[560px] overflow-hidden sm:min-h-[640px] lg:min-h-[680px]">
+            <div className="relative min-h-[750px] overflow-hidden sm:min-h-[800px] lg:min-h-[680px]">
                 <AnimatePresence>
                     <motion.div
                         key={current}
@@ -235,8 +235,8 @@ const Hero = ({ deals = [], isLoading = false }) => {
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.26),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.16),transparent_28%)]" />
                         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))]" />
 
-                        <div className="relative z-10 mx-auto flex min-h-[560px] w-full max-w-7xl items-center px-4 py-8 sm:px-8 lg:px-12">
-                            <div className="grid w-full items-center gap-10 lg:grid-cols-[1.08fr,0.92fr] lg:gap-12">
+                        <div className="relative z-10 mx-auto flex h-full w-full max-w-7xl items-center px-4 py-6 sm:px-8 lg:px-12">
+                            <div className="grid w-full items-center gap-6 sm:gap-10 lg:grid-cols-[1.08fr,0.92fr] lg:gap-12 mt-4 lg:mt-0">
                                 {/* Left */}
                                 <div className="text-center text-white lg:text-left">
                                     <motion.div
@@ -258,7 +258,7 @@ const Hero = ({ deals = [], isLoading = false }) => {
                                         initial={shouldRunEntryAnimation ? { y: 18, opacity: 0 } : false}
                                         animate={{ y: 0, opacity: 1 }}
                                         transition={{ delay: 0.08 }}
-                                        className="mx-auto max-w-[16ch] text-[clamp(2rem,5.5vw,4rem)] font-[1000] leading-[0.98] tracking-[-0.06em] text-balance lg:mx-0"
+                                        className="mx-auto max-w-[16ch] text-[clamp(1.75rem,5.5vw,4rem)] font-[1000] leading-[0.98] tracking-[-0.06em] text-balance lg:mx-0"
                                     >
                                         Mega Deals - Save More Today
                                     </motion.h1>
@@ -274,7 +274,7 @@ const Hero = ({ deals = [], isLoading = false }) => {
                                         </p>
                                         <h2
                                             title={slide.rawTitle || slide.title}
-                                            className="mt-2 line-clamp-2 max-w-[16ch] text-[clamp(1.3rem,3.7vw,2.5rem)] font-[1000] leading-[1.1] tracking-[-0.045em] text-balance text-white"
+                                            className="mt-2 line-clamp-2 max-w-[16ch] text-[clamp(1.2rem,3.7vw,2.5rem)] font-[1000] leading-[1.1] tracking-[-0.045em] text-balance text-white"
                                         >
                                             {slide.title}
                                         </h2>
@@ -364,11 +364,11 @@ const Hero = ({ deals = [], isLoading = false }) => {
                                     <div className="relative w-full max-w-[490px] rounded-[2rem] border border-white/14 bg-white/10 p-3 shadow-[0_22px_42px_-28px_rgba(0,0,0,0.32)] backdrop-blur-xl sm:rounded-[2.5rem] sm:p-4 lg:p-5">
                                         <div className="relative overflow-hidden rounded-[1.6rem] border border-white/14 bg-white/8 p-3 sm:rounded-[1.85rem] sm:p-4">
                                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.1),transparent_42%)]" />
-                                            <div className="flex min-h-[290px] items-center justify-center sm:min-h-[360px]">
+                                            <div className="flex min-h-[200px] sm:min-h-[290px] lg:min-h-[360px] items-center justify-center">
                                                 <img
                                                     src={slide.image}
                                                     alt={slide.title}
-                                                    className="max-h-[310px] w-full object-contain transition-transform duration-700 group-hover:scale-[1.02] sm:max-h-[420px]"
+                                                    className="max-h-[200px] sm:max-h-[310px] w-full object-contain transition-transform duration-700 group-hover:scale-[1.02] lg:max-h-[420px]"
                                                     loading="eager"
                                                     fetchPriority="high"
                                                     decoding="async"
@@ -458,27 +458,7 @@ const Hero = ({ deals = [], isLoading = false }) => {
                 )}
             </div>
 
-            {showMobileStickyCta && (
-                <div className="pointer-events-none fixed inset-x-0 bottom-[5.45rem] z-40 px-3 md:hidden">
-                    {slide.isExternal ? (
-                        <a
-                            href={slide.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="pointer-events-auto mx-auto flex h-[3.9rem] max-w-md items-center gap-3 rounded-[1.55rem] border border-white/10 bg-slate-950 px-3 text-white no-underline shadow-[0_22px_52px_-22px_rgba(2,6,23,0.95)] transition-transform active:scale-[0.98]"
-                        >
-                            <HeroStickyContent slide={slide} label="Grab Deal" />
-                        </a>
-                    ) : (
-                        <Link
-                            to={slide.href}
-                            className="pointer-events-auto mx-auto flex h-[3.9rem] max-w-md items-center gap-3 rounded-[1.55rem] border border-white/10 bg-slate-950 px-3 text-white shadow-[0_22px_52px_-22px_rgba(2,6,23,0.95)] transition-transform active:scale-[0.98]"
-                        >
-                            <HeroStickyContent slide={slide} label="Grab Deal" />
-                        </Link>
-                    )}
-                </div>
-            )}
+
 
             <div className="border-b border-[#E2E8F0] bg-white">
                 <div className="mx-auto grid max-w-7xl grid-cols-2 items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-[#64748B] md:flex md:flex-wrap md:justify-between md:gap-6 md:px-6 md:py-4 lg:px-8">

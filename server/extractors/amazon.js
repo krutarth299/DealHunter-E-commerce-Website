@@ -24,7 +24,7 @@ export async function extractAmazon(page) {
     // THUMBNAILS
     $("#altImages img").each((i, img) => {
         let src = $(img).attr("src");
-        if (!src) return;
+        if (!src || src.includes('load_indicator_spinner') || src.includes('transparent-pixel')) return;
         src = src.replace(/\._.*_\./, "."); // Get full resolution
         if (src.includes("m.media-amazon.com")) {
             imageList.push(src);
