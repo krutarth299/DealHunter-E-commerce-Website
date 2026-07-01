@@ -196,6 +196,9 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                         value={searchVal}
                                         onChange={e => { setSearchVal(e.target.value); if (onSearch) onSearch(e.target.value); }}
                                         placeholder="Search 10,000+ verified deals..."
+                                        autoComplete="off"
+                                        autoCorrect="off"
+                                        spellCheck="false"
                                         className="w-full bg-slate-100/50 border border-slate-200/80 rounded-2xl py-2.5 pl-12 pr-6 text-sm font-semibold focus:outline-none focus:bg-white focus:border-[#FF6A00] focus:ring-4 focus:ring-[#FF6A00]/10 shadow-sm focus:shadow-md transition-all duration-300"
                                     />
                                     <AnimatePresence>
@@ -272,6 +275,9 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                     value={searchVal}
                                     onChange={e => { setSearchVal(e.target.value); if (onSearch) onSearch(e.target.value); }}
                                     placeholder="Search deals..."
+                                    autoComplete="off"
+                                    autoCorrect="off"
+                                    spellCheck="false"
                                     className="w-full bg-slate-100/50 border border-slate-200/80 rounded-2xl py-2.5 pl-12 pr-6 text-sm font-semibold focus:outline-none focus:bg-white focus:border-[#FF6A00] focus:ring-4 focus:ring-[#FF6A00]/10 shadow-sm focus:shadow-md transition-all duration-300"
                                 />
                             </form>
@@ -371,7 +377,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="md:hidden border-t border-slate-100 bg-white overflow-hidden">
                                     <div className="px-4 py-6 space-y-2">
                                         <form onSubmit={handleSearch} className="relative mb-6">
-                                            <input type="text" value={searchVal} onChange={e => { setSearchVal(e.target.value); if (onSearch) onSearch(e.target.value); }} placeholder="Search for deals..." className="w-full bg-slate-100/50 border border-slate-200/80 rounded-2xl py-4 pl-5 pr-12 text-sm font-bold focus:outline-none focus:bg-white focus:border-[#FF6A00] focus:ring-4 focus:ring-[#FF6A00]/10 shadow-sm focus:shadow-md transition-all duration-300" />
+                                            <input type="text" value={searchVal} onChange={e => { setSearchVal(e.target.value); if (onSearch) onSearch(e.target.value); }} placeholder="Search for deals..." autoComplete="off" autoCorrect="off" spellCheck="false" className="w-full bg-slate-100/50 border border-slate-200/80 rounded-2xl py-4 pl-5 pr-12 text-sm font-bold focus:outline-none focus:bg-white focus:border-[#FF6A00] focus:ring-4 focus:ring-[#FF6A00]/10 shadow-sm focus:shadow-md transition-all duration-300" />
                                             <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"><Search size={20} /></button>
                                         </form>
                                         {searchVal.trim().length >= 2 && searchSuggestions.length > 0 && (

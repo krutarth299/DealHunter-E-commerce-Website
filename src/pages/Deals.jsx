@@ -752,6 +752,9 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
                                     onFocus={() => setIsSearchFocused(true)}
                                     onBlur={() => setTimeout(() => setIsSearchFocused(false), 120)}
                                     placeholder="Search deals, stores or categories..."
+                                    autoComplete="off"
+                                    autoCorrect="off"
+                                    spellCheck="false"
                                     className="flex-1 bg-transparent border-none text-base font-bold text-slate-900 outline-none focus:ring-0 focus:outline-none placeholder:text-slate-300"
                                 />
                                 {searchQuery && (
