@@ -6,7 +6,7 @@ import Footer from '../components/Footer';
 import DealsGrid from '../components/DealsGrid';
 import { 
     Filter, X, SlidersHorizontal, ShoppingBag, TrendingDown, Zap, ShieldCheck, ArrowRight,
-    Clock, Search, Tag, Layers, Package, ChevronRight, Star, ExternalLink, Flame, BadgePercent
+    Clock, Search, Tag, Layers, Package, ChevronRight, ChevronDown, Star, ExternalLink, Flame, BadgePercent
 } from 'lucide-react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import SEO from '../components/SEO';
@@ -252,6 +252,7 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
     const [selectedStore, setSelectedStore] = useState(searchParams.get('store') || 'All');
     const [priceRange, setPriceRange] = useState(PRICE_RANGES[0]);
     const [sortBy, setSortBy] = useState('newest');
+    const [isSortOpen, setIsSortOpen] = useState(false);
     const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
     const [selectedDiscount, setSelectedDiscount] = useState(DISCOUNT_FILTERS[0]);
@@ -287,12 +288,28 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
         const cat = searchParams.get('category');
         const store = searchParams.get('store');
         const search = searchParams.get('search');
+        
         setSelectedCategory(cat || 'All');
         setSelectedStore(store || 'All');
         setSearchQuery(search || '');
         // Scroll when filters change
         scrollToFeed();
     }, [searchParams, scrollToFeed]);
+
+    // Clear search param on hard reload
+    useEffect(() => {
+        const isReload = typeof window !== 'undefined' && window.performance && 
+            window.performance.getEntriesByType('navigation').length > 0 && 
+            window.performance.getEntriesByType('navigation')[0].type === 'reload';
+
+        if (isReload && searchParams.has('search')) {
+            setSearchParams(prev => {
+                const p = new URLSearchParams(prev);
+                p.delete('search');
+                return p;
+            }, { replace: true });
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Sync state to URL params so they can be shared and properly refreshed
     // We only update the URL if the local state has meaningfully changed
@@ -371,12 +388,12 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
                 if (selectedCategory && selectedCategory !== 'All') query.set('category', selectedCategory);
                 if (selectedStore && selectedStore !== 'All') query.set('store', selectedStore);
                 if (selectedDiscount.value > 0) {
-                    if (selectedDiscount.value === 50) query.set('discount', '50+');
-                    else if (selectedDiscount.value === 25) query.set('discount', '25+');
+                    query.set('discount', `${selectedDiscount.value}+`);
                 }
                 
                 if (priceRange.min > 0) query.set('minPrice', priceRange.min);
-                if (priceRange.max < Infinity) query.set('maxPrice', Math.min(priceRange.max, effectiveMaxPrice));
+                const maxVal = Math.min(priceRange.max, effectiveMaxPrice);
+                if (maxVal < Infinity) query.set('maxPrice', maxVal);
                 
                 let backendSort = 'newest';
                 if (sortBy === 'price_asc') backendSort = 'price-low';
@@ -415,12 +432,12 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
             if (selectedCategory && selectedCategory !== 'All') query.set('category', selectedCategory);
             if (selectedStore && selectedStore !== 'All') query.set('store', selectedStore);
             if (selectedDiscount.value > 0) {
-                if (selectedDiscount.value === 50) query.set('discount', '50+');
-                else if (selectedDiscount.value === 25) query.set('discount', '25+');
+                query.set('discount', `${selectedDiscount.value}+`);
             }
             
             if (priceRange.min > 0) query.set('minPrice', priceRange.min);
-            if (priceRange.max < Infinity) query.set('maxPrice', Math.min(priceRange.max, effectiveMaxPrice));
+            const maxVal = Math.min(priceRange.max, effectiveMaxPrice);
+            if (maxVal < Infinity) query.set('maxPrice', maxVal);
             
             let backendSort = 'newest';
             if (sortBy === 'price_asc') backendSort = 'price-low';
@@ -734,7 +751,11 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
                             <p className="text-slate-500 text-lg md:text-xl font-medium tracking-tight">
                                 {selectedCategory !== 'All' 
                                     ? `Discover the latest price drops and premium offers in ${selectedCategory}.`
-                                    : `Analyzing ${filteredDeals.length} premium offers across India's top retailers.`
+                                    : searchQuery
+                                        ? `Showing results for "${searchQuery}"`
+                                        : (isFetchingDeals || dealsLoading)
+                                            ? `Analyzing live premium offers across India's top retailers.`
+                                            : `Analyzing ${filteredDeals.length > 0 ? filteredDeals.length : 'live'} premium offers across India's top retailers.`
                                 }
                             </p>
                         </div>
@@ -755,7 +776,8 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
                                     autoComplete="off"
                                     autoCorrect="off"
                                     spellCheck="false"
-                                    className="flex-1 bg-transparent border-none text-base font-bold text-slate-900 outline-none focus:ring-0 focus:outline-none placeholder:text-slate-300"
+                                    name="deals_search"
+                                    className="no-focus-ring flex-1 bg-transparent border-none text-base font-bold text-slate-900 outline-none focus:outline-none focus:ring-0 placeholder:text-slate-300"
                                 />
                                 {searchQuery && (
                                     <button onClick={() => setSearchQuery('')} className="w-12 h-12 rounded-2xl bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-colors mr-1">
@@ -903,15 +925,49 @@ const Deals = ({ deals, user, onSearch, wishlist, toggleWishlist, categories: gl
                                 >
                                     <SlidersHorizontal size={18} className="text-[#FF6A00]" /> Filters
                                 </button>
-                                <div className="relative h-14 bg-white border border-slate-200 rounded-2xl shadow-sm px-4 flex items-center gap-2">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Sort By</span>
-                                    <select
-                                        value={sortBy}
-                                        onChange={e => setSortBy(e.target.value)}
-                                        className="bg-transparent border-none text-sm font-black text-slate-900 outline-none cursor-pointer pr-2"
+                                <div className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsSortOpen(!isSortOpen)}
+                                        onBlur={() => setTimeout(() => setIsSortOpen(false), 200)}
+                                        className="no-focus-ring relative h-14 bg-white border border-slate-200 rounded-2xl shadow-sm px-4 flex items-center gap-3 hover:border-orange-500/50 hover:bg-orange-50/30 transition-all focus:outline-none focus:ring-0 focus:border-orange-500 group"
                                     >
-                                        {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                    </select>
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap group-hover:text-orange-500/70 transition-colors">Sort By</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-black text-slate-900 truncate min-w-[90px] text-left">
+                                                {SORT_OPTIONS.find(o => o.value === sortBy)?.label || 'Newest First'}
+                                            </span>
+                                            <ChevronDown size={16} className={`text-slate-400 transition-transform duration-300 ${isSortOpen ? 'rotate-180 text-orange-500' : ''}`} />
+                                        </div>
+                                    </button>
+                                    <AnimatePresence>
+                                        {isSortOpen && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                transition={{ duration: 0.15 }}
+                                                className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[220px] rounded-2xl border border-slate-100 bg-white p-2 shadow-xl shadow-slate-900/5"
+                                            >
+                                                {SORT_OPTIONS.map((o) => (
+                                                    <button
+                                                        key={o.value}
+                                                        onClick={() => {
+                                                            setSortBy(o.value);
+                                                            setIsSortOpen(false);
+                                                        }}
+                                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold transition-all ${
+                                                            sortBy === o.value 
+                                                                ? 'bg-orange-50 text-orange-600' 
+                                                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                                                        }`}
+                                                    >
+                                                        {o.label}
+                                                    </button>
+                                                ))}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             </div>
                         </div>

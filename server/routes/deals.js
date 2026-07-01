@@ -370,10 +370,11 @@ router.get('/', async (req, res) => {
         }
 
         if (discount && discount !== 'All') {
-            if (discount === '50+') {
-                andConditions.push({ discountPercent: { $gte: 50 } });
-            } else if (discount === '25+') {
-                andConditions.push({ discountPercent: { $gte: 25 } });
+            if (discount.endsWith('+')) {
+                const minDiscount = parseInt(discount.replace('+', ''), 10);
+                if (!isNaN(minDiscount)) {
+                    andConditions.push({ discountPercent: { $gte: minDiscount } });
+                }
             } else if (discount === '1-24') {
                 andConditions.push({ discountPercent: { $gt: 0, $lt: 25 } });
             } else if (discount === '0') {

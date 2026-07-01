@@ -53,6 +53,19 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
         fetchNotifications();
     }, [fetchNotifications]);
 
+    // Sync with URL params if on deals page
+    useEffect(() => {
+        if (routeLocation.pathname === '/deals') {
+            const isReload = typeof window !== 'undefined' && window.performance && 
+                window.performance.getEntriesByType('navigation').length > 0 && 
+                window.performance.getEntriesByType('navigation')[0].type === 'reload';
+
+            const query = new URLSearchParams(routeLocation.search).get('search');
+            if (query && !isReload) setSearchVal(query);
+            else setSearchVal('');
+        }
+    }, [routeLocation.pathname, routeLocation.search]);
+
     // Fetch freebies status
     useEffect(() => {
         if (apiBase) {
@@ -199,7 +212,8 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                         autoComplete="off"
                                         autoCorrect="off"
                                         spellCheck="false"
-                                        className="w-full bg-slate-100/50 border border-slate-200/80 rounded-2xl py-2.5 pl-12 pr-6 text-sm font-semibold focus:outline-none focus:bg-white focus:border-[#FF6A00] focus:ring-4 focus:ring-[#FF6A00]/10 shadow-sm focus:shadow-md transition-all duration-300"
+                                        name="navbar_search_desktop"
+                                        className="no-focus-ring w-full bg-slate-100/30 border border-slate-200/60 rounded-2xl py-2.5 pl-12 pr-6 text-sm font-semibold focus:outline-none focus:bg-white focus:border-[#FF6A00]/50 focus:ring-[6px] focus:ring-[#FF6A00]/5 transition-all"
                                     />
                                     <AnimatePresence>
                                         {searchVal.trim().length >= 2 && (
@@ -278,7 +292,8 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                     autoComplete="off"
                                     autoCorrect="off"
                                     spellCheck="false"
-                                    className="w-full bg-slate-100/50 border border-slate-200/80 rounded-2xl py-2.5 pl-12 pr-6 text-sm font-semibold focus:outline-none focus:bg-white focus:border-[#FF6A00] focus:ring-4 focus:ring-[#FF6A00]/10 shadow-sm focus:shadow-md transition-all duration-300"
+                                    name="navbar_search_mobile"
+                                    className="no-focus-ring w-full bg-slate-100/30 border border-slate-200/60 rounded-2xl py-2.5 pl-12 pr-6 text-sm font-semibold focus:outline-none focus:bg-white focus:border-[#FF6A00]/50 focus:ring-[6px] focus:ring-[#FF6A00]/5 transition-all"
                                 />
                             </form>
 
@@ -377,7 +392,7 @@ const Navbar = ({ onSearch, wishlistCount = 0 }) => {
                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="md:hidden border-t border-slate-100 bg-white overflow-hidden">
                                     <div className="px-4 py-6 space-y-2">
                                         <form onSubmit={handleSearch} className="relative mb-6">
-                                            <input type="text" value={searchVal} onChange={e => { setSearchVal(e.target.value); if (onSearch) onSearch(e.target.value); }} placeholder="Search for deals..." autoComplete="off" autoCorrect="off" spellCheck="false" className="w-full bg-slate-100/50 border border-slate-200/80 rounded-2xl py-4 pl-5 pr-12 text-sm font-bold focus:outline-none focus:bg-white focus:border-[#FF6A00] focus:ring-4 focus:ring-[#FF6A00]/10 shadow-sm focus:shadow-md transition-all duration-300" />
+                                            <input type="text" value={searchVal} onChange={e => { setSearchVal(e.target.value); if (onSearch) onSearch(e.target.value); }} placeholder="Search for deals..." autoComplete="off" autoCorrect="off" spellCheck="false" name="navbar_search_menu" className="no-focus-ring w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-5 pr-12 text-sm font-bold focus:outline-none" />
                                             <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"><Search size={20} /></button>
                                         </form>
                                         {searchVal.trim().length >= 2 && searchSuggestions.length > 0 && (

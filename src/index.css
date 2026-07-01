@@ -97,7 +97,7 @@
   }
 
   /* Global keyboard focus override strictly for accessibility */
-  *:focus-visible {
+  *:focus-visible:not(.no-focus-ring) {
     outline: 3px solid #f97316 !important;
     outline-offset: 3px !important;
     box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.2) !important;
