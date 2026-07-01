@@ -239,13 +239,13 @@ const AlternativesSnapshot = ({ alternatives = [], currentStore = '', store = ''
             {rows.length > 0 ? (
                 <div className="space-y-3">
                     {rows.map((deal) => (
-                        <div key={deal.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                        <Link to={`/product/${deal.id}`} key={deal.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 hover:bg-slate-100 transition-colors">
                             <div className="min-w-0">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-blue-600">{deal.store}</p>
                                 <p className="mt-1 truncate text-xs font-bold text-slate-700">{deal.title}</p>
                             </div>
                             <span className="shrink-0 text-sm font-black text-slate-950">{formatProductPrice(deal.price, store, link)}</span>
-                        </div>
+                        </Link>
                     ))}
                 </div>
             ) : (

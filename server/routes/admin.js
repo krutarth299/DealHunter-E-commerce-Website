@@ -39,7 +39,8 @@ router.get('/stats', async (req, res) => {
             avgDiscountResult,
             topClickedDeals,
             dupGroupsResult,
-            incompleteDeals
+            incompleteDeals,
+            totalClicksResult
         ] = await Promise.all([
             Deal.countDocuments({}),
             Deal.countDocuments({ isExpired: { $ne: true } }),
@@ -77,12 +78,16 @@ router.get('/stats', async (req, res) => {
                 ]
             })
             .limit(20)
-            .lean()
+            .lean(),
+            Deal.aggregate([
+                { $group: { _id: null, totalClicks: { $sum: "$views" } } }
+            ])
         ]);
 
         const avgDiscount = avgDiscountResult.length ? Math.round(avgDiscountResult[0].avgDiscount) : 0;
         const duplicateGroups = dupGroupsResult.map(g => g.ids);
         const duplicateCount = dupGroupsResult.reduce((acc, g) => acc + (g.count - 1), 0);
+        const totalClicks = totalClicksResult.length ? totalClicksResult[0].totalClicks : 0;
 
         res.json({
             totalDeals,
@@ -94,7 +99,8 @@ router.get('/stats', async (req, res) => {
             topClickedDeals,
             duplicateGroups,
             duplicateCount,
-            incompleteDeals
+            incompleteDeals,
+            totalClicks
         });
     } catch (error) {
         res.status(500).json({ message: error.message || 'Failed to fetch admin stats' });

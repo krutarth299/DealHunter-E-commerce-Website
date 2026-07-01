@@ -556,6 +556,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
         if (!socket) return;
 
         const handleNewDeal = (newDeal) => {
+            fetchMetadata({ silent: true });
             if (currentPage === 1) {
                 fetchDealsList({ silent: true });
             } else {
@@ -564,6 +565,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
         };
 
         const handleUpdateDeal = (updatedDeal) => {
+            fetchMetadata({ silent: true });
             if (currentPage === 1) {
                 fetchDealsList({ silent: true });
             } else {
@@ -573,6 +575,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
         };
 
         const handleDeleteDeal = (dealId) => {
+            fetchMetadata({ silent: true });
             setAdminDeals(prev => prev.filter(d => (d._id || d.id) !== dealId));
             setTotalCount(prev => Math.max(0, prev - 1));
         };
@@ -586,7 +589,7 @@ const AdminPanel = ({ user, deals, setDeals, handleAddDeal, dealForm = {}, setDe
             socket.off('updateDeal', handleUpdateDeal);
             socket.off('deleteDeal', handleDeleteDeal);
         };
-    }, [currentPage, fetchDealsList, adminApiBase]);
+    }, [currentPage, fetchDealsList, fetchMetadata, adminApiBase]);
 
     const handleFetchDeal = async (urlToFetch) => {
         const url = (typeof urlToFetch === 'string' ? urlToFetch : dealForm.productUrl)?.trim();

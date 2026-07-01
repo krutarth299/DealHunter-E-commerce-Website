@@ -30,21 +30,11 @@ const Dashboard = ({
 
     const safeDeals = safeArray(adminDeals);
     
-    // Revenue Estimate heuristic (just for UI placeholder as requested)
-    const totalClicks = safeArray(stats?.topClickedDeals).reduce((sum, d) => sum + getDealViews(d), 0) + ((stats?.totalDeals || 0) * 15);
-    const revenueEst = Math.floor(totalClicks * 0.12);
-    
-    // CTR heuristic placeholder
-    const activeCTR = useMemo(() => {
-        const base = (totalClicks % 4) + 2.1;
-        return base.toFixed(1);
-    }, [totalClicks]);
-
     const cards = [
-        { label: 'Total Deals', value: stats?.totalDeals || 0, icon: Package, color: 'from-blue-500 to-indigo-600', shadow: 'shadow-blue-500/20', trend: '+12% this week', trendUp: true },
-        { label: 'Active CTR', value: `${activeCTR}%`, icon: Activity, color: 'from-emerald-400 to-teal-500', shadow: 'shadow-emerald-500/20', trend: '+0.4% from avg', trendUp: true },
-        { label: 'Total Clicks', value: totalClicks.toLocaleString(), icon: TrendingUp, color: 'from-purple-500 to-pink-600', shadow: 'shadow-purple-500/20', trend: '+2,100 this week', trendUp: true },
-        { label: 'Est. Revenue', value: `₹${revenueEst.toLocaleString()}`, icon: DollarSign, color: 'from-orange-500 to-[#FF6A00]', shadow: 'shadow-orange-500/20', trend: '+15% MoM', trendUp: true }
+        { label: 'Total Deals', value: stats?.totalDeals || 0, icon: Package, color: 'from-blue-500 to-indigo-600', shadow: 'shadow-blue-500/20', trend: 'Exact Count', trendUp: true },
+        { label: 'Active Deals', value: stats?.activeDeals || 0, icon: Activity, color: 'from-emerald-400 to-teal-500', shadow: 'shadow-emerald-500/20', trend: 'Currently Live', trendUp: true },
+        { label: 'Total Clicks', value: (stats?.totalClicks || 0).toLocaleString(), icon: TrendingUp, color: 'from-purple-500 to-pink-600', shadow: 'shadow-purple-500/20', trend: 'Total Views', trendUp: true },
+        { label: 'Total Stores', value: stats?.totalStores || 0, icon: Flame, color: 'from-orange-500 to-[#FF6A00]', shadow: 'shadow-orange-500/20', trend: 'Tracked', trendUp: true }
     ];
 
     const sortedTableDeals = useMemo(() => {
